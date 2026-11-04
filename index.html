@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal de Proyectos</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --fondo-img:none;            /* opcional: url('fondo.jpg') */
+  --brand:#1D9E75;
+  --glass:rgba(255,255,255,.14);
+  --glass-hover:rgba(255,255,255,.24);
+  --glass-line:rgba(255,255,255,.35);
+}
+html,body{min-height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  color:#fff;
+  min-height:100vh;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:24px;padding:32px 20px;
+  background-color:#2f5d4e;
+  background-image:
+    var(--fondo-img),
+    radial-gradient(60% 50% at 15% 20%,#7fa88f 0%,transparent 70%),
+    radial-gradient(55% 55% at 85% 15%,#3f6b3a 0%,transparent 70%),
+    radial-gradient(70% 60% at 50% 100%,#2c7a80 0%,transparent 70%),
+    linear-gradient(160deg,#4f8a74,#2b5a55);
+  background-size:cover;background-position:center;background-attachment:fixed;
+}
+.seccion{
+  width:100%;max-width:700px;
+  background:var(--glass);
+  border:1px solid var(--glass-line);
+  border-radius:32px;
+  padding:34px 36px 20px;
+  -webkit-backdrop-filter:blur(22px) saturate(140%);
+  backdrop-filter:blur(22px) saturate(140%);
+  box-shadow:0 10px 40px rgba(0,0,0,.18);
+}
+.seccion h2{
+  font-size:clamp(32px,6vw,44px);font-weight:800;letter-spacing:-.02em;
+  text-shadow:0 2px 8px rgba(0,0,0,.25);
+  padding-bottom:18px;margin-bottom:10px;
+  border-bottom:1px solid var(--glass-line);
+}
+.item{
+  display:flex;align-items:center;gap:20px;
+  padding:14px 10px;margin:0 -10px;
+  border-radius:20px;
+  color:inherit;text-decoration:none;
+  transition:background .18s,transform .18s;
+}
+.item + .item{margin-top:2px}
+.item:hover,.item:focus-visible{background:var(--glass-hover)}
+.item:active{transform:scale(.99)}
+.item:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.icono{
+  flex:0 0 auto;width:64px;height:64px;border-radius:18px;
+  background:var(--brand);
+  display:flex;align-items:center;justify-content:center;
+  font-size:30px;color:#fff;
+  box-shadow:0 4px 12px rgba(0,0,0,.2);
+}
+.texto{flex:1;min-width:0}
+.titulo{font-size:clamp(17px,3.6vw,21px);font-weight:600;text-shadow:0 1px 4px rgba(0,0,0,.25)}
+.desc{font-size:13px;opacity:.85;margin-top:2px}
+.chevron{font-size:22px;opacity:.9;flex:0 0 auto}
+.item.deshabilitado{opacity:.55;pointer-events:none}
+.pie{font-size:12px;opacity:.75;text-shadow:0 1px 3px rgba(0,0,0,.3)}
+@media (max-width:480px){
+  .seccion{padding:26px 22px 14px;border-radius:26px}
+  .icono{width:54px;height:54px;font-size:26px;border-radius:15px}
+}
+@media (prefers-reduced-motion:reduce){.item{transition:none}}
+</style>
+</head>
+<body>
+<main id="portal" aria-live="polite"></main>
+<footer class="pie">Planificador de Cosecha de Caña · Portal de proyectos</footer>
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN — único bloque a editar al subir nuevas versiones
+   o agregar accesos. Rutas relativas (mismo repo / mismo origen
+   en GitHub Pages => la sesión de Firebase Auth se comparte).
+   ============================================================ */
+const SECCIONES = [
+  {
+    titulo: 'Cosecha',
+    items: [
+      {
+        nombre: 'Planificador de Cosecha de Caña',
+        icono: 'ti-tractor',
+        href: 'planificador-cosecha.html'
+      },
+      {
+        nombre: 'Seguimiento del Plan',
+        desc: 'Avance real vs. plan · lectura del Planificador',
+        icono: 'ti-chart-line',
+        href: 'seguimiento_cosecha.html'
+      }
+      /* Otros accesos: { nombre:'...', icono:'ti-...', href:'archivo.html' }
+         Sin href => se muestra deshabilitado ("próximamente"). */
+    ]
+  }
+];
+
+/* ---------- Render ---------- */
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+document.getElementById('portal').innerHTML = SECCIONES.map(sec => `
+  <section class="seccion" aria-labelledby="h-${esc(sec.titulo)}">
+    <h2 id="h-${esc(sec.titulo)}">${esc(sec.titulo)}</h2>
+    ${sec.items.map(it => `
+      <a class="item${it.href ? '' : ' deshabilitado'}" ${it.href ? `href="${esc(it.href)}"` : 'aria-disabled="true" tabindex="-1"'}>
+        <span class="icono" aria-hidden="true"><i class="ti ${esc(it.icono || 'ti-apps')}"></i></span>
+        <span class="texto">
+          <div class="titulo">${esc(it.nombre)}</div>
+          ${it.desc ? `<div class="desc">${esc(it.desc)}</div>` : ''}
+        </span>
+        <i class="ti ti-chevron-right chevron" aria-hidden="true"></i>
+      </a>`).join('')}
+  </section>`).join('');
+</script>
+</body>
+</html>
