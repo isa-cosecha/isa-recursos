@@ -213,16 +213,16 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
 .portada-luz{display:none}
 .portada-logo{position:absolute;top:clamp(16px,3vw,34px);left:clamp(16px,3.5vw,46px);width:min(330px,46vw);aspect-ratio:900/294;height:auto;padding:0;border-radius:0;
   background:transparent var(--isa-logo-full) center/contain no-repeat;filter:drop-shadow(0 0 5px rgba(255,255,255,.55)) drop-shadow(0 1px 8px rgba(255,255,255,.35))}
-.portada-panel{position:relative;width:min(560px,100%);margin:0;padding:clamp(18px,2.4vw,28px) clamp(20px,2.6vw,32px) clamp(14px,2vw,22px);
-  border:1px solid rgba(255,255,255,.42);border-radius:30px;
-  background:linear-gradient(160deg,rgba(24,86,52,.62) 0%,rgba(52,92,34,.58) 100%);
+.portada-panel{position:relative;width:fit-content;min-width:min(310px,100%);max-width:min(420px,100%);margin:0;padding:clamp(14px,1.8vw,20px) clamp(16px,2vw,24px) clamp(8px,1.2vw,12px);
+  border:1px solid rgba(255,255,255,.38);border-radius:22px;
+  background:linear-gradient(160deg,rgba(24,86,52,.50) 0%,rgba(52,92,34,.46) 100%);
   backdrop-filter:blur(14px) saturate(1.1);-webkit-backdrop-filter:blur(14px) saturate(1.1);box-shadow:0 14px 40px rgba(0,0,0,.28)}
-.portada-panel h1{font-size:clamp(30px,3.6vw,44px);font-weight:700;letter-spacing:-.01em;line-height:1.1;margin:0 0 14px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,.32);text-shadow:0 2px 10px rgba(0,0,0,.25)}
-.portada-panel ul{list-style:none;display:flex;flex-direction:column;gap:4px;margin:0;padding:0}
-.portada-panel a{display:flex;align-items:center;gap:16px;padding:8px 6px;margin:0 -6px;color:#fff;text-decoration:none;font-size:clamp(15px,1.5vw,18px);font-weight:600;line-height:1.25;border-radius:16px;transition:background .18s}
+.portada-panel h1{font-size:clamp(22px,2.3vw,28px);font-weight:700;letter-spacing:-.01em;line-height:1.1;margin:0 0 8px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.32);text-shadow:0 2px 10px rgba(0,0,0,.25)}
+.portada-panel ul{list-style:none;display:flex;flex-direction:column;gap:2px;margin:0;padding:0}
+.portada-panel a{display:flex;align-items:center;gap:12px;padding:6px;margin:0 -6px;color:#fff;text-decoration:none;font-size:clamp(13px,1.15vw,15px);font-weight:600;line-height:1.25;border-radius:13px;text-shadow:0 1px 3px rgba(0,0,0,.35);transition:background .18s}
 .portada-panel a:hover,.portada-panel a:focus-visible{background:rgba(255,255,255,.16);outline:none}
-.portada-cuadro{display:inline-flex;align-items:center;justify-content:center;width:50px;height:50px;border-radius:14px;background:#1f9d62;font-size:26px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-.portada-flecha{margin-left:auto;font-size:20px;opacity:.9;flex-shrink:0}
+.portada-cuadro{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:10px;background:#1f9d62;font-size:19px;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.portada-flecha{margin-left:auto;padding-left:22px;font-size:16px;opacity:.9;flex-shrink:0}
 .portada-puntos{position:absolute;bottom:clamp(20px,4vw,40px);right:clamp(16px,3vw,36px);left:auto;transform:none;display:flex;gap:9px}
 @media (max-width:640px){.portada-salir{right:16px;top:18px;padding:8px 12px}.portada-salir span{display:none}.portada{padding:0 12px 18px}.portada-puntos{display:none}}
 </style>
@@ -2513,7 +2513,27 @@ const FB_COLECCION_ROLES = 'usuarios_roles';
 const FB_COLECCION_HISTORIAL = 'historial_cambios';
 let fbUltimoChunk = { campos:null, plan:null, molienda:null, equipos:null, ejecucion:null }; // última versión conocida de cada doc, para mezclar antes de _aplicarDatos
 
+/* Sesión recordada: al volver de otro módulo (Seguimiento, Diseño de lotes) la portada aparece de inmediato
+   y la verificación real de sesión/rol de Firebase sigue en segundo plano. Si Firebase dice que no hay
+   sesión, se muestra el login. La protección de datos real la dan las reglas de Firestore. */
+var ISA_SESION_KEY = 'isa.sesion.v1';
+var _portadaOptimista = false, _entrarPendiente = false;
+function _sesionRecordada() {
+  try { var j = JSON.parse(localStorage.getItem(ISA_SESION_KEY) || 'null');
+        if (j && j.email && j.rol && (Date.now() - j.ts) < 7 * 864e5) return j; } catch (e) {}
+  return null;
+}
+function _guardarSesion(email, rol) { try { localStorage.setItem(ISA_SESION_KEY, JSON.stringify({ email: email, rol: rol, ts: Date.now() })); } catch (e) {} }
+function _olvidarSesion() { try { localStorage.removeItem(ISA_SESION_KEY); } catch (e) {} }
+
 function initFirebase() {
+  var _rec = _sesionRecordada();
+  if (_rec) {
+    _portadaOptimista = true;
+    document.getElementById('login-screen').style.display = 'none';
+    mostrarPortada();
+    var _pl = document.getElementById('portada-planificador'); if (_pl) _pl.style.opacity = '.6';
+  }
   try {
     if (typeof firebase === 'undefined') {
       mostrarErrorLogin('No se pudo cargar Firebase — revisa tu conexión a internet y recarga la página.');
@@ -2523,7 +2543,7 @@ function initFirebase() {
     fbAuth = firebase.auth();
     fbDb = firebase.firestore();
     var _authResuelto = false;
-    setTimeout(function() { if (!_authResuelto) mostrarPantallaLogin(); }, 8000);
+    setTimeout(function() { if (!_authResuelto && !_portadaOptimista) mostrarPantallaLogin(); }, 20000);
     fbAuth.onAuthStateChanged(function(user) {
       _authResuelto = true;
       if (user) {
@@ -2531,6 +2551,7 @@ function initFirebase() {
         mostrarAppTrasLogin(user);
       } else {
         fbUsuarioActual = null;
+        _olvidarSesion(); _portadaOptimista = false;
         desconectarListenersFirestore();
         mostrarPantallaLogin();
       }
@@ -2580,6 +2601,7 @@ function mostrarPortada() {
 }
 
 function entrarAlPlanificador() {
+  if (!fbUsuarioActual) { _entrarPendiente = true; return; } // sesión aún verificándose: entra en cuanto termine
   document.getElementById('portada').style.display = 'none';
   document.getElementById('app-container').style.display = 'block';
   window.dispatchEvent(new Event('resize')); // por si el mapa/gráficos se midieron ocultos
@@ -2649,11 +2671,17 @@ function verificarRolYContinuar(user) {
 }
 
 function mostrarPantallaBootstrapAdmin() {
+  document.getElementById('login-screen').style.display = 'flex';
+  var _ptx = document.getElementById('portada'); if (_ptx) _ptx.style.display = 'none';
+  _portadaOptimista = false;
   document.getElementById('login-loading').style.display = 'none';
   document.getElementById('login-bootstrap-admin').style.display = 'block';
 }
 
 function mostrarPantallaSinRol(email) {
+  document.getElementById('login-screen').style.display = 'flex';
+  var _ptx = document.getElementById('portada'); if (_ptx) _ptx.style.display = 'none';
+  _portadaOptimista = false;
   document.getElementById('login-loading').style.display = 'none';
   document.getElementById('login-sin-rol-email').textContent = email;
   document.getElementById('login-sin-rol').style.display = 'block';
@@ -2679,11 +2707,14 @@ function confirmarBootstrapAdmin() {
    no confunda a un visor mostrándole botones que igual le fallarían. */
 function continuarConRolAsignado() {
   document.getElementById('login-screen').style.display = 'none';
-  mostrarPortada();
+  if (document.getElementById('app-container').style.display !== 'block') mostrarPortada();
+  if (fbUsuarioActual) _guardarSesion(fbUsuarioActual.email, fbRolActual);
+  var _pl = document.getElementById('portada-planificador'); if (_pl) _pl.style.opacity = '';
   var btnUsuarios = document.getElementById('btn-gestion-usuarios');
   if (btnUsuarios) btnUsuarios.style.display = (fbRolActual === 'admin') ? 'inline-flex' : 'none';
   if (fbRolActual === 'visor') aplicarModoSoloLectura();
   conectarSincronizacionFirestore();
+  if (_entrarPendiente) { _entrarPendiente = false; entrarAlPlanificador(); }
 }
 
 /* Modo solo lectura — oculta los controles de creación/edición más

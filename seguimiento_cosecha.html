@@ -111,6 +111,11 @@
 <style>
 .sgp-top{background:#0D4934;color:#fff;height:52px;padding:0 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.15);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
 .sgp-top .sgp-title{font-size:15px;font-weight:600;flex:1}
+.sgp-sync{font-size:12px;opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:55vw}
+.sgp-sync.err{color:#ffd9a8}
+.sgp-sync.ld::before{content:"";display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;background:#7be0a8;animation:sgpPulse .9s infinite alternate}
+@keyframes sgpPulse{to{opacity:.2}}
+@media (max-width:640px){.sgp-sync{display:none}}
 .sgp-btn{background:rgba(255,255,255,.15);color:#fff;border:0.5px solid rgba(255,255,255,.3);border-radius:8px;padding:5px 12px;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:6px;cursor:pointer;text-decoration:none;font-family:inherit;line-height:1.4}
 .sgp-btn:hover{background:rgba(255,255,255,.25)}
 .sgp .vm{display:inline-block;font-size:11px;font-weight:600;border-radius:8px;padding:1px 8px;white-space:nowrap}
@@ -120,7 +125,7 @@
 </style>
 </head>
 <body style="margin:0;background:#edf0f4">
-<header class="sgp-top"><a href="index.html" class="sgp-btn" title="Volver a la portada"><i class="ti ti-home"></i> Inicio</a><span class="sgp-title">Seguimiento de Cosecha</span><button type="button" class="sgp-btn" onclick="SGP.api.recargar()" title="Vuelve a leer la base del planificador"><i class="ti ti-refresh"></i> Actualizar</button></header>
+<header class="sgp-top"><a href="index.html" class="sgp-btn" title="Volver a la portada"><i class="ti ti-home"></i> Inicio</a><span class="sgp-title">Seguimiento de Cosecha</span><span id="sgp-sync" class="sgp-sync" aria-live="polite"></span><button type="button" class="sgp-btn" onclick="SGP.api.recargar()" title="Vuelve a leer la base del planificador"><i class="ti ti-refresh"></i> Actualizar</button></header>
 <div id="sgp-root" class="sgp"></div>
 <script>
 var SGP=(function(){
@@ -157,6 +162,14 @@ var FB_CONFIG={
   measurementId: "G-0DSZBP5KVQ"
 };
 var DB=null, fbDb=null, fbAuth=null;
+/* ── Caché local (IndexedDB): muestra al instante la última lectura y actualiza en segundo plano ── */
+var CACHE_DB='sgp-cache',CACHE_ST='base',CACHE_KEY='ultima',_leyendo=false;
+function cacheAbrir(){return new Promise(function(res,rej){try{var q=indexedDB.open(CACHE_DB,1);q.onupgradeneeded=function(){q.result.createObjectStore(CACHE_ST);};q.onsuccess=function(){res(q.result);};q.onerror=function(){rej(q.error);};}catch(e){rej(e);}});}
+function cacheLeer(){return cacheAbrir().then(function(db){return new Promise(function(res){var r=db.transaction(CACHE_ST).objectStore(CACHE_ST).get(CACHE_KEY);r.onsuccess=function(){res(r.result||null);};r.onerror=function(){res(null);};});}).catch(function(){return null;});}
+function cacheGuardar(d){return cacheAbrir().then(function(db){return new Promise(function(res){var tx=db.transaction(CACHE_ST,'readwrite');tx.objectStore(CACHE_ST).put({ts:Date.now(),d:d},CACHE_KEY);tx.oncomplete=function(){res(true);};tx.onerror=tx.onabort=function(){res(false);};});}).catch(function(){return false;});}
+function cacheBorrar(){return cacheAbrir().then(function(db){return new Promise(function(res){var tx=db.transaction(CACHE_ST,'readwrite');tx.objectStore(CACHE_ST).delete(CACHE_KEY);tx.oncomplete=tx.onerror=tx.onabort=function(){res(true);};});}).catch(function(){return false;});}
+function fechaCorta(ts){return new Date(ts).toLocaleString('es',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}
+function setSync(txt,kind){var e=document.getElementById('sgp-sync');if(!e)return;e.textContent=txt||'';e.className='sgp-sync'+(kind?' '+kind:'');e.title=txt||'';}
 function restaura(v){
   if(v===null||typeof v!=='object')return v;
   if(Array.isArray(v))return v.map(restaura);
@@ -197,21 +210,38 @@ async function leerCategoria(cat,campoArray){
   return r;
 }
 async function leerDesdeFirestore(){
-  S.srcMsg='Leyendo la base del planificador…';S.srcOk=true;render();
+  if(_leyendo)return;_leyendo=true;
+  var hayDB=!!DB,hechos=0,total=5,lento=null;
+  S.srcMsg='Leyendo la base del planificador…';S.srcOk=true;S.prog='0/'+total;
+  setSync(hayDB?'Actualizando en segundo plano…':'Leyendo la base del planificador… 0/'+total,'ld');
+  if(!hayDB)render();
+  lento=setTimeout(function(){setSync(hayDB?'Actualizando… (conexión lenta; se mantienen los datos mostrados)':'Leyendo la base… la conexión está lenta, sigo intentando','ld');},15000);
+  function marca(p){return p.then(function(v){hechos++;S.prog=hechos+'/'+total;if(!DB){setSync('Leyendo la base del planificador… '+S.prog,'ld');render();}return v;});}
   try{
-    var r=await Promise.all([leerCategoria('plan','planItems'),leerCategoria('campos','campos'),leerCategoria('ejecucion',null),leerCategoria('equipos',null),leerCategoria('labores','laboresPlan')]);
+    var lectura=Promise.all([marca(leerCategoria('plan','planItems')),marca(leerCategoria('campos','campos')),marca(leerCategoria('ejecucion',null)),marca(leerCategoria('equipos',null)),marca(leerCategoria('labores','laboresPlan'))]);
+    var tope=new Promise(function(_,rej){setTimeout(function(){rej(new Error('Tiempo de espera agotado (120 s). Revisa la conexión y pulsa Actualizar.'));},120000);});
+    var r=await Promise.race([lectura,tope]);
     if(!r[0]){throw new Error('No encontré el documento plan_0 en la colección "'+COL+'". ¿Tu usuario tiene permiso de lectura?');}
     var d=Object.assign({},r[4]||{},r[3]||{},r[2]||{},r[1]||{},r[0]);
-    DB=normalizarDB(d,'Firestore ('+COL+')');
+    var nuevo=normalizarDB(d,'Firestore ('+COL+')');
+    DB=nuevo;cacheGuardar(d);
     S.srcMsg='Base leída ('+DB.labores.nQ+' reg. quema, '+DB.labores.nM+' aplic. madurador): '+DB.planItems.length+' lotes, '+DB.campos.length+' campos, '+DB.realRecords.length+' registros reales.';S.srcOk=true;
-  }catch(e){S.srcMsg='No se pudo leer la base: '+(e&&e.message?e.message:e);S.srcOk=false;}
-  S.zafra='';render();
+    setSync('Actualizado '+fechaCorta(Date.now()),'');
+  }catch(e){
+    var m=e&&e.message?e.message:String(e);
+    S.srcMsg='No se pudo leer la base: '+m;S.srcOk=false;
+    setSync(hayDB?'No se pudo actualizar; mostrando datos guardados. '+m:'No se pudo leer la base: '+m,'err');
+  }
+  clearTimeout(lento);_leyendo=false;
+  if(!hayDB)S.zafra='';
+  render();
 }
 function iniciarFirebase(){
   if(typeof firebase==='undefined'||!FB_CONFIG){S.fbListo=false;return;}
   try{
     firebase.initializeApp(FB_CONFIG);fbAuth=firebase.auth();fbDb=firebase.firestore();S.fbListo=true;
-    fbAuth.onAuthStateChanged(function(u){S.user=u?u.email:null;if(u&&!DB)leerDesdeFirestore();else render();});
+    S.authPend=true;setTimeout(function(){if(S.authPend){S.authPend=false;render();}},12000);
+    fbAuth.onAuthStateChanged(function(u){S.authPend=false;S.user=u?u.email:null;if(u&&(!DB||DB.desdeCache))leerDesdeFirestore();else{if(!u&&DB&&DB.desdeCache)setSync('Sin sesión: mostrando datos guardados '+fechaCorta(DB.cargadoEl),'err');render();}});
   }catch(e){S.fbListo=false;S.srcMsg='No se pudo iniciar Firebase: '+e.message;S.srcOk=false;}
 }
 function login(){
@@ -824,9 +854,10 @@ function viewControles(cs,names){
 }
 function viewSinDatos(){
   var msg=(S.srcMsg&&!S.srcOk)?'<div class="status err" style="margin-top:8px">'+esc(S.srcMsg)+'</div>':'';
+  if(S.fbListo&&S.authPend)return '<div class="panel no-data">Verificando sesión…</div>';
   if(S.fbListo&&!S.user)return '<div class="panel" style="max-width:560px;margin:40px auto"><h3>Sesión del planificador</h3><div class="note" style="margin-bottom:10px">Entra con tu usuario del planificador para leer su base de datos.</div><div class="row"><input type="email" id="sgp-email" placeholder="correo" autocomplete="username" style="width:190px"> <input type="password" id="sgp-pass" placeholder="contraseña" autocomplete="current-password" style="width:150px"> <button type="button" class="btn-primary" data-act="login">Entrar</button></div>'+msg+'</div>';
   if(!S.fbListo)return '<div class="panel no-data">No se pudo iniciar la conexión con la base del planificador (revisa tu conexión a internet y recarga).'+msg+'</div>';
-  return '<div class="panel no-data">Leyendo la base del planificador…'+msg+'</div>';
+  return '<div class="panel no-data">Leyendo la base del planificador… '+(S.prog||'')+msg+'</div>';
 }
 function viewCalidad(cs){
   var d=diagnose(cs);
@@ -834,6 +865,9 @@ function viewCalidad(cs){
    +'<div class="panel"><h3>Cómo se calcula</h3><div class="note" style="font-size:12.5px">Todo sale de la base del planificador (solo lectura): lotes del plan, campos, Ejecución y la configuración por día guardada en Equipos. <b>Real por lote</b>: mismo reparto que el planificador (registro con lote va a ese lote; el de frente completo se llena en orden de secuencia; un lote se cierra al llegar a lo estimado, tolerancia 1 %, o cuando el frente pasa a uno posterior). <b>Corte</b> = día siguiente al último registro real. <b>Proyección</b>: la base es el cronograma guardado en el plan (fechas de inicio y fin de cada lote), que ya incluye la optimización, el equilibrio de cierre, los traslados y la salida de máquinas. Encima se calcula cuánto desplaza lo real a cada lote: se proyecta día por día el plan completo sin lo real y con lo real (horas del día, máquinas del día, mantenimientos y t/h por máquina de cada lote) y la diferencia se suma a las fechas del plan. Sin registros reales la proyección es exactamente el plan. Un frente sin real aparece con el plan guardado; si el plan se cambió sin «Ajustar secuencia», sus fechas pueden estar desactualizadas. <b>Programado</b> = fecha de inicio del lote en el plan; <b>Desviación</b> = llegada − programado (positivo: tarde). El desplazamiento por lo real es una aproximación (no replica traslados ni cobertura por backup); el cronograma exacto sigue siendo el de Planificación.</div></div>';
 }
 function render(){
+  try{renderInner();}catch(e){console.error(e);if(root)root.innerHTML='<div class="app-wide"><div class="panel no-data"><b>No se pudieron mostrar los datos.</b><br>'+esc(e&&e.message?e.message:String(e))+'<br><small>Pulsa Actualizar; si persiste, envía este mensaje al administrador.</small></div></div>';}
+}
+function renderInner(){
   if(!root)return;
   var y=window.scrollY;
   if(!DB){root.innerHTML='<div class="app-wide">'+viewSinDatos()+'</div>';return;}
@@ -879,7 +913,7 @@ function bind(){
       else if(a==='del'){var c=cortesZafra().filter(function(x){return x.id===S.cur;})[0];if(c&&confirm('¿Eliminar el corte "'+c.etiqueta+'"?')){S.cortes.splice(S.cortes.indexOf(c),1);S.cur='live';guardarLocal();S.msgOk=true;S.msg='Corte eliminado.';}}
       else if(a==='login'){login();return;}
       else if(a==='leer'){leerDesdeFirestore();return;}
-      else if(a==='salir'){DB=null;S.user=null;fbAuth.signOut();S.srcMsg='Sesión cerrada.';S.srcOk=true;}
+      else if(a==='salir'){DB=null;S.user=null;cacheBorrar();setSync('');fbAuth.signOut();S.srcMsg='Sesión cerrada.';S.srcOk=true;}
       else if(a==='export'){exportarCortes();return;}
       else if(a==='import'){document.getElementById('sgp-imp').click();return;}
     }
@@ -909,7 +943,13 @@ function bind(){
   });
   root.addEventListener('keydown',function(e){if(e.key==='Enter'&&(e.target.id==='sgp-pass'||e.target.id==='sgp-email'))login();});
 }
-function mount(el){root=el;cargarLocal();bind();iniciarFirebase();render();}
+function mount(el){root=el;cargarLocal();bind();iniciarFirebase();render();
+  cacheLeer().then(function(c){
+    if(!c||!c.d||DB)return;
+    try{DB=normalizarDB(c.d,'Caché local');DB.cargadoEl=new Date(c.ts);DB.desdeCache=true;S.zafra='';S.srcMsg='Mostrando datos guardados del '+fechaCorta(c.ts)+'.';S.srcOk=true;
+      setSync('Datos guardados del '+fechaCorta(c.ts)+(_leyendo||S.authPend?' · actualizando…':''),_leyendo||S.authPend?'ld':'');render();}
+    catch(e){DB=null;}
+  });}
 return {mount:mount,api:{recargar:function(){if(fbDb&&S.user)leerDesdeFirestore();else render();},puLote:puLote,nMaqAlCrear:nMaqAlCrear,fromBase:fromBase,project:project,compare:compare,diagnose:diagnose,state:S,render:render,setDB:function(d){DB=normalizarDB(d,'API');S.zafra='';render();}}};
 })();
 SGP.mount(document.getElementById('sgp-root'));
