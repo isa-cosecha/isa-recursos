@@ -237,7 +237,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
     <h2 class="acceso-titulo">Planificador de Cosecha</h2>
     <div id="login-subtitle" class="acceso-sub">Inicia sesión para ver y editar el plan compartido.</div>
 
-    <div id="login-form">
+    <div id="login-form" style="display:none">
       <label for="login-email" class="acceso-etiqueta">Correo electrónico</label>
       <div class="acceso-caja">
         <input type="email" id="login-email" placeholder="tucorreo@ejemplo.com" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
@@ -251,8 +251,8 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
       <button class="btn btn-primary acceso-boton" onclick="hacerLogin()" id="login-btn"><i class="ti ti-login"></i> Ingresar</button>
     </div>
 
-    <div id="login-loading" style="display:none;text-align:center;padding:20px 0;color:var(--text2);font-size:13px">
-      <i class="ti ti-loader" style="font-size:20px"></i><br>Conectando…
+    <div id="login-loading" style="display:block;text-align:center;padding:20px 0;color:var(--text2);font-size:13px">
+      <i class="ti ti-loader" style="font-size:20px"></i><br>Verificando sesión…
     </div>
 
     <!-- Primer usuario del sistema: se ofrece auto-asignarse como Admin -->
@@ -303,6 +303,18 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
     </nav>
   </section>
 </section>
+
+<script>
+/* Enlace a Seguimiento: en GitHub Pages usa la ruta relativa; abierto en local (file://) apunta a la copia publicada. */
+(function(){
+  var a=document.getElementById('portada-seguimiento'); if(!a) return;
+  var BASE='https://isa-cosecha.github.io/isa-recursos/';
+  if(location.protocol==='file:'){
+    a.href=BASE+'seguimiento_cosecha.html'; a.target='_blank'; a.rel='noopener';
+    a.title='Se abre desde GitHub Pages (requiere internet)';
+  }
+})();
+</script>
 
 <!-- ══════════ APP PRINCIPAL (oculta hasta iniciar sesión) ══════════ -->
 <div id="app-container" style="display:none">
@@ -2462,7 +2474,10 @@ function initFirebase() {
     fbApp = firebase.initializeApp(firebaseConfig);
     fbAuth = firebase.auth();
     fbDb = firebase.firestore();
+    var _authResuelto = false;
+    setTimeout(function() { if (!_authResuelto) mostrarPantallaLogin(); }, 8000);
     fbAuth.onAuthStateChanged(function(user) {
+      _authResuelto = true;
       if (user) {
         fbUsuarioActual = user;
         mostrarAppTrasLogin(user);
@@ -2498,6 +2513,9 @@ function hacerLogin() {
 function mostrarErrorLogin(msg) {
   var el = document.getElementById('login-error');
   if (!el) return;
+  var _f = document.getElementById('login-form'), _l = document.getElementById('login-loading');
+  if (_f) _f.style.display = 'block';
+  if (_l) _l.style.display = 'none';
   el.textContent = msg;
   el.style.display = 'block';
 }
@@ -2546,7 +2564,7 @@ function mostrarPantallaLogin() {
 
 function mostrarAppTrasLogin(user) {
   document.getElementById('login-form').style.display = 'none';
-  document.getElementById('login-loading').style.display = 'none';
+  document.getElementById('login-loading').style.display = 'block';
   var emailEl = document.getElementById('usuario-actual-email');
   if (emailEl) emailEl.textContent = user.email;
   verificarRolYContinuar(user);
@@ -2583,10 +2601,12 @@ function verificarRolYContinuar(user) {
 }
 
 function mostrarPantallaBootstrapAdmin() {
+  document.getElementById('login-loading').style.display = 'none';
   document.getElementById('login-bootstrap-admin').style.display = 'block';
 }
 
 function mostrarPantallaSinRol(email) {
+  document.getElementById('login-loading').style.display = 'none';
   document.getElementById('login-sin-rol-email').textContent = email;
   document.getElementById('login-sin-rol').style.display = 'block';
 }
