@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Resumen de cosechadoras por lote y zafra</title>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#F3F5F0; --surface:#FFFFFF; --ink:#1B2620; --muted:#55655B; --line:#D3DBD2;
+  --accent:#2F6B4D; --accent-ink:#FFFFFF; --accent-soft:#E3EEE7; --warn:#8F5410; --bad:#A33A2B; --ok:#2F6B4D;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111915; --surface:#18221D; --ink:#E5EDE7; --muted:#9BB0A2; --line:#2B3A31;
+    --accent:#72C198; --accent-ink:#0D1913; --accent-soft:#203329; --warn:#E0A55A; --bad:#EE8C7C; --ok:#72C198;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111915; --surface:#18221D; --ink:#E5EDE7; --muted:#9BB0A2; --line:#2B3A31;
+  --accent:#72C198; --accent-ink:#0D1913; --accent-soft:#203329; --warn:#E0A55A; --bad:#EE8C7C; --ok:#72C198;
+  color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.55 "Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;font-variant-numeric:tabular-nums}
+main{max-width:920px;margin:0 auto;padding:28px 20px 56px}
+h1{font-size:26px;line-height:1.2;margin:0 0 8px;font-weight:650;letter-spacing:-.01em}
+h2{font-size:17px;margin:0 0 6px;font-weight:650}
+p{margin:0 0 10px}
+.lead{color:var(--muted);max-width:62ch;margin-bottom:26px}
+section{border-top:1px solid var(--line);padding:22px 0}
+.hint{color:var(--muted);font-size:14px;max-width:70ch}
+.row{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:12px}
+button,.btn{font:inherit;font-weight:600;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);
+  padding:9px 16px;cursor:pointer}
+button.sec,.btn.sec{background:transparent;color:var(--accent)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible,label.drop:focus-within{outline:3px solid var(--accent);outline-offset:2px}
+label.drop{display:block;border:1.5px dashed var(--muted);border-radius:8px;padding:22px 16px;text-align:center;cursor:pointer;background:var(--surface)}
+label.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+label.drop input{position:absolute;opacity:0;width:1px;height:1px}
+.files{margin:10px 0 0;padding:0;list-style:none;font-size:14px;color:var(--muted);max-height:120px;overflow:auto}
+.set{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin-top:12px}
+.set label{display:block;font-size:14px;color:var(--muted)}
+.set input[type=number],textarea{width:100%;font:inherit;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink)}
+textarea{min-height:92px;font-family:ui-monospace,Consolas,monospace;font-size:13px}
+.chk{display:flex;gap:8px;align-items:flex-start;font-size:14px;margin-top:8px}
+.chk input{margin-top:4px}
+details{margin-top:14px}
+summary{cursor:pointer;font-weight:600}
+.status{margin-top:14px;font-size:14px;min-height:22px}
+.log{margin:10px 0 0;padding:0;list-style:none;font-size:13.5px;max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.log li{padding:5px 10px;border-bottom:1px solid var(--line)}
+.log li:last-child{border-bottom:0}
+.ok{color:var(--ok)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+.tablewrap{overflow-x:auto;margin-top:12px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:8px 11px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child,th.l,td.l{text-align:left}
+th{font-weight:650;color:var(--muted);background:var(--accent-soft);position:sticky;top:0}
+tr:last-child td{border-bottom:0}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:12px}
+.kpi{border:1px solid var(--line);border-radius:6px;padding:10px 12px;background:var(--surface)}
+.kpi b{display:block;font-size:22px;line-height:1.2}
+.kpi span{font-size:13px;color:var(--muted)}
+.privacy{font-size:13.5px;color:var(--muted);margin-top:26px}
+.tabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin:0 0 4px;flex-wrap:wrap}
+.tabs button{background:transparent;color:var(--muted);border:1px solid transparent;border-bottom:0;border-radius:6px 6px 0 0;padding:9px 16px;font-weight:600;position:relative;top:1px}
+.tabs button[aria-selected="true"]{color:var(--ink);background:var(--surface);border-color:var(--line)}
+.badge{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-left:7px;vertical-align:middle}
+.chip{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12.5px;font-weight:600;border:1px solid currentColor;white-space:nowrap}
+.chip.ok{color:var(--ok)} .chip.revisar{color:var(--warn)} .chip.error{color:var(--bad)} .chip.nada{color:var(--muted)}
+.sub{font-size:13px;color:var(--muted)}
+h3{font-size:16px;margin:22px 0 4px;font-weight:650}
+@media (prefers-reduced-motion:no-preference){button{transition:filter .15s}button:hover:not(:disabled){filter:brightness(1.08)}}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- Conexión a la base del planificador (mismo proyecto de Firebase) -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="isa-conexion.js"></script>
+</head>
+<body>
+<main>
+  <h1>Resumen de cosechadoras por lote y zafra</h1>
+  <div id="vista-resumen">
+  <p class="lead">Lee los registros de trabajo de las cosechadoras que exporta Operations Center, mide giros, esperas en ralentí y productividad, y deja un resumen pequeño por lote, organizado por zafra. Los shapes pesados no se guardan.</p>
+
+  <section aria-labelledby="h-base">
+    <h2 id="h-base">Conexión con la base</h2>
+    <p class="hint">El registro de cosechadoras se guarda en la base del planificador (Firebase), no en un Google Sheet. Entra con tu usuario del planificador: al entrar se lee el registro que ya está guardado.</p>
+    <div class="row" id="isa-form">
+      <input type="email" id="isa-email" placeholder="Correo del planificador" autocomplete="username" style="width:230px">
+      <input type="password" id="isa-pass" placeholder="Contraseña" autocomplete="current-password" style="width:200px">
+      <button id="b-isa-entrar">Entrar</button>
+    </div>
+    <div class="row" id="isa-ok" hidden>
+      <span>Sesión: <b id="isa-usuario"></b> <small id="isa-rol"></small></span>
+      <button class="sec" id="b-isa-leer">Leer la base otra vez</button>
+      <button class="sec" id="b-isa-salir">Cerrar sesión</button>
+    </div>
+    <div class="status" id="st-base" aria-live="polite"></div>
+  </section>
+
+  <section aria-labelledby="h-prev">
+    <h2 id="h-prev">1. Registro anterior (opcional)</h2>
+    <p class="hint">Lo que ya está en la base se lee solo al entrar, y los lotes nuevos se agregan encima (cada uno en su zafra). Solo si no hay conexión, o para traer datos de antes, carga el <b>resultados_cosechadoras.zip</b> que descargaste.</p>
+    <div class="row">
+      <input type="file" id="f-prev" accept=".zip,.json" aria-label="Cargar registro anterior">
+    </div>
+    <div class="status" id="st-prev" aria-live="polite"></div>
+    <details>
+      <summary>Traer lo que ya está en el Google Sheet (una sola vez)</summary>
+      <p class="hint" style="margin-top:8px">En el Sheet, abre cada pestaña y usa Archivo &gt; Descargar &gt; CSV. Elige aquí los que tengas (pueden ser solo algunos). Después pulsa «Guardar en la base».</p>
+      <div class="set">
+        <div><label for="f-sh-lotes">Pestaña registro_lotes</label><input type="file" id="f-sh-lotes" accept=".csv,.txt"></div>
+        <div><label for="f-sh-maq">Pestaña registro_lotes_maquina</label><input type="file" id="f-sh-maq" accept=".csv,.txt"></div>
+        <div><label for="f-sh-dia">Pestaña registro_maquina_dia</label><input type="file" id="f-sh-dia" accept=".csv,.txt"></div>
+      </div>
+      <div class="row"><button class="sec" id="btn-sh-importar" disabled>Importar los CSV del Sheet</button></div>
+      <div class="status" id="st-sheet" aria-live="polite"></div>
+    </details>
+  </section>
+
+  <section aria-labelledby="h-shp">
+    <h2 id="h-shp">2. Shapes de las cosechadoras</h2>
+    <p class="hint">Elige los .zip exportados (puedes seleccionar varios a la vez) o arrástralos aquí. Se leen en tu navegador y no se suben a ningún servidor.</p>
+    <label class="drop" id="drop" tabindex="-1">
+      <input type="file" id="f-shp" multiple accept=".zip,.shp,.dbf,.shx,.json">
+      <b>Elegir archivos</b> o soltarlos aquí
+    </label>
+    <ul class="files" id="lista-archivos"></ul>
+  </section>
+
+  <section aria-labelledby="h-aj">
+    <h2 id="h-aj">3. Ajustes y proceso</h2>
+    <div class="set">
+      <div><label for="cap">Capacidad del autovolteo (toneladas)</label>
+        <input type="number" id="cap" min="1" step="0.5" placeholder="21 (ejemplo)"></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="excel" checked><span>CSV para Excel en español (separador “;” y coma decimal)</span></label>
+    <label class="chk"><input type="checkbox" id="reproc"><span>Volver a procesar los shapes que ya estaban en el registro anterior</span></label>
+    <label class="chk"><input type="checkbox" id="detalle"><span>Incluir el detalle de cada giro y pausa (archivos más grandes)</span></label>
+    <label class="chk"><input type="checkbox" id="inc-operador" checked><span>Incluir el operador de cada máquina en el registro (para evaluar a los operadores)</span></label>
+    <details>
+      <summary>Fechas de cada zafra (recomendado) y zona horaria</summary>
+      <p class="hint" style="margin-top:8px">Si no pones fechas, la zafra empieza en el mes indicado. Para usar las fechas reales, escribe un JSON con el mismo formato del planificador:</p>
+      <textarea id="rangos" spellcheck="false" placeholder='{"2025-2026": {"desde": "2025-11-01", "hasta": "2026-06-30"}, "2026-2027": {"desde": "2026-11-01", "hasta": "2027-06-30"}}'></textarea>
+      <div class="set">
+        <div><label for="mes">Mes en que empieza la zafra</label><input type="number" id="mes" min="1" max="12" value="11"></div>
+        <div><label for="huso">Diferencia con UTC en horas</label><input type="number" id="huso" step="0.5" value="-6"></div>
+        <div><label for="turno-ini" title="El turno de día va de esta hora a la del fin; el resto del día es turno de noche. Se usa en el análisis por máquina. Se aplica al procesar.">El turno de día empieza a las (hora local)</label><input type="time" id="turno-ini" value="06:00"></div>
+        <div><label for="turno-fin">El turno de día termina a las (hora local)</label><input type="time" id="turno-fin" value="18:00"></div>
+        <div><label for="dia-ini" title="Para repartir las horas de cada máquina por día de trabajo (página «Análisis por máquina»). Se aplica al procesar.">El día de trabajo empieza a las (hora local)</label><input type="time" id="dia-ini" value="06:00"></div>
+      </div>
+    </details>
+    <div class="row">
+      <button id="btn-run" disabled>Procesar</button> <button id="btn-base" disabled title="Guarda en la base del planificador lo procesado en esta sesión">Guardar en la base</button>
+      <button id="btn-dl" class="sec" disabled>Descargar resultados (.zip)</button>
+    </div>
+    <div class="status" id="status" aria-live="polite"></div>
+    <ul class="log" id="log" hidden></ul>
+  </section>
+
+  <section aria-labelledby="h-res" id="sec-res" hidden>
+    <h2 id="h-res">Resultados</h2>
+    <div class="kpis" id="kpis"></div>
+    <div class="tablewrap"><table id="tabla"><thead></thead><tbody></tbody></table></div>
+    <h2 id="h-sheet" style="margin-top:28px">Respaldo en Google Sheet (opcional)</h2>
+    <p class="hint">Ya no es necesario: el registro se guarda en la base con «Guardar en la base». Si quieres seguir llenando el Sheet como respaldo, pulsa “Mostrar código”, copia el texto del cuadro (clic dentro, Ctrl+A y Ctrl+C) y pégalo en el Sheet, en <b>Cosecha &gt; Cargar resultados de cosechadoras</b>. Los lotes que ya estén en el registro se omiten.</p>
+    <div class="row">
+      <button id="btn-code" disabled>Mostrar código</button>
+      <button id="btn-copy" class="sec" hidden>Copiar</button>
+    </div>
+    <textarea id="codigo" readonly hidden rows="5" wrap="off" aria-label="Código para pegar en el Google Sheet" style="margin-top:12px"></textarea>
+    <div class="status" id="st-code" aria-live="polite"></div>
+    <p class="hint" style="margin-top:12px">Otra opción: descargar el .zip (arriba, en el paso 3). Trae una carpeta por zafra con los CSV y el JSON, y un histórico con todas las zafras. Se puede volver a cargar en el paso 1 o en el Sheet.</p>
+  </section>
+
+  </div>
+
+  <p class="privacy">Todo el cálculo ocurre en tu navegador. Los archivos no salen de tu computadora. Si dejas marcada la opción de operadores, el registro incluye el nombre del operador de cada máquina: son datos personales, úsalos solo para la evaluación de desempeño autorizada y cuida con quién compartes el Google Sheet. Si la desmarcas, el registro solo trae el nombre o la serie de cada máquina.</p>
+</main>
+
+<script>
+/* Núcleo de cálculo: mismo método que procesar_cosechadoras.py v1.2 */
+(function (root) {
+  "use strict";
+  var VERSION = "1.7.0";
+  var PARAMS = { UMBRAL_HUECO_MIN_S: 3.0, FACTOR_MUESTREO: 3.0, PARO_LARGO_S: 300.0, GIRO_REVERSA_GRADOS: 120.0,
+    GIRO_LATERAL_GRADOS: 45.0, TRASLADO_M: 150.0, PUNTOS_RUMBO: 6, MIN_PUNTOS_TRAMO: 5, RENDIMIENTO_MAX_TCH: 500.0,
+    PASADA_MIN_M: 10.0, ENTRADA_SURCO_M: 20.0, CAMBIO_AV_ESTRICTO_S: 120.0,
+    RALENTI_VEL_KMH: 1.0, RALENTI_PUNTOS_GRABADOS: 1 };
+  // código corto de los parámetros usados (hash simple del texto de PARAMS): si cambian los criterios, cambia el código
+  var PARAMS_ID = (function () { var h = 2166136261, t = JSON.stringify(PARAMS), i; for (i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); } return ("00000000" + (h >>> 0).toString(16)).slice(-6); })();
+  var M_POR_GRADO = 111195.0;
+  var RAD = Math.PI / 180;
+
+  /* ---------- utilidades numéricas ---------- */
+  function finite(a) { var o = []; for (var i = 0; i < a.length; i++) { var v = a[i]; if (v === v && v !== null && v !== undefined) o.push(v); } return o; }
+  function quantile(arr, p) {
+    var a = finite(arr).sort(function (x, y) { return x - y; });
+    if (!a.length) return NaN;
+    var idx = p * (a.length - 1), lo = Math.floor(idx), hi = Math.ceil(idx);
+    return a[lo] + (a[hi] - a[lo]) * (idx - lo);
+  }
+  function median(arr) { return quantile(arr, 0.5); }
+  function mean(arr) { var a = finite(arr); if (!a.length) return NaN; var s = 0; for (var i = 0; i < a.length; i++) s += a[i]; return s / a.length; }
+  function r(v, d) {
+    if (d === undefined) d = 2;
+    if (v === null || v === undefined || v !== v) return null;
+    var f = Math.pow(10, d); return Math.round(v * f + (v >= 0 ? 1e-9 : -1e-9)) / f;
+  }
+  function mod(a, m) { return ((a % m) + m) % m; }
+  // Código del operador: el OperatorId de Deere si viene; si no, un código calculado del nombre. Sirve para guardar los nombres aparte (con permiso).
+  function idOperador(nombre, guid) {
+    guid = String(guid || "").trim(); nombre = String(nombre || "").trim();
+    if (guid) return guid;
+    if (!nombre) return "";
+    var h = 0x811c9dc5, t = nombre.toLowerCase();
+    for (var i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return "N" + (h >>> 0).toString(36);
+  }
+
+  /* ---------- lectura de DBF y SHP ---------- */
+  function parseDBF(buf, wanted) {
+    var u8 = new Uint8Array(buf), dv = new DataView(buf);
+    var nrec = dv.getUint32(4, true), hlen = dv.getUint16(8, true), rlen = dv.getUint16(10, true);
+    var fields = [], off = 32;
+    while (off < hlen - 1 && u8[off] !== 0x0D) {
+      var name = "";
+      for (var i = 0; i < 11; i++) { var c = u8[off + i]; if (c === 0) break; name += String.fromCharCode(c); }
+      fields.push({ name: name, type: String.fromCharCode(u8[off + 11]), len: u8[off + 16] });
+      off += 32;
+    }
+    var pos = 1; fields.forEach(function (f) { f.pos = pos; pos += f.len; });
+    var all = fields.map(function (f) { return f.name; });
+    var sel = fields.filter(function (f) { return wanted.indexOf(f.name) >= 0; });
+    var out = {};
+    sel.forEach(function (f) { out[f.name] = f.type === "C" ? new Array(nrec) : new Float64Array(nrec); });
+    var dec = new TextDecoder("latin1"), k = 0;
+    for (var rr = 0; rr < nrec; rr++) {
+      var base = hlen + rr * rlen;
+      if (base + rlen > u8.length) break;
+      for (var j = 0; j < sel.length; j++) {
+        var f = sel[j], s = base + f.pos;
+        if (f.type === "C") out[f.name][k] = dec.decode(u8.subarray(s, s + f.len)).trim();
+        else if (f.type === "I") out[f.name][k] = dv.getInt32(s, true);
+        else if (f.type === "O") out[f.name][k] = dv.getFloat64(s, true);
+        else if (f.type === "N" || f.type === "F") {
+          var t = dec.decode(u8.subarray(s, s + f.len)).trim();
+          out[f.name][k] = t === "" || t.charAt(0) === "*" ? NaN : Number(t);
+        } else out[f.name][k] = NaN;
+      }
+      k++;
+    }
+    sel.forEach(function (f) { out[f.name] = out[f.name].slice(0, k); });
+    return { n: k, cols: out, names: all };
+  }
+
+  function parseSHP(buf) {
+    var dv = new DataView(buf), len = buf.byteLength, off = 100, xs = [], ys = [];
+    while (off + 12 <= len) {
+      var clen = dv.getInt32(off + 4, false) * 2, t = dv.getInt32(off + 8, true);
+      if ((t === 1 || t === 11 || t === 21) && off + 28 <= len) { xs.push(dv.getFloat64(off + 12, true)); ys.push(dv.getFloat64(off + 20, true)); }
+      else { xs.push(NaN); ys.push(NaN); }
+      off += 8 + clen;
+    }
+    return { lon: Float64Array.from(xs), lat: Float64Array.from(ys) };
+  }
+
+  function leerMetadata(obj) {
+    var out = { cliente: "", finca: "", lote: "", zafra: "", variedad: "", operacion: "", id_operacion: "", maquinas: {}, series: {}, operadores: {}, operadorIds: {} };
+    if (!obj) return out;
+    out.cliente = obj.ClientName || ""; out.finca = obj.FarmName || ""; out.lote = obj.FieldName || "";
+    out.zafra = obj.CropSeason !== undefined && obj.CropSeason !== null ? obj.CropSeason : "";
+    out.variedad = (obj.Product && obj.Product.ProductName) || ""; out.operacion = obj.Operation || "";
+    out.id_operacion = obj.FieldOperationId || "";
+    var mu = obj.MachineUsage || {};
+    Object.keys(mu).forEach(function (k) { out.maquinas[String(k)] = mu[k].MachineName || mu[k].MachineSerial || ("maq_" + k); out.series[String(k)] = mu[k].MachineSerial || ""; out.operadores[String(k)] = String(mu[k].OperatorName || "").trim(); out.operadorIds[String(k)] = String(mu[k].OperatorId || "").trim(); });
+    return out; // el operador solo se guarda en el registro si se pide (opción de la herramienta)
+  }
+
+  /* ---------- análisis de una máquina ---------- */
+  function analizarMaquina(g) {
+    var P = PARAMS, n = g.seg.length, i, k;
+    var dt = new Float64Array(n); dt[0] = NaN;
+    for (i = 1; i < n; i++) dt[i] = g.seg[i] - g.seg[i - 1];
+    var pos = []; for (i = 0; i < n; i++) if (dt[i] > 0) pos.push(dt[i]);
+    var muestreo = pos.length ? median(pos) : 1.0;
+    var umbral = Math.max(P.UMBRAL_HUECO_MIN_S, P.FACTOR_MUESTREO * muestreo);
+    var esHueco = new Uint8Array(n); for (i = 0; i < n; i++) esHueco[i] = dt[i] > umbral ? 1 : 0;
+
+    var x = g.x, y = g.y, rumbo = Float64Array.from(g.rumbo), todoNaN = true;
+    for (i = 0; i < n; i++) if (rumbo[i] === rumbo[i]) { todoNaN = false; break; }
+    if (todoNaN) { rumbo[0] = NaN; for (i = 1; i < n; i++) rumbo[i] = mod(Math.atan2(x[i] - x[i - 1], y[i] - y[i - 1]) / RAD, 360); }
+
+    var tramo = new Int32Array(n), c = 0, gaps = [];
+    for (i = 0; i < n; i++) { if (esHueco[i]) { c++; gaps.push(i); } tramo[i] = c; }
+    var nT = c + 1, tam = new Int32Array(nT);
+    for (i = 0; i < n; i++) tam[tramo[i]]++;
+    var inicioT = [0].concat(gaps), finT = gaps.map(function (v) { return v - 1; }).concat([n - 1]);
+    var firmes = [], esFirme = new Uint8Array(nT);
+    for (k = 0; k < nT; k++) if (tam[k] >= P.MIN_PUNTOS_TRAMO) { firmes.push(k); esFirme[k] = 1; }
+    var continuo = new Uint8Array(n);
+    for (i = 0; i < n; i++) continuo[i] = (esFirme[tramo[i]] && !esHueco[i] && dt[i] === dt[i] && dt[i] > 0) ? 1 : 0;
+
+    function rumboMedio(a, b) { // promedio circular de rumbo[a..b)
+      var ss = 0, cc = 0, m = 0;
+      for (var q = a; q < b; q++) { var v = rumbo[q]; if (v === v) { ss += Math.sin(v * RAD); cc += Math.cos(v * RAD); m++; } }
+      if (!m) return NaN; return mod(Math.atan2(ss / m, cc / m) / RAD, 360);
+    }
+
+    var ev = [];
+    for (var q = 0; q + 1 < firmes.length; q++) {
+      var a = firmes[q], b = firmes[q + 1], ea = finT[a], sb = inicioT[b];
+      var hA = rumboMedio(Math.max(inicioT[a], ea - P.PUNTOS_RUMBO + 1), ea + 1);
+      var hD = rumboMedio(sb, Math.min(finT[b] + 1, sb + P.PUNTOS_RUMBO));
+      var dh = (hA === hA && hD === hD) ? Math.abs(mod(hD - hA + 180, 360) - 180) : NaN;
+      var dx = x[sb] - x[ea], dy = y[sb] - y[ea], salto = Math.hypot(dx, dy), dur = g.seg[sb] - g.seg[ea];
+      var perp = hA === hA ? Math.abs(-dx * Math.cos(hA * RAD) + dy * Math.sin(hA * RAD)) : NaN;
+      var tipo;
+      if (dur > P.PARO_LARGO_S) tipo = "paro_largo";
+      else if (salto > P.TRASLADO_M) tipo = "traslado";
+      else if (dh !== dh) tipo = "indeterminado";
+      else if (dh >= P.GIRO_REVERSA_GRADOS) tipo = "giro_cabecera";
+      else if (dh >= P.GIRO_LATERAL_GRADOS) tipo = "giro_lateral";
+      else tipo = "pausa_en_surco";
+      var ancho = g.ancho[sb], hu = 0;
+      for (i = ea + 1; i <= sb; i++) hu += esHueco[i];
+      ev.push({ fila: sb, inicio_ms: g.ms[ea], dur_s: dur, cambio_rumbo: dh, salto_m: salto, huecos_unidos: hu,
+        surcos_saltados: (perp === perp && ancho > 0) ? perp / ancho : NaN, tipo: tipo, ubic: "",
+        ton_desde_cambio: NaN, ton_desde_cambio_2min: NaN, vel_kmh: dur > 0 ? salto / dur * 3.6 : NaN, ralenti: false });
+    }
+
+    // pasadas: se corta en giros, paros y traslados (las pausas dentro del surco no cortan)
+    var corta = new Uint8Array(n);
+    ev.forEach(function (e) { if (e.tipo !== "pausa_en_surco") corta[e.fila] = 1; });
+    var pid = new Int32Array(n), pc = 0;
+    for (i = 0; i < n; i++) { pc += corta[i]; pid[i] = pc; }
+    var dist = new Float64Array(n); for (i = 0; i < n; i++) dist[i] = g.dist[i] === g.dist[i] ? g.dist[i] : 0;
+    var nP = pc + 1, largo = new Float64Array(nP), iniP = new Int32Array(nP).fill(-1), finP = new Int32Array(nP).fill(-1);
+    for (i = 0; i < n; i++) { largo[pid[i]] += dist[i]; if (iniP[pid[i]] < 0) iniP[pid[i]] = i; finP[pid[i]] = i; }
+    var nPasadas = 0, distPasadas = 0;
+    for (k = 0; k < nP; k++) if (largo[k] >= P.PASADA_MIN_M) { nPasadas++; distPasadas += largo[k]; }
+
+    // ubicación de cada pausa dentro de su pasada
+    var cum = new Float64Array(n), s = 0;
+    for (i = 0; i < n; i++) { s += dist[i]; cum[i] = s; }
+    ev.forEach(function (e) {
+      if (e.tipo !== "pausa_en_surco") return;
+      var p = pid[e.fila], dI = cum[e.fila] - cum[iniP[p]], dF = cum[finP[p]] - cum[e.fila];
+      e.ubic = dI <= P.ENTRADA_SURCO_M ? "entrada" : (dF <= P.ENTRADA_SURCO_M ? "final" : "medio");
+      // Solo es ralentí si la cosechadora estuvo prácticamente detenida (velocidad promedio del hueco < 1 km/h);
+      // si se movía, ese tiempo es de corte normal.
+      e.ralenti = e.vel_kmh < P.RALENTI_VEL_KMH;
+    });
+
+    // toneladas
+    var haP = new Float64Array(n), valido = new Uint8Array(n), haTot = 0, haVal = 0, tonMed = 0;
+    for (i = 0; i < n; i++) {
+      var an = g.ancho[i] === g.ancho[i] ? g.ancho[i] : 0;
+      haP[i] = dist[i] * an / 10000.0; haTot += haP[i];
+      var rd = g.rend[i];
+      if (rd > 0 && rd <= P.RENDIMIENTO_MAX_TCH) { valido[i] = 1; tonMed += rd * haP[i]; haVal += haP[i]; }
+    }
+    if (haVal > 0) {
+      var tonCum = new Float64Array(n), t = 0, esc = haTot / haVal;
+      for (i = 0; i < n; i++) { if (valido[i]) t += g.rend[i] * haP[i]; tonCum[i] = t * esc; }
+      [[false, "ton_desde_cambio"], [true, "ton_desde_cambio_2min"]].forEach(function (cfg) {
+        var prev = null;
+        ev.forEach(function (e) {
+          if (e.tipo === "pausa_en_surco" && e.ralenti && e.ubic === "medio" && (!cfg[0] || e.dur_s >= P.CAMBIO_AV_ESTRICTO_S)) {
+            if (prev !== null) e[cfg[1]] = tonCum[e.fila] - prev;
+            prev = tonCum[e.fila];
+          }
+        });
+      });
+    }
+
+    function horas(tipo, ub) {
+      var tot = 0; ev.forEach(function (e) { if (e.tipo === tipo && (ub === undefined || e.ubic === ub)) tot += e.dur_s; }); return tot;
+    }
+    function horasRal(ub) {
+      var tot = 0; ev.forEach(function (e) { if (e.tipo === "pausa_en_surco" && e.ralenti && e.ubic === ub) tot += e.dur_s; }); return tot;
+    }
+    var combL = 0, combT = 0, tCorte = 0, distCorte = 0, rumHist = new Array(36).fill(0);
+    var ralFila = { entrada: 0, medio: 0, final: 0 }, tRalGrabado = 0;
+    for (i = 0; i < n; i++) if (continuo[i]) {
+      var lentoFila = P.RALENTI_PUNTOS_GRABADOS && g.vel[i] === g.vel[i] && g.vel[i] < P.RALENTI_VEL_KMH;
+      if (lentoFila) {   // punto grabado con la cosechadora casi detenida: ralentí, según el lugar de la pasada
+        var pp = pid[i], dI2 = cum[i] - cum[iniP[pp]], dF2 = cum[finP[pp]] - cum[i];
+        ralFila[dI2 <= P.ENTRADA_SURCO_M ? "entrada" : (dF2 <= P.ENTRADA_SURCO_M ? "final" : "medio")] += dt[i]; tRalGrabado += dt[i];
+      } else {
+        tCorte += dt[i]; distCorte += dist[i];
+        // rumbo de los surcos: distancia recorrida por bloques de 5° del eje (0-180°, desde el norte)
+        if (rumbo[i] === rumbo[i] && dist[i] > 0) rumHist[Math.min(35, Math.floor(mod(rumbo[i], 180) / 5))] += dist[i];
+      }
+      if (g.comb[i] === g.comb[i]) { combL += g.comb[i]; combT += dt[i]; }
+    }
+    // pausas con la cosechadora en movimiento: tiempo de corte normal (y su recorrido)
+    var tPausaMov = 0, nPausaMov = 0;
+    ev.forEach(function (e) { if (e.tipo === "pausa_en_surco" && !e.ralenti) { tCorte += e.dur_s; distCorte += e.salto_m; tPausaMov += e.dur_s; nPausaMov++; } });
+    // ---- reparto por DÍA DE TRABAJO y por TURNO (hora local). El día empieza a la hora indicada (6:00 por defecto);
+    //      el turno de día va de turnoIni a turnoFin (6:00 a 18:00 por defecto) y el resto es turno de noche. ----
+    var offS = (g.huso || 0) * 3600 - (g.inicioDiaH === undefined ? 6 : g.inicioDiaH) * 3600, dias = {};
+    var tIni = g.turnoIni === undefined ? 6 : g.turnoIni, tFin = g.turnoFin === undefined ? 18 : g.turnoFin, hDia = g.inicioDiaH === undefined ? 6 : g.inicioDiaH;
+    var fronteras = [hDia, tIni, tFin];
+    function siguienteFrontera(t) {
+      var sl = mod(t + (g.huso || 0) * 3600, 86400), mejor = 86400;
+      fronteras.forEach(function (b) { var d = mod(b * 3600 - sl, 86400); if (d <= 1e-6) d = 86400; if (d < mejor) mejor = d; });
+      return t + mejor;
+    }
+    function turnoDe(t) { var hl = mod(t + (g.huso || 0) * 3600, 86400) / 3600; return (tIni <= tFin ? (hl >= tIni && hl < tFin) : (hl >= tIni || hl < tFin)) ? "Dia" : "Noche"; }
+    function diaDe(k, tn) { var d = dias[k] || (dias[k] = {}); return d[tn] || (d[tn] = { corte: 0, giro: 0, ral: 0, otros: 0, paro: 0, trasl: 0, ha: 0, ton: 0, dist: 0 }); }
+    function sumaDia(tipo, iniSec, durSec, distM) {
+      var t0 = iniSec, fin = iniSec + durSec, guard = 0;
+      while (t0 < fin - 1e-9 && guard++ < 80) {
+        var kd = Math.floor((t0 + offS) / 86400), trozo = Math.min(fin, siguienteFrontera(t0)) - t0;
+        if (!(trozo > 0)) break;
+        var d = diaDe(kd, turnoDe(t0 + 0.001)); d[tipo] += trozo; if (distM) d.dist += distM * trozo / durSec; t0 += trozo;
+      }
+    }
+    var escTon = haVal > 0 ? haTot / haVal : 0;
+    for (i = 0; i < n; i++) {
+      if (continuo[i]) { var lentoD = P.RALENTI_PUNTOS_GRABADOS && g.vel[i] === g.vel[i] && g.vel[i] < P.RALENTI_VEL_KMH; sumaDia(lentoD ? "ral" : "corte", g.seg[i] - dt[i], dt[i], lentoD ? 0 : dist[i]); }
+      var dd = diaDe(Math.floor((g.seg[i] + offS) / 86400), turnoDe(g.seg[i])); dd.ha += haP[i]; if (valido[i]) dd.ton += g.rend[i] * haP[i] * escTon;
+    }
+    ev.forEach(function (e) {
+      var tipoD = e.tipo === "pausa_en_surco" ? (e.ralenti ? "ral" : "corte") : (e.tipo === "giro_cabecera" || e.tipo === "giro_lateral") ? "giro" :
+        e.tipo === "paro_largo" ? "paro" : e.tipo === "traslado" ? "trasl" : "otros";
+      sumaDia(tipoD, e.inicio_ms / 1000, e.dur_s, tipoD === "corte" ? e.salto_m : 0);
+    });
+    var acc = {
+      dias: dias, offS: offS,
+      n_puntos: n, ha_total: haTot, ha_validas: haVal, ton_medidas: tonMed, dist_total_m: cum[n - 1], dist_corte_m: distCorte,
+      t_corte_s: tCorte, t_giro_cabecera_s: horas("giro_cabecera"), t_giro_lateral_s: horas("giro_lateral"),
+      t_ralenti_entrada_s: horasRal("entrada") + ralFila.entrada, t_ralenti_medio_s: horasRal("medio") + ralFila.medio,
+      t_ralenti_final_s: horasRal("final") + ralFila.final, t_ralenti_grabado_s: tRalGrabado, t_pausas_mov_s: tPausaMov, n_pausas_mov: nPausaMov,
+      t_paro_largo_s: horas("paro_largo"),
+      t_traslado_s: horas("traslado"), t_otros_s: horas("indeterminado"), comb_corte_l: combL, comb_t_s: combT,
+      n_pasadas: nPasadas, dist_pasadas_m: distPasadas, ancho_surco_m: median(Array.prototype.slice.call(g.ancho)),
+      rum_hist: rumHist,
+      inicio_ms: g.ms[0], fin_ms: g.ms[n - 1]
+    };
+    return { acc: acc, ev: ev };
+  }
+
+  var SUMAS = ["n_puntos", "ha_total", "ha_validas", "ton_medidas", "dist_total_m", "dist_corte_m", "t_corte_s",
+    "t_giro_cabecera_s", "t_giro_lateral_s", "t_ralenti_entrada_s", "t_ralenti_medio_s", "t_ralenti_final_s",
+    "t_paro_largo_s", "t_traslado_s", "t_otros_s", "comb_corte_l", "comb_t_s", "n_pasadas", "dist_pasadas_m",
+    "t_ralenti_grabado_s", "t_pausas_mov_s", "n_pausas_mov"];
+  function sumarAcc(lista) {
+    var tot = {};
+    SUMAS.forEach(function (k) { tot[k] = lista.reduce(function (a, b) { return a + b[k]; }, 0); });
+    tot.rum_hist = lista[0].rum_hist.map(function (_, k) { return lista.reduce(function (a, b) { return a + b.rum_hist[k]; }, 0); });
+    tot.ancho_surco_m = median(lista.map(function (a) { return a.ancho_surco_m; }));
+    tot.inicio_ms = Math.min.apply(null, lista.map(function (a) { return a.inicio_ms; }));
+    tot.fin_ms = Math.max.apply(null, lista.map(function (a) { return a.fin_ms; }));
+    return tot;
+  }
+
+  // Rumbo dominante de los surcos: la ventana de 35° (7 bloques de 5°) con más distancia recorrida
+  function rumboDominante(hist) {
+    var n = hist.length, tot = 0, i, d;
+    for (i = 0; i < n; i++) tot += hist[i];
+    if (!(tot > 0)) return null;
+    var best = 0, bestSum = -1;
+    for (i = 0; i < n; i++) { var sm = 0; for (d = -3; d <= 3; d++) sm += hist[(i + d + n) % n]; if (sm > bestSum) { bestSum = sm; best = i; } }
+    var sx = 0, sy = 0;
+    for (d = -3; d <= 3; d++) { var k = (best + d + n) % n, ang = (k + 0.5) * 5; sx += hist[k] * Math.cos(2 * ang * RAD); sy += hist[k] * Math.sin(2 * ang * RAD); }
+    return { grados: mod(Math.atan2(sy, sx) / 2 / RAD, 180), pct: 100 * bestSum / tot };
+  }
+
+  function fmtTs(ms) { // igual que str(pd.Timestamp) en UTC
+    var d = new Date(ms), p = function (v, l) { return String(v).padStart(l || 2, "0"); };
+    var frac = ms % 1000 === 0 ? "" : "." + p(Math.round(mod(ms, 1000)) * 1000, 6);
+    return d.getUTCFullYear() + "-" + p(d.getUTCMonth() + 1) + "-" + p(d.getUTCDate()) + " " + p(d.getUTCHours()) + ":" +
+      p(d.getUTCMinutes()) + ":" + p(d.getUTCSeconds()) + frac + "+00:00";
+  }
+
+  function resumen(acc, ev) {
+    var P = PARAMS;
+    var h = function (k) { return acc[k] / 3600.0; };
+    var tch = acc.ha_validas > 0 ? acc.ton_medidas / acc.ha_validas : NaN;
+    var tonEst = tch === tch ? tch * acc.ha_total : NaN;
+    var hCorte = h("t_corte_s");
+    var hRal = h("t_ralenti_entrada_s") + h("t_ralenti_medio_s") + h("t_ralenti_final_s");
+    var hOper = hCorte + h("t_giro_cabecera_s") + h("t_giro_lateral_s") + hRal + h("t_otros_s");
+    var hReg = hOper + h("t_paro_largo_s") + h("t_traslado_s");
+    var giros = ev.filter(function (e) { return e.tipo === "giro_cabecera"; }).map(function (e) { return e.dur_s; });
+    var pa = ev.filter(function (e) { return e.tipo === "pausa_en_surco" && e.ralenti; });
+    var nUb = function (u) { return pa.filter(function (e) { return e.ubic === u; }).length; };
+    var cam = pa.filter(function (e) { return e.ubic === "medio"; });
+    var cam2 = cam.filter(function (e) { return e.dur_s >= P.CAMBIO_AV_ESTRICTO_S; });
+    var medT = function (arr) { var m = median(arr); return m === m ? r(m, 1) : null; };
+    var ha = acc.ha_total;
+    var pct = function (k) { return hReg > 0 ? 100.0 * h(k) / hReg : NaN; };
+    var o = {};
+    o.n_puntos = acc.n_puntos; o.inicio_utc = fmtTs(acc.inicio_ms); o.fin_utc = fmtTs(acc.fin_ms);
+    o.area_ha = r(ha); o.distancia_km = r(acc.dist_total_m / 1000.0); o.ancho_surco_m = r(acc.ancho_surco_m);
+    o.rend_medio_tch = r(tch, 1); o.pct_area_con_rendimiento = ha > 0 ? r(100.0 * acc.ha_validas / ha, 1) : null;
+    o.ton_estimadas = r(tonEst, 1);
+    o.vel_efectiva_kmh = acc.t_corte_s > 0 ? r(acc.dist_corte_m / acc.t_corte_s * 3.6) : null;
+    o.h_corte = r(hCorte); o.h_giro_cabecera = r(h("t_giro_cabecera_s")); o.h_giro_lateral = r(h("t_giro_lateral_s"));
+    o.h_ralenti = r(hRal); o.h_ralenti_espera_av_giro = r(h("t_ralenti_entrada_s"));
+    o.h_ralenti_cambio_av = r(h("t_ralenti_medio_s")); o.h_ralenti_fin_surco = r(h("t_ralenti_final_s"));
+    o.h_paro_largo = r(h("t_paro_largo_s")); o.h_traslado = r(h("t_traslado_s"));
+    o.pct_corte = r(pct("t_corte_s"), 1); o.pct_giro_cabecera = r(pct("t_giro_cabecera_s"), 1);
+    o.pct_giro_lateral = r(pct("t_giro_lateral_s"), 1); o.pct_ralenti = hReg > 0 ? r(100.0 * hRal / hReg, 1) : null;
+    o.pct_paro_largo = r(pct("t_paro_largo_s"), 1);
+    o.giros_n = giros.length; o.giros_por_ha = ha > 0 ? r(giros.length / ha) : null;
+    o.giro_mediana_s = r(median(giros), 1); o.giro_media_s = r(mean(giros), 1);
+    o.giro_p25_s = r(quantile(giros, .25), 1); o.giro_p75_s = r(quantile(giros, .75), 1); o.giro_p90_s = r(quantile(giros, .9), 1);
+    o.giro_h_total = r(h("t_giro_cabecera_s"));
+    o.ralenti_n = pa.length; o.ralenti_mediana_s = r(median(pa.map(function (e) { return e.dur_s; })), 1);
+    o.ralenti_espera_av_giro_n = nUb("entrada"); o.ralenti_cambio_av_n = nUb("medio"); o.ralenti_fin_surco_n = nUb("final");
+    o.cambio_av_mediana_s = r(median(cam.map(function (e) { return e.dur_s; })), 1);
+    o.cambio_av_ton_mediana = medT(cam.map(function (e) { return e.ton_desde_cambio; }));
+    o.cambio_av_2min_n = cam2.length; o.cambio_av_2min_ton_mediana = medT(cam2.map(function (e) { return e.ton_desde_cambio_2min; }));
+    o.pasadas_n = acc.n_pasadas;
+    o.pasada_largo_medio_m = acc.n_pasadas ? r(acc.dist_pasadas_m / acc.n_pasadas, 1) : null;
+    o.t_por_pasada = acc.n_pasadas && tonEst === tonEst ? r(tonEst / acc.n_pasadas, 3) : null;
+    o.t_h_corte = hCorte > 0 && tonEst === tonEst ? r(tonEst / hCorte, 1) : null;
+    o.t_h_operativo = hOper > 0 && tonEst === tonEst ? r(tonEst / hOper, 1) : null;
+    o.comb_l_h_corte = acc.comb_t_s > 0 ? r(acc.comb_corte_l / acc.comb_t_s * 3600.0, 1) : null;
+    // --- ralentí con velocidad < 1 km/h (v1.4) ---
+    o.h_ralenti_grabado = r(h("t_ralenti_grabado_s"));                       // parte del ralentí que está en puntos grabados con velocidad casi cero
+    o.pausas_en_movimiento_n = acc.n_pausas_mov; o.h_pausas_en_movimiento = r(h("t_pausas_mov_s"));   // pausas con movimiento: contadas como corte
+    // --- datos para el planificador (v1.3) ---
+    var lat = ev.filter(function (e) { return e.tipo === "giro_lateral"; }).map(function (e) { return e.dur_s; });
+    var nMan = giros.length + lat.length;
+    var tMan = giros.concat(lat).reduce(function (a, b) { return a + b; }, 0);
+    o.giros_laterales_n = lat.length;
+    o.maniobras_n = nMan;                                                    // giros de cabecera + laterales
+    o.t_maniobra_media_s = nMan ? r(tMan / nMan, 1) : null;                  // tiempo promedio por maniobra
+    o.espera_av_giro_s_por_maniobra = nMan ? r(acc.t_ralenti_entrada_s / nMan, 1) : null;
+    o.ralenti_otro_min_por_ton = tonEst > 0 ? r((acc.t_ralenti_medio_s + acc.t_ralenti_final_s) / 60 / tonEst, 3) : null;   // ralentí dentro del surco y al final, por tonelada
+    var rd = rumboDominante(acc.rum_hist);
+    o.rumbo_real_grados = rd ? r(rd.grados, 1) : null;                       // rumbo dominante (0-180°, desde el norte)
+    o.rumbo_real_pct = rd ? r(rd.pct, 1) : null;                             // % de la distancia que va en ese rumbo (±17°)
+    return o;
+  }
+
+  /* ---------- un shape completo ---------- */
+  function procesarShape(clave, shpBuf, dbfBuf, metaObj, opts) {
+    var meta = leerMetadata(metaObj);
+    if (meta.operacion && meta.operacion.toLowerCase() !== "harvest") return { error: "no es cosecha (" + meta.operacion + ")" };
+    if (!dbfBuf) return { error: "falta el archivo .dbf" };
+    var wanted = ["IsoTime", "Machine", "DISTANCE", "SWATHWIDTH", "Heading", "VRYLDRCANE", "FUEL", "VEHICLSPEE", "VEHICLSPEED"];
+    var db = parseDBF(dbfBuf, wanted), c = db.cols;
+    var faltan = ["IsoTime", "Machine", "DISTANCE", "SWATHWIDTH"].filter(function (f) { return !c[f]; });
+    if (faltan.length) return { error: "faltan columnas: " + faltan.join(", ") };
+    var sh = parseSHP(shpBuf), n = Math.min(db.n, sh.lon.length), nan = function () { return new Float64Array(n).fill(NaN); };
+    var heading = c.Heading || nan(), rend = c.VRYLDRCANE || nan(), fuel = c.FUEL || nan(), velo = c.VEHICLSPEE || c.VEHICLSPEED || nan();
+    var rows = [], sLat = 0, sLon = 0;
+    for (var i = 0; i < n; i++) {
+      var ms = Date.parse(c.IsoTime[i]), mq = c.Machine[i];
+      if (!(mq > 0) || ms !== ms || !isFinite(sh.lon[i]) || !isFinite(sh.lat[i])) continue;
+      rows.push(i); sLat += sh.lat[i]; sLon += sh.lon[i];
+    }
+    if (rows.length < 50) return { error: "muy pocos puntos válidos" };
+    var lat0 = sLat / rows.length, lon0 = sLon / rows.length, cosL = Math.cos(lat0 * RAD);
+    var porMaq = {};
+    rows.forEach(function (i) { (porMaq[c.Machine[i]] = porMaq[c.Machine[i]] || []).push(i); });
+    var accs = [], evs = [], filasMaq = [], porMaqRes = [], nombresUsados = {}, diasMaq = [];
+    opts = opts || {};
+    var husoD = opts.huso === undefined ? -6 : opts.huso, inicioD = opts.inicioDiaH === undefined ? 6 : opts.inicioDiaH;
+    var turnoIniD = opts.turnoIni === undefined ? 6 : opts.turnoIni, turnoFinD = opts.turnoFin === undefined ? 18 : opts.turnoFin, conOperador = opts.operador !== false;
+    Object.keys(porMaq).map(Number).sort(function (a, b) { return a - b; }).forEach(function (mq) {
+      var idx = porMaq[mq];
+      if (idx.length < 20) return;
+      var tms = idx.map(function (i) { return Date.parse(c.IsoTime[i]); });
+      var ord = idx.map(function (_, j) { return j; }).sort(function (a, b) { return (tms[a] - tms[b]) || (a - b); });
+      var m = ord.length, g = { seg: new Float64Array(m), ms: new Float64Array(m), x: new Float64Array(m), y: new Float64Array(m),
+        rumbo: new Float64Array(m), dist: new Float64Array(m), ancho: new Float64Array(m), rend: new Float64Array(m), comb: new Float64Array(m), vel: new Float64Array(m), huso: husoD, inicioDiaH: inicioD, turnoIni: turnoIniD, turnoFin: turnoFinD };
+      ord.forEach(function (j, q) {
+        var i = idx[j];
+        g.ms[q] = tms[j]; g.seg[q] = tms[j] / 1000.0;
+        g.x[q] = (sh.lon[i] - lon0) * cosL * M_POR_GRADO; g.y[q] = (sh.lat[i] - lat0) * M_POR_GRADO;
+        g.rumbo[q] = heading[i]; g.dist[q] = c.DISTANCE[i]; g.ancho[q] = c.SWATHWIDTH[i]; g.rend[q] = rend[i]; g.comb[q] = fuel[i]; g.vel[q] = velo[i];
+      });
+      var res = analizarMaquina(g), nombre = meta.maquinas[String(mq)] || ("maq_" + mq);
+      if (nombresUsados[nombre]) nombre = nombre + " #" + mq;   // dos máquinas con el mismo nombre: se distinguen para no mezclar sus filas
+      nombresUsados[nombre] = true;
+      res.ev.forEach(function (e) { e.maquina = nombre; });
+      var serie = meta.series[String(mq)] || "", base = meta.maquinas[String(mq)] || ("maq_" + mq), operador = conOperador ? (meta.operadores[String(mq)] || "") : "", operadorId = conOperador ? idOperador(operador, meta.operadorIds[String(mq)]) : "";
+      var tur = { Dia: { c: 0, d: 0 }, Noche: { c: 0, d: 0 } };
+      Object.keys(res.acc.dias).map(Number).sort(function (a, b) { return a - b; }).forEach(function (kd) {
+        var fecha = new Date((kd * 86400 - res.acc.offS + husoD * 3600) * 1000).toISOString().slice(0, 10);   // fecha local del inicio de ese día de trabajo
+        ["Dia", "Noche"].forEach(function (tn) {
+          var d = res.acc.dias[kd][tn]; if (!d) return;
+          tur[tn].c += d.corte; tur[tn].d += d.dist;
+          var tr = d.corte + d.giro + d.ral + d.otros;
+          if (tr + d.paro + d.trasl <= 0) return;
+          diasMaq.push({ archivo_clave: clave, maquina: nombre, maquina_codigo: base, maquina_serie: serie, operador: operador, operador_id: operadorId, fecha: fecha, turno: tn === "Dia" ? "Día" : "Noche",
+            h_trabajo: r(tr / 3600, 3), h_corte: r(d.corte / 3600, 3), h_giro: r(d.giro / 3600, 3), h_ralenti: r(d.ral / 3600, 3), h_otros: r(d.otros / 3600, 3),
+            h_paro_largo: r(d.paro / 3600, 3), h_traslado: r(d.trasl / 3600, 3), ha: r(d.ha, 3), ton: r(d.ton, 2) });
+        });
+      });
+      accs.push(res.acc); evs.push(res.ev); porMaqRes.push({ nombre: nombre, base: base, serie: serie, operador: operador, operadorId: operadorId, tur: tur, acc: res.acc, ev: res.ev });
+    });
+    if (!accs.length) return { error: "ninguna máquina con datos suficientes" };
+    var evAll = [].concat.apply([], evs);
+    var ident = { archivo_clave: clave, cliente: meta.cliente, finca: meta.finca, lote: meta.lote, zafra_deere: meta.zafra,
+      variedad: meta.variedad, id_operacion: meta.id_operacion, version_script: VERSION, parametros_id: PARAMS_ID };
+    var fila = Object.assign({}, ident, { n_maquinas: accs.length, maquinas: porMaqRes.map(function (p) { return p.nombre; }).join(", ") },
+      resumen(sumarAcc(accs), evAll));
+    var filasM = porMaqRes.map(function (p) { return Object.assign({}, ident, { maquina: p.nombre, maquina_codigo: p.base, maquina_serie: p.serie, operador: p.operador, operador_id: p.operadorId }, resumen(p.acc, p.ev), {
+      h_corte_dia: r(p.tur.Dia.c / 3600, 3), h_corte_noche: r(p.tur.Noche.c / 3600, 3),
+      vel_efectiva_dia_kmh: p.tur.Dia.c > 0 ? r(p.tur.Dia.d / p.tur.Dia.c * 3.6) : null, vel_efectiva_noche_kmh: p.tur.Noche.c > 0 ? r(p.tur.Noche.d / p.tur.Noche.c * 3.6) : null }); });
+    return { fila: fila, filasMaq: filasM, eventos: evAll, diasMaq: diasMaq };
+  }
+
+  /* ---------- zafras ---------- */
+  function fechaLocal(isoStr, huso) { // isoStr "YYYY-MM-DD HH:MM:SS..+00:00"
+    var ms = Date.parse(isoStr.replace(" ", "T").replace(/(\.\d{3})\d*/, "$1"));
+    return new Date(ms + huso * 3600000).toISOString().slice(0, 10);
+  }
+  function asignarZafra(fecha, rangos, mesInicio) {
+    var z; for (z in rangos) if (rangos[z].desde <= fecha && fecha <= rangos[z].hasta) return [z, "rango"];
+    var y = Number(fecha.slice(0, 4)), mth = Number(fecha.slice(5, 7)), a = mth >= mesInicio ? y : y - 1;
+    return [a + "-" + (a + 1), "regla_mes"];
+  }
+
+  /* ---------- columnas de autovolteo y CSV ---------- */
+  function anadirAV(row, cap) {
+    var o = Object.assign({}, row);
+    o.cap_av_t = cap;
+    o.av_llenados = row.ton_estimadas != null ? r(row.ton_estimadas / cap, 1) : null;
+    o.min_corte_por_av = row.t_h_corte ? r(cap / row.t_h_corte * 60, 1) : null;
+    o.pasadas_por_av = row.t_por_pasada ? r(cap / row.t_por_pasada, 1) : null;
+    return o;
+  }
+  function toCSV(rows, excelEs) {
+    if (!rows.length) return "";
+    var sep = excelEs ? ";" : ",", cols = Object.keys(rows[0]);
+    var fmt = function (v) {
+      if (v === null || v === undefined || v !== v) return "";
+      var s = typeof v === "number" ? String(v) : String(v);
+      if (typeof v === "number" && excelEs) s = s.replace(".", ",");
+      return (s.indexOf(sep) >= 0 || s.indexOf('"') >= 0 || s.indexOf("\n") >= 0) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    return "\uFEFF" + [cols.join(sep)].concat(rows.map(function (rw) { return cols.map(function (k) { return fmt(rw[k]); }).join(sep); })).join("\n") + "\n";
+  }
+
+  root.CosechaCore = { VERSION: VERSION, PARAMS: PARAMS, PARAMS_ID: PARAMS_ID, procesarShape: procesarShape, fechaLocal: fechaLocal,
+    asignarZafra: asignarZafra, anadirAV: anadirAV, toCSV: toCSV, fmtTs: fmtTs, parseDBF: parseDBF, parseSHP: parseSHP, idOperador: idOperador };
+  if (typeof module !== "undefined" && module.exports) module.exports = root.CosechaCore;
+})(typeof window !== "undefined" ? window : globalThis);
+
+</script>
+<script>
+(function () {
+  "use strict";
+  var C = window.CosechaCore;
+  var $ = function (id) { return document.getElementById(id); };
+  var registro = {};        // { "2025-2026": {zafra, lotes, lotes_maquina, parametros_por_id, cap_av_t, ...} }
+  var tocadas = {};         // zafras modificadas en esta sesión
+  var detalles = [];        // detalle opcional por shape
+  var logLines = [];
+  var archivos = [];
+  var corriendo = false;
+  var downloads = null;
+
+  function tick() { return new Promise(function (r) { setTimeout(r, 0); }); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function setStatus(msg, cls) { var el = $("status"); el.textContent = msg; el.className = "status " + (cls || ""); }
+  function addLog(cls, msg) {
+    logLines.push({ cls: cls, msg: msg });
+    var ul = $("log"); ul.hidden = false;
+    var li = document.createElement("li"); li.className = cls; li.textContent = msg; ul.appendChild(li); ul.scrollTop = ul.scrollHeight;
+  }
+  function fmtN(v, d) { return v == null || v !== v ? "–" : Number(v).toLocaleString("es", { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
+  function actualizarBotones() {
+    $("btn-run").disabled = corriendo || !archivos.length;
+    var hay = Object.keys(registro).some(function (z) { return registro[z].lotes.length; });
+    $("btn-dl").disabled = corriendo || !hay;
+    $("btn-code").disabled = corriendo || !hay; if (typeof actualizarBotonBase === "function") actualizarBotonBase();
+  }
+
+  if (window.claude && window.claude.use) {
+    window.claude.use("downloads").then(function (d) { downloads = d; actualizarBotones(); }).catch(function () {});
+  }
+
+  function yaProcesado(clave) {
+    return Object.keys(registro).some(function (z) { return registro[z].lotes.some(function (l) { return l.archivo_clave === clave; }); });
+  }
+  function quitarClave(clave) {
+    Object.keys(registro).forEach(function (z) {
+      registro[z].lotes = registro[z].lotes.filter(function (l) { return l.archivo_clave !== clave; });
+      registro[z].lotes_maquina = registro[z].lotes_maquina.filter(function (l) { return l.archivo_clave !== clave; });
+      registro[z].lotes_maquina_dia = (registro[z].lotes_maquina_dia || []).filter(function (l) { return l.archivo_clave !== clave; });
+    });
+  }
+
+  /* ---------- paso 1: registro anterior ---------- */
+  function incorporar(j) {
+    if (!j || !j.zafra || !Array.isArray(j.lotes)) return false;
+    registro[j.zafra] = { zafra: j.zafra, lotes: j.lotes, lotes_maquina: j.lotes_maquina || [], lotes_maquina_dia: j.lotes_maquina_dia || [], parametros_por_id: j.parametros_por_id || {},
+      cap_av_t: j.cap_av_t || null, actualizado: j.actualizado, version_script: j.version_script };
+    return true;
+  }
+  $("f-prev").addEventListener("change", async function (ev) {
+    var f = ev.target.files[0]; if (!f) return;
+    var st = $("st-prev"); st.textContent = "Leyendo " + f.name + "…";
+    try {
+      var n = 0;
+      if (/\.zip$/i.test(f.name)) {
+        var zip = await JSZip.loadAsync(await f.arrayBuffer());
+        var nombres = Object.keys(zip.files).filter(function (k) { return /zafra_[^\/]+\/resumen_por_lote\.json$/i.test(k); });
+        for (var i = 0; i < nombres.length; i++) { if (incorporar(JSON.parse((await zip.file(nombres[i]).async("string")).replace(/^\uFEFF/, "")))) n++; }
+      } else if (incorporar(JSON.parse((await f.text()).replace(/^\uFEFF/, "")))) n = 1;
+      if (!n) { st.className = "status bad"; st.textContent = "No encontré un registro de zafra en ese archivo."; return; }
+      var tot = Object.keys(registro).reduce(function (a, z) { return a + registro[z].lotes.length; }, 0);
+      st.className = "status ok";
+      st.textContent = "Registro cargado: " + n + (n === 1 ? " zafra" : " zafras") + " con " + tot + " lotes.";
+      renderResultados(); actualizarBotones();
+    } catch (e) { st.className = "status bad"; st.textContent = "No pude leer ese archivo: " + e.message; }
+  });
+
+  /* ---------- paso 2: archivos ---------- */
+  function setArchivos(lista) {
+    archivos = Array.prototype.slice.call(lista).filter(function (f) { return /\.(zip|shp|dbf|shx|json)$/i.test(f.name); });
+    var ul = $("lista-archivos"); ul.innerHTML = "";
+    archivos.slice(0, 200).forEach(function (f) { var li = document.createElement("li"); li.textContent = f.name + " (" + (f.size / 1048576).toFixed(1).replace(".", ",") + " MB)"; ul.appendChild(li); });
+    actualizarBotones();
+  }
+  $("f-shp").addEventListener("change", function (e) { setArchivos(e.target.files); });
+  var drop = $("drop");
+  ["dragenter", "dragover"].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.add("over"); }); });
+  ["dragleave", "drop"].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.remove("over"); }); });
+  drop.addEventListener("drop", function (e) { setArchivos(e.dataTransfer.files); });
+
+  /* ---------- paso 3: proceso ---------- */
+  function horaDe(id, porDefecto) { var v = String($(id).value || ""), t = v.split(":"); if (!v) return porDefecto; return (parseInt(t[0], 10) || 0) + (parseInt(t[1], 10) || 0) / 60; }
+  function leerAjustes() {
+    var rangos = {}, txt = $("rangos").value.trim();
+    if (txt) { try { rangos = JSON.parse(txt); } catch (e) { throw new Error("El texto de fechas de zafra no es un JSON válido."); } }
+    Object.keys(rangos).forEach(function (z) { if (!rangos[z] || !rangos[z].desde || !rangos[z].hasta) throw new Error("A la zafra " + z + " le falta “desde” o “hasta”."); });
+    var cap = parseFloat($("cap").value);
+    return { rangos: rangos, mes: parseInt($("mes").value, 10) || 11, huso: parseFloat($("huso").value) || 0, cap: cap > 0 ? cap : null,
+      excel: $("excel").checked, reproc: $("reproc").checked, detalle: $("detalle").checked,
+      operador: $("inc-operador").checked,
+      inicioDiaH: horaDe("dia-ini", 6), turnoIni: horaDe("turno-ini", 6), turnoFin: horaDe("turno-fin", 18) };
+  }
+
+  async function procesarFuente(clave, shp, dbf, meta, aj, cont) {
+    if (!aj.reproc && yaProcesado(clave)) { addLog("warn", "Ya estaba en el registro, se omite: " + clave); cont.omitidos++; return; }
+    if (!shp) { addLog("bad", "Falta el .shp de " + clave); cont.errores++; return; }
+    var res;
+    try { res = C.procesarShape(clave, shp, dbf, meta, { huso: aj.huso, inicioDiaH: aj.inicioDiaH, turnoIni: aj.turnoIni, turnoFin: aj.turnoFin, operador: aj.operador }); } catch (e) { addLog("bad", "Error en " + clave + ": " + e.message); cont.errores++; return; }
+    if (res.error) { addLog("warn", "Omitido " + clave + ": " + res.error); cont.omitidos++; return; }
+    var fLocal = C.fechaLocal(res.fila.inicio_utc, aj.huso), za = C.asignarZafra(fLocal, aj.rangos, aj.mes);
+    var extra = { zafra: za[0], zafra_origen: za[1], fecha_inicio_local: fLocal };
+    var fila = Object.assign({}, extra, res.fila), filasMaq = res.filasMaq.map(function (f) { return Object.assign({}, extra, f); });
+    quitarClave(clave);
+    var z = registro[za[0]] || (registro[za[0]] = { zafra: za[0], lotes: [], lotes_maquina: [], lotes_maquina_dia: [], parametros_por_id: {}, cap_av_t: null });
+    z.lotes.push(fila); Array.prototype.push.apply(z.lotes_maquina, filasMaq);
+    z.lotes_maquina_dia = z.lotes_maquina_dia || [];
+    Array.prototype.push.apply(z.lotes_maquina_dia, res.diasMaq.map(function (d) { return Object.assign({ zafra: za[0] }, d); }));
+    z.parametros_por_id[C.PARAMS_ID] = C.PARAMS;
+    tocadas[za[0]] = true; marcarSesion(za[0], clave); cont.nuevos++;
+    if (aj.detalle) {
+      var ev = res.eventos.map(function (e) { return { inicio_utc: C.fmtTs(e.inicio_ms), dur_s: Math.round(e.dur_s * 10) / 10, cambio_rumbo: Math.round(e.cambio_rumbo), salto_m: Math.round(e.salto_m * 10) / 10,
+        huecos_unidos: e.huecos_unidos, surcos_saltados: Math.round(e.surcos_saltados * 10) / 10, tipo: e.tipo, ubic: e.ubic, ton_desde_cambio: e.ton_desde_cambio, ton_desde_cambio_2min: e.ton_desde_cambio_2min, maquina: e.maquina }; });
+      detalles.push({ zafra: za[0], clave: clave, csv: C.toCSV(ev, aj.excel) });
+    }
+    addLog("ok", "Listo: zafra " + za[0] + " · lote " + fila.lote + " · " + fmtN(fila.area_ha, 2) + " ha · " + fila.giros_n + " giros · mediana " + fmtN(fila.giro_mediana_s, 0) + " s");
+  }
+
+  async function correr() {
+    var aj;
+    try { aj = leerAjustes(); } catch (e) { setStatus(e.message, "bad"); return; }
+    corriendo = true; actualizarBotones(); $("log").innerHTML = ""; logLines = []; $("log").hidden = true;
+    var cont = { nuevos: 0, omitidos: 0, errores: 0 }, sueltos = {};
+    try {
+      for (var i = 0; i < archivos.length; i++) {
+        var f = archivos[i];
+        setStatus("Archivo " + (i + 1) + " de " + archivos.length + ": " + f.name + "…");
+        await tick();
+        if (/\.zip$/i.test(f.name)) {
+          var zip;
+          try { zip = await JSZip.loadAsync(await f.arrayBuffer()); } catch (e) { addLog("bad", "No pude abrir " + f.name + ": " + e.message); cont.errores++; continue; }
+          var nombres = Object.keys(zip.files), mapa = {};
+          nombres.forEach(function (n) { mapa[n.toLowerCase()] = n; });
+          var shps = nombres.filter(function (n) { return /\.shp$/i.test(n); });
+          if (!shps.length) addLog("warn", f.name + ": no trae ningún .shp");
+          for (var s = 0; s < shps.length; s++) {
+            var stem = shps[s].slice(0, -4), clave = stem.split("/").pop();
+            if (!aj.reproc && yaProcesado(clave)) { addLog("warn", "Ya estaba en el registro, se omite: " + clave); cont.omitidos++; continue; }
+            var get = async function (ext) { var k = mapa[(stem + ext).toLowerCase()]; return k ? await zip.file(k).async("arraybuffer") : null; };
+            var meta = null, mk = mapa[(stem + "-deere-metadata.json").toLowerCase()];
+            if (mk) { try { meta = JSON.parse((await zip.file(mk).async("string")).replace(/^\uFEFF/, "")); } catch (e) {} }
+            await procesarFuente(clave, await get(".shp"), await get(".dbf"), meta, aj, cont);
+            await tick();
+          }
+          zip = null;
+        } else {
+          var low = f.name.toLowerCase(), stemL, ext;
+          if (/-deere-metadata\.json$/.test(low)) { stemL = low.replace(/-deere-metadata\.json$/, ""); ext = "meta"; }
+          else if (/\.(shp|dbf|shx)$/.test(low)) { stemL = low.replace(/\.(shp|dbf|shx)$/, ""); ext = low.slice(-3); }
+          else continue;
+          var g = sueltos[stemL] || (sueltos[stemL] = { clave: f.name.replace(/(-Deere-Metadata\.json|\.(shp|dbf|shx))$/i, "") });
+          g[ext] = f;
+        }
+      }
+      var claves = Object.keys(sueltos);
+      for (var c = 0; c < claves.length; c++) {
+        var gr = sueltos[claves[c]];
+        if (!gr.shp) { addLog("warn", "Faltó el .shp de " + gr.clave); continue; }
+        var m2 = null; if (gr.meta) { try { m2 = JSON.parse((await gr.meta.text()).replace(/^\uFEFF/, "")); } catch (e) {} }
+        await procesarFuente(gr.clave, await gr.shp.arrayBuffer(), gr.dbf ? await gr.dbf.arrayBuffer() : null, m2, aj, cont);
+        await tick();
+      }
+      // capacidad del autovolteo: solo cambia en las zafras que se tocaron en esta corrida
+      Object.keys(tocadas).forEach(function (z) { if (aj.cap) registro[z].cap_av_t = aj.cap; else if (!registro[z].cap_av_t) registro[z].cap_av_t = 21; });
+      var msg = "Terminado. Nuevos: " + cont.nuevos + " · omitidos: " + cont.omitidos + " · con error: " + cont.errores + ".";
+      logLines.push({ cls: "", msg: msg });
+      setStatus(msg, cont.errores ? "warn" : "ok");
+    } catch (e) { setStatus("Se detuvo por un error: " + e.message, "bad"); }
+    corriendo = false; renderResultados(); actualizarBotones();
+  }
+  $("btn-run").addEventListener("click", correr);
+
+  /* ---------- resultados ---------- */
+  function renderResultados() {
+    var zs = Object.keys(registro).sort(), filas = [];
+    zs.forEach(function (z) { registro[z].lotes.forEach(function (l) { filas.push(l); }); });
+    $("sec-res").hidden = !filas.length;
+    if (!filas.length) return;
+    var sum = function (k) { return filas.reduce(function (a, l) { return a + (l[k] || 0); }, 0); };
+    var giros = filas.reduce(function (a, l) { return a.concat(l.giro_mediana_s != null ? [l.giro_mediana_s] : []); }, []).sort(function (a, b) { return a - b; });
+    var medGiro = giros.length ? giros[Math.floor((giros.length - 1) / 2)] : null;
+    $("kpis").innerHTML = [[fmtN(zs.length), zs.length === 1 ? "zafra" : "zafras"], [fmtN(filas.length), "lotes"], [fmtN(sum("area_ha"), 1), "hectáreas"], [fmtN(sum("giros_n")), "giros medidos"], [fmtN(medGiro, 0) + " s", "giro mediano entre lotes"]]
+      .map(function (k) { return '<div class="kpi"><b>' + esc(k[0]) + "</b><span>" + esc(k[1]) + "</span></div>"; }).join("");
+    var cols = [["zafra", "Zafra", 1], ["finca", "Finca", 1], ["lote", "Lote", 1], ["fecha_inicio_local", "Fecha", 1], ["area_ha", "ha", 0, 2], ["giros_n", "Giros", 0, 0], ["giro_mediana_s", "Giro mediano (s)", 0, 0],
+      ["h_ralenti", "Ralentí (h)", 0, 1], ["t_h_corte", "t/h en corte", 0, 1], ["vel_efectiva_kmh", "km/h", 0, 1]];
+    $("tabla").querySelector("thead").innerHTML = "<tr>" + cols.map(function (c) { return "<th" + (c[2] ? ' class="l"' : "") + ">" + esc(c[1]) + "</th>"; }).join("") + "</tr>";
+    $("tabla").querySelector("tbody").innerHTML = filas.map(function (l) {
+      return "<tr>" + cols.map(function (c) { var v = l[c[0]]; return "<td" + (c[2] ? ' class="l"' : "") + ">" + (c[2] ? esc(v == null ? "" : v) : fmtN(v, c[3])) + "</td>"; }).join("") + "</tr>";
+    }).join("");
+  }
+
+  /* ================= BASE DE DATOS (Firebase, colección registro_cosechadoras) ================= */
+  var versionBase = {}, sesionClaves = {}, leyendoBase = false, guardandoBase = false, ALERTA = { ok: "var(--ok)", bad: "var(--bad)", warn: "var(--warn)" };
+  function marcarSesion(z, clave) { (sesionClaves[z] = sesionClaves[z] || {})[clave] = 1; }
+  function stBase(t, tipo) { var e = $("st-base"); e.textContent = t; e.style.color = tipo ? ALERTA[tipo] : ""; }
+  function incorporarDeBase(res) {
+    var n = 0;
+    Object.keys(res.zafras).forEach(function (z) {
+      var r = res.zafras[z], ex = r.extra || {};
+      registro[z] = { zafra: z, lotes: r.lotes || [], lotes_maquina: r.maquinas || [], lotes_maquina_dia: r.dias || [], parametros_por_id: ex.parametros_por_id || {}, cap_av_t: ex.cap_av_t || null, actualizado: r.actualizado, version_script: ex.version_script };
+      versionBase[z] = r.version; n += (r.lotes || []).length;
+    });
+    return n;
+  }
+  function sobreponerSesion(z, local) {   // lo procesado en esta sesión va encima de lo que hay en la base
+    var claves = sesionClaves[z] || {}, base = registro[z];
+    if (!base || base === local) return;
+    var es = function (x) { return claves[x.archivo_clave]; };
+    base.lotes = base.lotes.filter(function (x) { return !es(x); }).concat(local.lotes.filter(es));
+    base.lotes_maquina = base.lotes_maquina.filter(function (x) { return !es(x); }).concat(local.lotes_maquina.filter(es));
+    base.lotes_maquina_dia = (base.lotes_maquina_dia || []).filter(function (x) { return !es(x); }).concat((local.lotes_maquina_dia || []).filter(es));
+    base.parametros_por_id = Object.assign({}, base.parametros_por_id, local.parametros_por_id); base.cap_av_t = base.cap_av_t || local.cap_av_t;
+  }
+  async function leerBase() {
+    if (typeof ISA === "undefined" || leyendoBase) return;
+    leyendoBase = true;
+    try {
+      var res = await ISA.registro.leerTodo(function (t) { stBase(t); });
+      var locales = {}; Object.keys(tocadas).forEach(function (z) { if (tocadas[z]) locales[z] = registro[z]; });
+      var n = incorporarDeBase(res);
+      Object.keys(locales).forEach(function (z) { if (locales[z]) { if (!registro[z]) registro[z] = locales[z]; else sobreponerSesion(z, locales[z]); } });
+      var zs = Object.keys(res.zafras);
+      stBase(zs.length ? "Registro leído de la base: zafra" + (zs.length > 1 ? "s " : " ") + zs.join(", ") + " (" + n.toLocaleString("es") + " lotes)." : "La base todavía no tiene registro de cosechadoras. Procesa shapes (o importa el Sheet) y pulsa «Guardar en la base».", "ok");
+      renderResultados(); actualizarBotones();
+      if (ISA.sesion().rol === "visor") stBase($("st-base").textContent + " Tu usuario es de solo lectura (visor): puedes procesar, pero no guardar.", "warn");
+    } catch (e) { stBase("No se pudo leer el registro de la base: " + e.message, "bad"); }
+    finally { leyendoBase = false; }
+  }
+  function prepararFilas(rows, mapa) {   // los nombres de operador no van en las filas: se guardan aparte, con permiso
+    return rows.map(function (r) {
+      var o = Object.assign({}, r);
+      if (o.operador) { if (!o.operador_id) o.operador_id = C.idOperador(o.operador, ""); mapa[o.operador_id] = o.operador; }
+      delete o.operador;
+      return o;
+    });
+  }
+  function cargaDe(z, mapa) {
+    var r = registro[z];
+    return { lotes: r.lotes, maquinas: prepararFilas(r.lotes_maquina, mapa), dias: prepararFilas(r.lotes_maquina_dia || [], mapa), extra: { parametros_por_id: r.parametros_por_id, cap_av_t: r.cap_av_t, version_script: C.VERSION } };
+  }
+  function actualizarBotonBase() {
+    var hay = Object.keys(tocadas).some(function (z) { return tocadas[z] && registro[z]; });
+    $("btn-base").disabled = guardandoBase || corriendo || !hay || typeof ISA === "undefined" || !ISA.puedeEditar();
+    var sf = (typeof shFiles !== "undefined" && shFiles) || {}; $("btn-sh-importar").disabled = !(sf.lotes || sf.maq || sf.dia);
+  }
+  async function guardarBase() {
+    var zs = Object.keys(tocadas).filter(function (z) { return tocadas[z] && registro[z]; });
+    if (!zs.length || guardandoBase) return;
+    guardandoBase = true; actualizarBotonBase();
+    var mapa = {}, hechos = [];
+    try {
+      for (var i = 0; i < zs.length; i++) {
+        var z = zs[i], nv;
+        var opc = function () { return { versionEsperada: versionBase[z] || 0, versionScript: C.VERSION, progreso: function (t) { stBase("Zafra " + z + ": " + t); } }; };
+        try { nv = await ISA.registro.guardarZafra(z, cargaDe(z, mapa), opc()); }
+        catch (e) {
+          if (!(e && e.code === "conflicto")) throw e;
+          stBase("Otra persona guardó la zafra " + z + " mientras trabajabas. Combinando con lo nuevo…", "warn");   // se lee lo nuevo, se pone encima lo procesado aquí y se reintenta una vez
+          await leerBase(); mapa = {};
+          nv = await ISA.registro.guardarZafra(z, cargaDe(z, mapa), opc());
+        }
+        versionBase[z] = nv.version; tocadas[z] = false; hechos.push(z);
+      }
+      var msg = "Guardado en la base: zafra" + (hechos.length > 1 ? "s " : " ") + hechos.join(", ") + ".";
+      if (Object.keys(mapa).length) {
+        var ok = await ISA.registro.operadores.guardar(mapa);
+        msg += ok ? " Los nombres de los operadores se guardaron aparte." : " Los nombres de los operadores NO se guardaron porque tu usuario no tiene el permiso «operadores»: en la base quedan solo con su código.";
+      }
+      stBase(msg, "ok");
+    } catch (e) { stBase("No se guardó: " + e.message, "bad"); }
+    finally { guardandoBase = false; actualizarBotones(); }
+  }
+  $("btn-base").addEventListener("click", guardarBase);
+
+  /* ---- Importar lo que ya está en el Google Sheet (CSV de las pestañas) ---- */
+  var shFiles = {}, TEXTO_SH = "zafra zafra_origen archivo_clave cliente finca lote zafra_deere variedad id_operacion version_script parametros_id maquinas maquina maquina_codigo maquina_serie operador operador_id fecha turno inicio_utc fin_utc fecha_inicio_local".split(" ");
+  var DERIVADAS_SH = ["cap_av_t", "av_llenados", "min_corte_por_av", "pasadas_por_av"];
+  function parseCSV(txt) {
+    txt = String(txt).replace(/^\uFEFF/, "");
+    var primera = txt.slice(0, txt.indexOf("\n") < 0 ? txt.length : txt.indexOf("\n")), sep = (primera.split(";").length > primera.split(",").length) ? ";" : ",";
+    var filas = [], fila = [], campo = "", q = false, i, c;
+    for (i = 0; i < txt.length; i++) {
+      c = txt.charAt(i);
+      if (q) { if (c === '"') { if (txt.charAt(i + 1) === '"') { campo += '"'; i++; } else q = false; } else campo += c; }
+      else if (c === '"') q = true;
+      else if (c === sep) { fila.push(campo); campo = ""; }
+      else if (c === "\n" || c === "\r") { if (c === "\r" && txt.charAt(i + 1) === "\n") i++; fila.push(campo); campo = ""; if (fila.length > 1 || fila[0] !== "") filas.push(fila); fila = []; }
+      else campo += c;
+    }
+    if (campo !== "" || fila.length) { fila.push(campo); filas.push(fila); }
+    return filas;
+  }
+  function objetosDeCSV(txt) {
+    var f = parseCSV(txt); if (f.length < 2) throw new Error("el archivo está vacío");
+    var cab = f[0].map(function (x) { return String(x).trim(); });
+    return f.slice(1).map(function (v) {
+      var o = {};
+      cab.forEach(function (k, i) {
+        var t = v[i] === undefined ? "" : String(v[i]).trim();
+        if (!k || t === "" || DERIVADAS_SH.indexOf(k) >= 0) return;
+        if (TEXTO_SH.indexOf(k) >= 0) o[k] = t;
+        else if (/^-?\d+(?:[.,]\d+)?$/.test(t)) o[k] = Number(t.replace(",", "."));
+        else o[k] = t;
+      });
+      return o;
+    }).filter(function (o) { return o.archivo_clave && o.zafra; });
+  }
+  ["lotes", "maq", "dia"].forEach(function (k) {
+    $("f-sh-" + k).addEventListener("change", function (ev) { var f = ev.target.files[0]; if (f) shFiles[k] = f; else delete shFiles[k]; actualizarBotonBase(); });
+  });
+  $("btn-sh-importar").addEventListener("click", async function () {
+    var st = $("st-sheet"); st.style.color = ""; st.textContent = "Leyendo los CSV…";
+    try {
+      var partes = { lotes: [], lotes_maquina: [], lotes_maquina_dia: [] };
+      if (shFiles.lotes) partes.lotes = objetosDeCSV(await shFiles.lotes.text());
+      if (shFiles.maq) partes.lotes_maquina = objetosDeCSV(await shFiles.maq.text());
+      if (shFiles.dia) partes.lotes_maquina_dia = objetosDeCSV(await shFiles.dia.text());
+      var zs = {};
+      Object.keys(partes).forEach(function (t) { partes[t].forEach(function (r) { (zs[r.zafra] = zs[r.zafra] || {})[r.archivo_clave] = 1; }); });
+      var resumen = [];
+      Object.keys(zs).sort().forEach(function (z) {
+        var r = registro[z] || (registro[z] = { zafra: z, lotes: [], lotes_maquina: [], lotes_maquina_dia: [], parametros_por_id: {}, cap_av_t: null }), claves = zs[z];
+        Object.keys(partes).forEach(function (t) {
+          var nuevas = partes[t].filter(function (x) { return x.zafra === z; });
+          if (!nuevas.length) return;
+          var cl = {}; nuevas.forEach(function (x) { cl[x.archivo_clave] = 1; });
+          r[t] = (r[t] || []).filter(function (x) { return !cl[x.archivo_clave]; }).concat(nuevas);
+        });
+        Object.keys(claves).forEach(function (k) { marcarSesion(z, k); });
+        tocadas[z] = true; resumen.push(z + ": " + Object.keys(claves).length + " lotes");
+      });
+      if (!resumen.length) throw new Error("no encontré filas con zafra y archivo_clave");
+      st.textContent = "Listo para guardar → " + resumen.join(" · ") + ". Pulsa «Guardar en la base».";
+      renderResultados(); actualizarBotones();
+    } catch (e) { st.style.color = "var(--bad)"; st.textContent = "No se pudo importar: " + e.message; }
+  });
+
+  /* ---- sesión ---- */
+  function pintarSesion(s) {
+    var dentro = !!(s && s.user);
+    $("isa-form").hidden = dentro; $("isa-ok").hidden = !dentro;
+    if (dentro) { $("isa-usuario").textContent = s.email; $("isa-rol").textContent = s.listo ? (s.rol ? "(" + s.rol + ")" : "(sin rol asignado)") : "(comprobando rol…)"; }
+    actualizarBotones();
+  }
+  (function () {
+    if (typeof ISA === "undefined" || !ISA.iniciar()) { stBase("Sin conexión a la base: puedes procesar y descargar el .zip, pero no guardar en la base.", "warn"); $("isa-form").hidden = true; return; }
+    ISA.alCambiarSesion(function (s) {
+      pintarSesion(s);
+      if (s.user && s.listo && s.rol) { if (!leyendoBase && !Object.keys(versionBase).length) leerBase(); if (s.rol === "visor") stBase("Tu usuario es de solo lectura (visor): puedes procesar, pero no guardar en la base.", "warn"); }
+      if (s.user && s.listo && !s.rol) stBase("Tu usuario no tiene rol asignado en el planificador.", "bad");
+    });
+    $("b-isa-entrar").addEventListener("click", async function () {
+      var b = $("b-isa-entrar"); b.disabled = true; stBase("Conectando…");
+      try { await ISA.login($("isa-email").value, $("isa-pass").value); $("isa-pass").value = ""; } catch (e) { stBase(e.message, "bad"); } finally { b.disabled = false; }
+    });
+    $("isa-pass").addEventListener("keydown", function (ev) { if (ev.key === "Enter") $("b-isa-entrar").click(); });
+    $("b-isa-leer").addEventListener("click", leerBase);
+    $("b-isa-salir").addEventListener("click", function () { ISA.logout(); });
+  })();
+
+  /* ---------- salida: código para el Sheet y .zip ---------- */
+  function ahoraTxt() { return new Date().toISOString().slice(0, 16).replace("T", " "); }
+  function construirZafras(sinDias) {
+    return Object.keys(registro).sort().map(function (zn) {
+      var z = registro[zn], cap = z.cap_av_t || 21;
+      var o = { zafra: zn, lotes: z.lotes, lotes_maquina: z.lotes_maquina, parametros_por_id: z.parametros_por_id, cap_av_t: cap,
+        actualizado: tocadas[zn] ? ahoraTxt() : (z.actualizado || ""), version_script: tocadas[zn] ? C.VERSION : (z.version_script || C.VERSION) };
+      if (!sinDias) o.lotes_maquina_dia = z.lotes_maquina_dia || [];
+      return o;
+    });
+  }
+  function aBase64(datos) {
+    var b = datos instanceof Uint8Array ? datos : new Uint8Array(datos), s = "", i;
+    for (i = 0; i < b.length; i += 8192) s += String.fromCharCode.apply(null, b.subarray(i, i + 8192));
+    return btoa(s);
+  }
+  async function generarCodigo() {
+    var bytes = new TextEncoder().encode(JSON.stringify(construirZafras()));   // incluye las horas por día de cada máquina
+    if (typeof CompressionStream === "function") {
+      var comp = await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer();
+      return "COSECHA1:" + aBase64(comp);
+    }
+    return "COSECHA0:" + aBase64(bytes);
+  }
+  $("btn-code").addEventListener("click", async function () {
+    var st = $("st-code"), ta = $("codigo");
+    st.className = "status"; st.textContent = "Preparando el código…";
+    try {
+      var cod = await generarCodigo();
+      ta.value = cod; ta.hidden = false; $("btn-copy").hidden = false;
+      var lotes = Object.keys(registro).reduce(function (a, z) { return a + registro[z].lotes.length; }, 0);
+      st.className = "status ok";
+      st.textContent = "Código listo: " + lotes + " lotes, " + Math.round(cod.length / 1024) + " KB de texto. Haz clic en el cuadro, Ctrl+A y Ctrl+C; o pulsa “Copiar”.";
+      ta.focus(); ta.select();
+    } catch (e) { st.className = "status bad"; st.textContent = "No pude generar el código: " + e.message; }
+  });
+  $("btn-copy").addEventListener("click", async function () {
+    var ta = $("codigo"), st = $("st-code"), ok = false;
+    ta.focus(); ta.select();
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(ta.value); ok = true; } } catch (e) {}
+    if (!ok) { try { ok = document.execCommand("copy"); } catch (e) {} }
+    st.className = "status " + (ok ? "ok" : "warn");
+    st.textContent = ok ? "Copiado. Ahora pégalo en el Sheet." : "No pude copiar automáticamente. Con el texto seleccionado, pulsa Ctrl+C.";
+  });
+
+  async function descargar() {
+    var excel = $("excel").checked, zip = new JSZip(), root = zip.folder("resultados_cosechadoras"), hist = [], histM = [], histD = [];
+    construirZafras().forEach(function (out) {
+      var carpeta = root.folder("zafra_" + out.zafra);
+      var lotes = out.lotes.map(function (r) { return C.anadirAV(r, out.cap_av_t); }), maq = out.lotes_maquina.map(function (r) { return C.anadirAV(r, out.cap_av_t); });
+      carpeta.file("resumen_por_lote.json", JSON.stringify(out, null, 1));
+      carpeta.file("resumen_por_lote.csv", C.toCSV(lotes, excel));
+      carpeta.file("resumen_por_lote_maquina.csv", C.toCSV(maq, excel));
+      carpeta.file("horas_maquina_dia.csv", C.toCSV(out.lotes_maquina_dia || [], excel));
+      Array.prototype.push.apply(hist, lotes); Array.prototype.push.apply(histM, maq); Array.prototype.push.apply(histD, out.lotes_maquina_dia || []);
+    });
+    root.file("historico_horas_maquina_dia.csv", C.toCSV(histD, excel));
+    root.file("historico_todas_las_zafras.csv", C.toCSV(hist, excel));
+    root.file("historico_todas_las_zafras_maquina.csv", C.toCSV(histM, excel));
+    root.file("registro_proceso.txt", logLines.map(function (l) { return l.msg; }).join("\n") + "\n");
+    detalles.forEach(function (d) { root.folder("zafra_" + d.zafra).folder("detalle_huecos").file(d.clave + ".csv", d.csv); });
+    try {
+      var blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+      if (downloads) {
+        await downloads.save({ filename: "resultados_cosechadoras.zip", data: blob });
+        setStatus("Descarga lista. Guarda el .zip en tu Drive para conservar el registro de cada zafra.", "ok");
+      } else {
+        // sin la capacidad de descargas: se intenta un enlace normal (puede no funcionar dentro del visor)
+        var url = URL.createObjectURL(blob), a = document.createElement("a");
+        a.href = url; a.download = "resultados_cosechadoras.zip"; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        setStatus("Intenté guardar el .zip. Si no aparece en tus descargas, usa “Mostrar código” en la sección Resultados: no necesita descargar nada.", "warn");
+      }
+    } catch (e) {
+      if (e && e.code === "declined") setStatus("La descarga se canceló.", "warn");
+      else setStatus("No se pudo descargar: " + ((e && e.message) || e) + ". Usa “Mostrar código” en la sección Resultados.", "bad");
+    }
+  }
+  $("btn-dl").addEventListener("click", descargar);
+  actualizarBotones();
+})();
+</script>
+</body>
+</html>
