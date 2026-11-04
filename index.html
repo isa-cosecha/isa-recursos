@@ -301,20 +301,23 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
       <ul>
         <li><a href="#" id="portada-planificador" onclick="entrarAlPlanificador();return false"><span class="portada-cuadro" aria-hidden="true"><i class="ti ti-tractor"></i></span>Planificador de Cosecha de Caña<i class="ti ti-chevron-right portada-flecha" aria-hidden="true"></i></a></li>
         <li><a href="seguimiento_cosecha.html" id="portada-seguimiento"><span class="portada-cuadro" aria-hidden="true"><i class="ti ti-chart-line"></i></span>Seguimiento del Plan<i class="ti ti-chevron-right portada-flecha" aria-hidden="true"></i></a></li>
+        <li><a href="diseno_lotes.html" id="portada-diseno-lotes"><span class="portada-cuadro" aria-hidden="true"><i class="ti ti-layout-grid"></i></span>Diseño de Lotes<i class="ti ti-chevron-right portada-flecha" aria-hidden="true"></i></a></li>
       </ul>
     </nav>
   </section>
 </section>
 
 <script>
-/* Enlace a Seguimiento: en GitHub Pages usa la ruta relativa; abierto en local (file://) apunta a la copia publicada. */
+/* Módulos externos: en GitHub Pages usan ruta relativa; abierto en local (file://) apuntan a la copia publicada. */
 (function(){
-  var a=document.getElementById('portada-seguimiento'); if(!a) return;
   var BASE='https://isa-cosecha.github.io/isa-recursos/';
-  if(location.protocol==='file:'){
-    a.href=BASE+'seguimiento_cosecha.html'; a.target='_blank'; a.rel='noopener';
+  var MODULOS={'portada-seguimiento':'seguimiento_cosecha.html','portada-diseno-lotes':'diseno_lotes.html'};
+  if(location.protocol!=='file:') return;
+  Object.keys(MODULOS).forEach(function(id){
+    var a=document.getElementById(id); if(!a) return;
+    a.href=BASE+MODULOS[id]; a.target='_blank'; a.rel='noopener';
     a.title='Se abre desde GitHub Pages (requiere internet)';
-  }
+  });
 })();
 </script>
 
