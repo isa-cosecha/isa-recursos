@@ -1,0 +1,1689 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Diseño de lotes · Cosecha</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root {
+  --papel: #F2F5EF; --superficie: #FFFFFF; --tinta: #1C2620; --tinta-2: #4A5A4F; --tinta-3: #7A887E;
+  --hoja: #23452F; --brote: #4F7D3A; --brote-bg: #E4EEDC; --ocre: #8A5F14; --ocre-bg: #F6EBD3; --barro: #7A3B2E; --barro-bg: #F6E1DC;
+  --linea: #D5DDD2; --surco: rgba(35, 69, 47, 0.10); --foco: #B07D24;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papel: #111713; --superficie: #19211C; --tinta: #E3EBE3; --tinta-2: #B3C1B6; --tinta-3: #85948A;
+    --hoja: #9CC98A; --brote: #9CC98A; --brote-bg: #22351F; --ocre: #E2B25A; --ocre-bg: #3A2E14; --barro: #E59482; --barro-bg: #3D221D;
+    --linea: #2C3830; --surco: rgba(156, 201, 138, 0.08); --foco: #E2B25A;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --papel: #111713; --superficie: #19211C; --tinta: #E3EBE3; --tinta-2: #B3C1B6; --tinta-3: #85948A;
+  --hoja: #9CC98A; --brote: #9CC98A; --brote-bg: #22351F; --ocre: #E2B25A; --ocre-bg: #3A2E14; --barro: #E59482; --barro-bg: #3D221D;
+  --linea: #2C3830; --surco: rgba(156, 201, 138, 0.08); --foco: #E2B25A;
+  color-scheme: dark;
+}
+:root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+*, *::before, *::after { box-sizing: inherit; }
+body { margin: 0; background: var(--papel); color: var(--tinta); font-family: 'Barlow', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.5; }
+.num, table { font-family: 'Barlow Semi Condensed', 'Barlow', 'Arial Narrow', Arial, sans-serif; font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
+
+header.campo {
+  position: relative; overflow: hidden; background: var(--hoja); color: #F2F5EF;
+  padding: 44px clamp(20px, 5vw, 64px) 36px;
+}
+header.campo::before {
+  content: ""; position: absolute; inset: -40% -10%;
+  background: repeating-linear-gradient(72deg, rgba(242, 245, 239, 0.10) 0 1.5px, transparent 1.5px 22px);
+  transform: rotate(0deg);
+}
+header.campo > * { position: relative; }
+header.campo h1 { font-size: clamp(30px, 4.6vw, 48px); line-height: 1.05; margin: 0 0 12px; font-weight: 700; letter-spacing: -0.01em; max-width: 18ch; }
+header.campo p { margin: 0; max-width: 62ch; color: rgba(242, 245, 239, 0.86); font-size: 17px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) header.campo { background: #1E3324; } }
+:root[data-theme="dark"] header.campo { background: #1E3324; }
+
+main { padding: 28px clamp(20px, 5vw, 64px) 64px; max-width: 1400px; }
+section { margin-bottom: 36px; }
+h2 { font-size: 22px; margin: 0 0 6px; font-weight: 600; }
+.ayuda { color: var(--tinta-2); margin: 0 0 16px; max-width: 70ch; }
+
+ol.pasos { list-style: none; counter-reset: paso; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px 28px; }
+ol.pasos > li { counter-increment: paso; display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
+ol.pasos > li::before { content: counter(paso); width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--hoja); color: var(--hoja); display: grid; place-items: center; font-weight: 600; font-family: 'Barlow Semi Condensed', sans-serif; }
+.paso h3 { margin: 4px 0 4px; font-size: 17px; font-weight: 600; }
+.paso p { margin: 0 0 10px; color: var(--tinta-2); font-size: 15px; }
+.archivo { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1.5px dashed var(--tinta-3); border-radius: 8px; cursor: pointer; color: var(--tinta); background: var(--superficie); font: inherit; font-size: 15px; }
+.archivo:hover { border-color: var(--hoja); }
+.archivo input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.estado-archivo { display: block; font-size: 14px; color: var(--tinta-2); margin-top: 6px; min-height: 1.4em; }
+.estado-archivo.ok { color: var(--brote); }
+.estado-archivo.error { color: var(--barro); }
+
+.params { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 18px; margin: 18px 0 0; max-width: 980px; }
+.params label { display: block; font-size: 14px; color: var(--tinta-2); margin-bottom: 4px; }
+input[type="number"], input[type="search"], input[type="text"], select { width: 100%; padding: 8px 10px; border: 1px solid var(--linea); border-radius: 6px; background: var(--superficie); color: var(--tinta); font: inherit; font-size: 15px; }
+
+button.principal { background: var(--hoja); color: var(--papel); border: 0; border-radius: 8px; padding: 11px 20px; font: inherit; font-weight: 600; font-size: 16px; cursor: pointer; }
+button.principal:disabled { opacity: 0.45; cursor: not-allowed; }
+button.secundario { background: transparent; color: var(--hoja); border: 1.5px solid var(--hoja); border-radius: 8px; padding: 9px 16px; font: inherit; font-weight: 600; font-size: 15px; cursor: pointer; }
+button.secundario:disabled { opacity: 0.45; cursor: not-allowed; }
+.fila-acciones { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 18px; }
+.progreso { flex: 1 1 260px; min-width: 200px; }
+.barra { height: 6px; background: var(--linea); border-radius: 3px; overflow: hidden; }
+.barra > i { display: block; height: 100%; width: 0; background: var(--brote); transition: width .2s; }
+.progreso small { display: block; color: var(--tinta-2); margin-top: 6px; font-size: 14px; }
+
+.resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 18px 28px; margin: 6px 0 18px; }
+.resumen .dato strong { display: block; font-size: 30px; font-weight: 600; line-height: 1.1; font-family: 'Barlow Semi Condensed', sans-serif; }
+.resumen .dato span { color: var(--tinta-2); font-size: 14px; }
+.reparto { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 4px 0 8px; background: var(--linea); }
+.reparto i { display: block; height: 100%; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--tinta-2); margin-bottom: 18px; }
+.leyenda b { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+.filtros { display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: 10px 14px; margin-bottom: 12px; max-width: 1100px; }
+@media (max-width: 720px) { .filtros { grid-template-columns: 1fr 1fr; } }
+.tabla-caja { overflow: auto; max-height: 70vh; border: 1px solid var(--linea); border-radius: 8px; background: var(--superficie); }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+thead th { position: sticky; top: 0; background: var(--superficie); z-index: 2; text-align: right; font-weight: 600; color: var(--tinta-2); padding: 10px 10px 8px; border-bottom: 1.5px solid var(--linea); white-space: nowrap; cursor: pointer; user-select: none; }
+thead th.izq, td.izq { text-align: left; }
+thead th[aria-sort="ascending"]::after { content: " ▲"; font-size: 10px; }
+thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 10px; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--linea); text-align: right; white-space: nowrap; }
+td small { color: var(--tinta-3); }
+tbody tr:hover { background: var(--surco); }
+.chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 13px; font-family: 'Barlow', sans-serif; font-weight: 500; }
+.chip.ok { background: var(--brote-bg); color: var(--brote); }
+.chip.revisar { background: var(--ocre-bg); color: var(--ocre); }
+.chip.error { background: var(--barro-bg); color: var(--barro); }
+.chip.nada { background: var(--linea); color: var(--tinta-2); }
+.diff-pos { color: var(--ocre); }
+.diff-neg { color: var(--ocre); }
+svg.rumbo { vertical-align: -4px; margin-right: 4px; }
+.vacio { padding: 28px; color: var(--tinta-2); }
+.nota { font-size: 14px; color: var(--tinta-2); margin-top: 10px; max-width: 80ch; }
+.exp { background: none; border: 0; cursor: pointer; font-size: 13px; color: var(--hoja); padding: 0 6px 0 0; width: 22px; text-align: left; }
+.exp-hueco { display: inline-block; width: 22px; }
+tr.sub td { background: var(--surco); font-size: 14px; }
+.mapa-caja { margin: 0 0 18px; border: 1px solid var(--linea); border-radius: 10px; background: var(--superficie); overflow: hidden; }
+.mapa-barra { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--linea); }
+.mapa-barra label { display: flex; gap: 6px; align-items: center; font-size: 14px; margin: 0; color: var(--tinta-2); }
+.mapa-barra input[type=checkbox] { width: auto; margin: 0; }
+.mapa-barra button { padding: 6px 12px; font-size: 14px; }
+.mapa-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) 320px; }
+@media (max-width: 900px) { .mapa-cuerpo { grid-template-columns: 1fr; } }
+#u-mapa { width: 100%; height: 540px; display: block; background: var(--papel); cursor: grab; touch-action: none; }
+#u-mapa:active { cursor: grabbing; }
+#u-mapa path, #u-mapa line { vector-effect: non-scaling-stroke; }
+#u-mapa text { pointer-events: none; paint-order: stroke; stroke: var(--papel); stroke-width: 3px; stroke-linejoin: round; }
+#u-mapa-info { padding: 12px 14px; font-size: 14px; border-left: 1px solid var(--linea); max-height: 540px; overflow: auto; }
+#u-mapa-info p { margin: 0 0 6px; } #u-mapa-info .par { border-top: 1px solid var(--linea); padding-top: 6px; margin-top: 6px; }
+.mapa-leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 8px 12px; border-top: 1px solid var(--linea); font-size: 13px; color: var(--tinta-2); }
+.mapa-leyenda i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+#u-tabla tbody tr { cursor: pointer; } #u-tabla tbody tr.sel td { background: var(--brote-bg); }
+.isa-sesion { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.isa-sesion input { width: 210px; margin: 0; }
+.isa-sesion button { padding: 8px 14px; }
+.isa-o { margin: 10px 0 4px; font-size: 14px; color: var(--tinta-2); }
+.paginas { display: flex; gap: 4px; margin: 0 0 22px; border-bottom: 1px solid var(--linea); flex-wrap: wrap; }
+.paginas button { background: transparent; color: var(--tinta-2); border: 0; border-bottom: 3px solid transparent; padding: 10px 16px; font: inherit; font-weight: 600; font-size: 16px; cursor: pointer; margin-bottom: -1px; }
+.paginas button[aria-selected="true"] { color: var(--hoja); border-bottom-color: var(--hoja); }
+.paginas .punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--brote); margin-left: 8px; vertical-align: middle; }
+h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
+.sub { font-size: 14px; color: var(--tinta-2); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<!-- Conexión a la base del planificador (mismo proyecto de Firebase). Si no cargan, el módulo sigue funcionando con el archivo .json. -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="isa-conexion.js"></script>
+</head>
+<body>
+<header class="campo">
+  <h1>Diseño de lotes para la cosecha</h1>
+  <p>Lee el maestro de líneas de cosecha y los datos del planificador, calcula para cada lote los surcos, la distancia que recorren las cosechadoras, los giros y el tiempo de maniobras, y prepara esos datos para el planificador.</p>
+</header>
+<main>
+  <nav class="paginas" role="tablist" aria-label="Páginas del módulo">
+    <button role="tab" id="tab-diseno" aria-selected="true">Diseño de lotes</button>
+    <button role="tab" id="tab-maq" aria-selected="false">Análisis por máquina<span class="punto" id="punto-maq" hidden title="Análisis actualizado"></span></button>
+  </nav>
+  <div id="pag-diseno">
+  <section aria-labelledby="t-cargar">
+    <h2 id="t-cargar">Cargar y procesar</h2>
+    <p class="ayuda">Los archivos se leen en este navegador: no se suben a ningún lado.</p>
+    <ol class="pasos">
+      <li class="paso">
+        <div>
+          <h3>Datos del planificador</h3>
+          <p>Se leen directo de la base del planificador con tu usuario. Si no hay conexión, usa el archivo .json que exporta el planificador.</p>
+          <div id="isa-acceso">
+            <div class="isa-sesion" id="isa-form">
+              <input type="email" id="isa-email" placeholder="Correo del planificador" autocomplete="username">
+              <input type="password" id="isa-pass" placeholder="Contraseña" autocomplete="current-password">
+              <button class="principal" id="b-isa-entrar">Entrar y leer la base</button>
+            </div>
+            <div class="isa-sesion" id="isa-ok" hidden>
+              <span>Sesión: <b id="isa-usuario"></b> <small id="isa-rol"></small></span>
+              <button class="principal" id="b-isa-leer">Leer la base otra vez</button>
+              <button class="secundario" id="b-isa-salir">Cerrar sesión</button>
+            </div>
+          </div>
+          <p class="isa-o" id="isa-o-txt">O bien, el archivo .json que exporta el planificador (Exportar datos):</p>
+          <label class="archivo"><input type="file" id="f-plan" accept=".json,application/json">Elegir archivo .json</label>
+          <span class="estado-archivo" id="e-plan">Sin datos.</span>
+        </div>
+      </li>
+      <li class="paso">
+        <div>
+          <h3>Maestro de líneas de cosecha</h3>
+          <p>El .zip del shapefile, o los archivos .shp y .dbf juntos (y el .prj si lo tienes).</p>
+          <label class="archivo"><input type="file" id="f-lineas" accept=".zip,.shp,.dbf,.prj" multiple>Elegir .zip o .shp + .dbf</label>
+          <span class="estado-archivo" id="e-lineas">Sin archivo.</span>
+        </div>
+      </li>
+      <li class="paso">
+        <div>
+          <h3>Registro de cosechadoras (opcional)</h3>
+          <p>El CSV de la pestaña <b>registro_lotes</b> del Google Sheet (Archivo &gt; Descargar &gt; CSV). Aporta el tiempo real de giro y la velocidad de cada lote.</p>
+          <label class="archivo"><input type="file" id="f-registro" accept=".csv,.txt,text/csv">Elegir archivo .csv</label>
+          <span class="estado-archivo" id="e-registro">Sin archivo.</span>
+        </div>
+      </li>
+      <li class="paso">
+        <div>
+          <h3>Registro por cosechadora (opcional)</h3>
+          <p>El CSV de la pestaña <b>registro_lotes_maquina</b> del Sheet. Sirve para comparar la velocidad de cada cosechadora con la tabla del planificador.</p>
+          <label class="archivo"><input type="file" id="f-regmaq" accept=".csv,.txt,text/csv">Elegir archivo .csv</label>
+          <span class="estado-archivo" id="e-regmaq">Sin archivo.</span>
+        </div>
+      </li>
+      <li class="paso">
+        <div>
+          <h3>Horas por día de cada máquina (opcional)</h3>
+          <p>El CSV de la pestaña <b>registro_maquina_dia</b> del Sheet, o el <b>horas_maquina_dia.csv</b> del .zip de la herramienta.</p>
+          <label class="archivo"><input type="file" id="f-regdia" accept=".csv,.txt,text/csv">Elegir archivo .csv</label>
+          <span class="estado-archivo" id="e-regdia">Sin archivo.</span>
+        </div>
+      </li>
+      <li class="paso">
+        <div>
+          <h3>Procesar</h3>
+          <p>Asigna cada línea a su lote y calcula el diseño de cada lote.</p>
+        </div>
+      </li>
+      <li class="paso">
+        <div>
+          <h3>Revisar y exportar</h3>
+          <p>Revisa los lotes marcados y descarga los datos para el planificador.</p>
+        </div>
+      </li>
+    </ol>
+    <div class="params">
+      <div><label for="p-giro">Tiempo por giro si el lote no lo tiene (min)</label><input type="number" id="p-giro" value="1.25" min="0" step="0.05"></div>
+      <div><label for="p-corto">Surco corto: menos de (m)</label><input type="number" id="p-corto" value="50" min="0" step="5"></div>
+      <div><label for="p-vel">Velocidad si el lote no la tiene (km/h)</label><input type="number" id="p-vel" value="4.5" min="0.5" step="0.1"></div>
+      <div><label for="p-zafra">Zafra para el frente de cada lote</label><select id="p-zafra"><option value="">—</option></select></div>
+    </div>
+    <div class="params" id="params-registro">
+      <div><label style="margin-bottom:10px">Tiempos reales</label><label style="display:flex;gap:8px;align-items:center;color:var(--tinta)"><input type="checkbox" id="p-usar-real" checked style="width:auto"> Usar los del registro de cosechadoras</label></div>
+      <div><label for="p-min-giros">Mínimo de maniobras medidas por lote</label><input type="number" id="p-min-giros" value="30" min="1" step="5"></div>
+    </div>
+    <div class="fila-acciones">
+      <button class="principal" id="b-procesar" disabled>Procesar</button>
+      <div class="progreso" id="progreso" hidden><div class="barra"><i id="barra"></i></div><small id="progreso-txt"></small></div>
+    </div>
+  </section>
+
+  <section id="s-resultado" hidden aria-labelledby="t-resultado">
+    <h2 id="t-resultado">Resultado por lote</h2>
+    <p class="ayuda" id="resumen-txt"></p>
+    <div class="resumen" id="resumen"></div>
+    <p class="nota" id="reg-resumen" hidden></p>
+    <div class="reparto" id="reparto" aria-hidden="true"></div>
+    <div class="leyenda" id="leyenda"></div>
+    <div class="filtros">
+      <input type="search" id="q" placeholder="Buscar lote o finca" aria-label="Buscar lote o finca">
+      <select id="f-estado" aria-label="Estado"><option value="">Todos los estados</option></select>
+      <select id="f-tenencia" aria-label="Tenencia"><option value="">Todas las tenencias</option><option>Propio</option><option>Proveedor</option></select>
+      <select id="f-frente" aria-label="Frente"><option value="">Todos los frentes</option></select>
+    </div>
+    <div class="fila-acciones" style="margin:0 0 12px">
+      <button class="secundario" id="b-detalle">Descargar detalle (CSV)</button>
+      <button class="secundario" id="b-plan-vel" title="Mismo formato que la «Plantilla vel. anterior» del planificador: se sube con «Importar vel. anterior»">Plantilla vel. anterior (CSV)</button>
+      <button class="secundario" id="b-plan-tiempos" title="Mismo formato que la «Plantilla tiempos» del planificador: se sube con «Importar tiempos y diseño»">Plantilla tiempos y diseño (CSV)</button>
+      <span id="msg-descarga" style="font-size:14px;color:var(--tinta-2)"></span>
+    </div>
+    <label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:0 0 8px;color:var(--tinta)"><input type="checkbox" id="p-incluir-distinto" checked style="width:auto;margin-top:4px"> Incluir los lotes con distanciamiento distinto del planificador (se envía el distanciamiento medido, por si el lote se renovó)</label>
+    <p class="nota" style="margin:0 0 12px">Las dos plantillas salen en el mismo formato que las del planificador y solo traen los lotes que tienen algo que subir: los demás no se tocan. Una celda vacía no cambia ese dato.</p>
+    <div class="tabla-caja"><table id="tabla" aria-describedby="resumen-txt"><thead></thead><tbody></tbody></table></div>
+    <p class="nota">La distancia es la suma del largo de los surcos del lote: lo que recorren las cosechadoras cortando. Cada surco es un giro en la cabecera. El distanciamiento se mide directamente: los surcos del rumbo principal se ubican sobre una línea perpendicular a ese rumbo y se toma la mediana de la separación entre cada surco y el vecino que tiene enfrente (al pasar el cursor se ve también el estimado por área). Cuando un lote tiene líneas de dos capas, se usa la de mejor calidad: diseño RTK Fix, luego RTK Fix, mixta, RTK Float y referencia.</p>
+  </section>
+  <section id="s-unif" hidden aria-labelledby="t-unif">
+    <h2 id="t-unif">Posibles unificaciones</h2>
+    <p class="ayuda">Lotes vecinos que se podrían unir en uno solo: se tocan, son del mismo propietario, tienen la misma variedad y edades parecidas. Si sus surcos tienen el mismo rumbo y distanciamiento, la unión es directa: los surcos siguen de un lote al otro y se ahorra un giro por cada surco que cruza el borde. Si no, la unión requiere rediseño en la renovación.</p>
+    <div class="params" style="margin-top:0">
+      <div><label for="u-edad">Diferencia de edad máxima (días)</label><input type="number" id="u-edad" value="30" min="0" step="1"></div>
+      <div><label for="u-rumbo">Diferencia de rumbo para unión directa (°)</label><input type="number" id="u-rumbo" value="10" min="0" max="90" step="1"></div>
+      <div><label for="u-borde">Borde común mínimo (m)</label><input type="number" id="u-borde" value="50" min="0" step="10"></div>
+      <div><label for="u-tol">Separación máxima entre bordes (m)</label><input type="number" id="u-tol" value="5" min="0" step="1"></div>
+      <div><label for="u-var" style="margin-bottom:10px">Variedad</label><label style="display:flex;gap:8px;align-items:center;color:var(--tinta)"><input type="checkbox" id="u-var" checked style="width:auto"> Exigir la misma variedad</label></div>
+    </div>
+    <div class="fila-acciones">
+      <button class="principal" id="b-unif">Buscar unificaciones</button>
+      <div class="progreso" id="u-progreso" hidden><div class="barra"><i id="u-barra"></i></div><small id="u-progreso-txt"></small></div>
+    </div>
+    <div id="u-resultado" hidden style="margin-top:20px">
+      <p class="ayuda" id="u-resumen-txt"></p>
+      <div class="resumen" id="u-resumen"></div>
+      <div class="fila-acciones" style="margin:0 0 12px">
+        <select id="u-f-tipo" aria-label="Tipo de unión" style="max-width:240px"><option value="">Todos los tipos</option><option>Directa</option><option>Parcialmente directa</option><option>Requiere rediseño</option></select>
+        <button class="secundario" id="b-unif-csv">Descargar unificaciones (CSV)</button>
+        <span id="u-msg" style="font-size:14px;color:var(--tinta-2)"></span>
+      </div>
+      <div class="mapa-caja" id="u-mapa-caja" hidden>
+        <div class="mapa-barra">
+          <button class="secundario" id="u-prev" title="Propuesta anterior">◀ Anterior</button>
+          <button class="secundario" id="u-sig" title="Propuesta siguiente">Siguiente ▶</button>
+          <strong id="u-mapa-titulo"></strong>
+          <label><input type="checkbox" id="u-ver-surcos"> Mostrar los surcos</label>
+          <label><input type="checkbox" id="u-ver-todas"> Ver todas las propuestas</label>
+          <button class="secundario" id="u-ajustar">Ajustar la vista</button>
+        </div>
+        <div class="mapa-cuerpo"><svg id="u-mapa" role="img" aria-label="Mapa de la unificación seleccionada"></svg><div id="u-mapa-info"></div></div>
+        <div class="mapa-leyenda"><span><i style="background:var(--brote)"></i>Unión directa</span><span><i style="background:var(--ocre)"></i>Parcialmente directa</span><span><i style="background:var(--barro)"></i>Requiere rediseño</span><span><i style="background:var(--foco)"></i>Borde común</span><span><i style="background:var(--surco);border:1px solid var(--linea)"></i>Otros lotes</span><span>Rueda del ratón: acercar · arrastrar: mover · clic en un lote: elegir esa propuesta</span></div>
+      </div>
+      <div class="tabla-caja"><table id="u-tabla"><thead></thead><tbody></tbody></table></div>
+      <p class="nota">Los giros y horas ahorradas son por zafra: un giro menos por cada surco que cruza el borde común en una unión directa. Antes de unir, revisa en campo si entre los lotes hay un camino, canal o dren que lo impida: el módulo todavía no tiene esas barreras.</p>
+    </div>
+  </section>
+  </div>
+
+  <div id="pag-maquinas" hidden>
+    <section aria-labelledby="t-maq">
+      <h2 id="t-maq">Análisis por máquina</h2>
+      <p class="nota" style="margin-top:0">Se calcula solo al pulsar <b>Procesar</b> (y cuando cargas los archivos del registro por cosechadora). Muestra, por cosechadora, las horas de trabajo por día (promedio, máximo y mínimo) y su velocidad real contra la tabla del planificador por rangos de TCH, separada por tenencia (propio o proveedor) y tipo de caña (verde o quemada). Usa los datos del planificador del paso 1.</p>
+      <p class="nota" id="m-vacio">Todavía no hay datos. En «Diseño de lotes» carga el CSV del registro por cosechadora y el de horas por día (pasos opcionales) y pulsa Procesar.</p>
+      <div id="m-contenido" hidden>
+        <div class="params">
+          <div><label for="m-zafra">Zafra</label><select id="m-zafra"><option value="">Todas</option></select></div>
+          <div><label for="m-mindia" title="Los días con menos horas de trabajo que esto no cuentan para el promedio, el máximo ni el mínimo (por ejemplo, el primer y el último día parciales). Pon 0 para contarlos todos.">Contar solo días con al menos (h de trabajo)</label><input type="number" id="m-mindia" value="1" min="0" step="0.5"></div>
+          <div><label for="m-tch" title="El TCH con el que se busca la velocidad en la tabla. El del planificador es el de cada lote; el medido es el del monitor de cada cosechadora (puede variar entre máquinas por calibración).">TCH de referencia (velocidad)</label><select id="m-tch"><option value="plan">El del planificador (por lote)</option><option value="medido">El medido por la cosechadora</option></select></div>
+          <div><label for="m-minh">Horas mínimas por cosechadora y grupo</label><input type="number" id="m-minh" value="20" min="1" step="5"></div>
+          <div><label for="m-umbral" title="Una cosechadora se marca si, en promedio, llega a menos de este porcentaje de la velocidad de la tabla.">Alerta si llega a menos de (% de la tabla)</label><input type="number" id="m-umbral" value="90" min="50" max="100" step="1"></div>
+        </div>
+        <label for="m-anios" style="display:block;margin:14px 0 4px;font-size:14px;color:var(--tinta-2)">Año de cada cosechadora (opcional, una por línea: nombre;año). Si el registro trae la serie de la máquina, el año se toma de ella.</label>
+        <textarea id="m-anios" rows="3" spellcheck="false" style="width:100%;max-width:560px;box-sizing:border-box;font:13px monospace" placeholder="WYC;2019&#10;WOA;2022"></textarea>
+        <p class="nota" id="m-msg"></p>
+        <div class="resumen" id="m-kpis"></div>
+
+        <h3 class="sub">Horas de trabajo por día</h3>
+        <p class="sub">Horas de trabajo = corte + maniobras + ralentí con la máquina casi detenida (sin paros de más de 5 minutos ni traslados). El día de trabajo empieza a la hora que se indicó al procesar los shapes en la herramienta (6:00 por defecto). Las filas con el mismo código de máquina (WYB, WYB #1, WYB #2…) se unen en una sola; despliega ▸ para ver el turno de día y el de noche.</p>
+        <p class="nota" id="m-aviso-turno" style="color:var(--ocre)"></p>
+        <div class="tabla-caja"><table id="m-tabla-horas"><thead></thead><tbody></tbody></table></div>
+        <div class="fila-acciones" style="margin:10px 0 0"><button class="secundario" id="b-m-horas-csv">Descargar horas por día (CSV)</button><button class="secundario" id="b-m-horas-copiar">Copiar tabla</button></div>
+
+        <h3 class="sub">Velocidad contra la tabla del planificador</h3>
+        <p class="sub">Cada lote se compara con la tabla de <b>su propio grupo</b>: los grupos no se mezclan. «% de la tabla» es la velocidad real dividida entre el máximo de la tabla, ponderada por horas de corte. Si el planificador (v277) tiene definidos los mínimos por TCH y los porcentajes por antigüedad, también se muestra su «velocidad de trabajo» y cuánto de ella alcanza cada máquina. «Mejor 10%» es el nivel que alcanza en su 10% de mejores lotes: si ni ahí llega a la tabla, la máquina está limitada y no es solo cuestión de operación o de condiciones. Cada columna de TCH muestra el mismo cociente dentro de ese rango.</p>
+        <p class="nota" id="m-velmsg"></p>
+        <div id="m-vel-grupos"></div>
+        <div class="fila-acciones" style="margin:10px 0 0"><button class="secundario" id="b-m-vel-csv">Descargar velocidad por grupo (CSV)</button><button class="secundario" id="b-m-vel-copiar">Copiar tabla</button></div>
+
+        <h3 class="sub">Operadores</h3>
+        <p class="sub">Horas de trabajo y velocidad de cada operador, sumando todas las máquinas que operó; despliega ▸ un operador para ver cada máquina. La velocidad se compara con la tabla del grupo de cada lote, así que es comparable entre operadores. Son datos personales: úsalos solo para la evaluación de desempeño autorizada.</p>
+        <p class="nota" id="m-opermsg"></p>
+        <div id="m-oper"></div>
+        <div class="fila-acciones" style="margin:10px 0 0"><button class="secundario" id="b-m-oper-csv">Descargar operadores (CSV)</button><button class="secundario" id="b-m-oper-copiar">Copiar tabla</button></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+'use strict';
+/* ═══ Núcleo del cálculo (sin interfaz: se puede probar por separado) ═══ */
+var PRIORIDAD_CAPAS = ['Diseño', 'Diseno', 'RTK_Fix', 'Mixta', 'Mixtas', 'RTK_Float', 'RTK_Floart', 'REF'];
+function prioridadCapa(nombre) { for (var i = 0; i < PRIORIDAD_CAPAS.length; i++) if (nombre.indexOf(PRIORIDAD_CAPAS[i]) >= 0) return i; return 99; }
+
+// Proyección UTM (WGS84) — fórmulas de Snyder, suficiente precisión para asignar líneas a lotes
+function zonaUTMDePrj(prj) {
+  var m = /UTM[_ ]Zone[_ ](\d+)([NS])?/i.exec(prj || '');
+  return m ? { zona: parseInt(m[1], 10), sur: (m[2] || 'N').toUpperCase() === 'S' } : { zona: 16, sur: false };
+}
+function aUTM(lon, lat, zona, sur) {
+  var a = 6378137, f = 1 / 298.257223563, k0 = 0.9996, e2 = f * (2 - f), ep2 = e2 / (1 - e2);
+  var phi = lat * Math.PI / 180, lam = lon * Math.PI / 180, lam0 = ((zona - 1) * 6 - 180 + 3) * Math.PI / 180;
+  var s = Math.sin(phi), c = Math.cos(phi), t = Math.tan(phi);
+  var N = a / Math.sqrt(1 - e2 * s * s), T = t * t, C = ep2 * c * c, A = (lam - lam0) * c;
+  var e4 = e2 * e2, e6 = e4 * e2;
+  var M = a * ((1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256) * phi - (3 * e2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024) * Math.sin(2 * phi) + (15 * e4 / 256 + 45 * e6 / 1024) * Math.sin(4 * phi) - (35 * e6 / 3072) * Math.sin(6 * phi));
+  var x = k0 * N * (A + (1 - T + C) * A * A * A / 6 + (5 - 18 * T + T * T + 72 * C - 58 * ep2) * Math.pow(A, 5) / 120) + 500000;
+  var y = k0 * (M + N * t * (A * A / 2 + (5 - T + 9 * C + 4 * C * C) * Math.pow(A, 4) / 24 + (61 - 58 * T + T * T + 600 * C - 330 * ep2) * Math.pow(A, 6) / 720));
+  if (sur) y += 10000000;
+  return [x, y];
+}
+
+// Lectura del .shp (líneas): por cada línea guarda largo, punto medio (entre extremos) y rumbo 0–180°
+function leerLineasShp(buf) {
+  var dv = new DataView(buf), largoArchivo = dv.getInt32(24, false) * 2, pos = 100;
+  var cap = Math.max(1024, Math.floor((largoArchivo - 100) / 60));
+  var L = new Float64Array(cap), MX = new Float64Array(cap), MY = new Float64Array(cap), ANG = new Float32Array(cap), n = 0;
+  function crecer() { cap *= 2; var a = new Float64Array(cap); a.set(L); L = a; a = new Float64Array(cap); a.set(MX); MX = a; a = new Float64Array(cap); a.set(MY); MY = a; var b = new Float32Array(cap); b.set(ANG); ANG = b; }
+  var nulos = 0;
+  while (pos + 8 <= largoArchivo && pos + 8 <= buf.byteLength) {
+    var lenContenido = dv.getInt32(pos + 4, false) * 2, ini = pos + 8;
+    pos = ini + lenContenido;
+    var tipo = dv.getInt32(ini, true);
+    if (n >= cap) crecer();
+    if (tipo === 0) { L[n] = 0; MX[n] = NaN; MY[n] = NaN; ANG[n] = 0; n++; nulos++; continue; }
+    if (tipo !== 3 && tipo !== 13 && tipo !== 23) { L[n] = 0; MX[n] = NaN; MY[n] = NaN; ANG[n] = 0; n++; nulos++; continue; }
+    var nPartes = dv.getInt32(ini + 36, true), nPuntos = dv.getInt32(ini + 40, true);
+    var oPartes = ini + 44, oPuntos = oPartes + 4 * nPartes, largo = 0;
+    for (var p = 0; p < nPartes; p++) {
+      var a0 = dv.getInt32(oPartes + 4 * p, true), a1 = (p + 1 < nPartes) ? dv.getInt32(oPartes + 4 * (p + 1), true) : nPuntos;
+      var px = dv.getFloat64(oPuntos + 16 * a0, true), py = dv.getFloat64(oPuntos + 16 * a0 + 8, true);
+      for (var k = a0 + 1; k < a1; k++) { var qx = dv.getFloat64(oPuntos + 16 * k, true), qy = dv.getFloat64(oPuntos + 16 * k + 8, true); largo += Math.sqrt((qx - px) * (qx - px) + (qy - py) * (qy - py)); px = qx; py = qy; }
+    }
+    var x0 = dv.getFloat64(oPuntos, true), y0 = dv.getFloat64(oPuntos + 8, true), x1 = dv.getFloat64(oPuntos + 16 * (nPuntos - 1), true), y1 = dv.getFloat64(oPuntos + 16 * (nPuntos - 1) + 8, true);
+    var ang = Math.atan2(x1 - x0, y1 - y0) * 180 / Math.PI; ang = ((ang % 180) + 180) % 180;
+    L[n] = largo; MX[n] = (x0 + x1) / 2; MY[n] = (y0 + y1) / 2; ANG[n] = ang; n++;
+  }
+  return { n: n, largo: L.subarray(0, n), mx: MX.subarray(0, n), my: MY.subarray(0, n), ang: ANG.subarray(0, n), nulos: nulos };
+}
+// Lectura del .dbf: el campo de capa (texto) de cada línea
+function leerCapasDbf(buf, nombreCampo) {
+  var dv = new DataView(buf), u8 = new Uint8Array(buf);
+  var nReg = dv.getUint32(4, true), lenCab = dv.getUint16(8, true), lenReg = dv.getUint16(10, true);
+  var campos = [], off = 1, i = 32;
+  while (i < lenCab - 1 && u8[i] !== 0x0D) {
+    var nom = ''; for (var k = 0; k < 11 && u8[i + k]; k++) nom += String.fromCharCode(u8[i + k]);
+    var largo = u8[i + 16];
+    campos.push({ nombre: nom, off: off, largo: largo }); off += largo; i += 32;
+  }
+  var campo = campos.find(function(c) { return c.nombre.toLowerCase() === (nombreCampo || 'layer').toLowerCase(); }) || campos.find(function(c) { return /layer|capa/i.test(c.nombre); }) || campos[0];
+  var dec = new TextDecoder('utf-8'), cache = {}, nombres = [], idx = new Uint16Array(nReg);
+  for (var r = 0; r < nReg; r++) {
+    var ini = lenCab + r * lenReg + campo.off, fin = ini + campo.largo;
+    while (fin > ini && (u8[fin - 1] === 0x20 || u8[fin - 1] === 0)) fin--;
+    var clave = fin - ini + ':' + u8[ini] + ':' + u8[ini + Math.floor((fin - ini) / 2)] + ':' + u8[fin - 1];
+    var lista = cache[clave], texto = null;
+    if (lista) { for (var j = 0; j < lista.length; j++) { var cand = lista[j]; if (cand.bytes.length === fin - ini) { var igual = true; for (var b = 0; b < cand.bytes.length; b++) if (cand.bytes[b] !== u8[ini + b]) { igual = false; break; } if (igual) { texto = cand.id; break; } } } }
+    if (texto === null) {
+      var s = dec.decode(u8.subarray(ini, fin)).trim(), id = nombres.indexOf(s);
+      if (id < 0) { id = nombres.length; nombres.push(s); }
+      (cache[clave] = cache[clave] || []).push({ bytes: u8.slice(ini, fin), id: id }); texto = id;
+    }
+    idx[r] = texto;
+  }
+  return { nombres: nombres, idx: idx, campo: campo.nombre, nReg: nReg };
+}
+// Polígonos de los lotes (del planificador) en UTM, con un índice de cuadrícula
+function prepararLotes(plan, zona, sur) {
+  var feats = [], celda = 1000, grid = {};
+  (plan.geoFeatures || []).forEach(function(f) {
+    if (!f.campoId || !f.geometry) return;
+    var polys = f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.type === 'MultiPolygon' ? f.geometry.coordinates : [];
+    var anillos = [], minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity, area = 0;
+    polys.forEach(function(poly) { poly.forEach(function(ring, ir) {
+      var arr = new Float64Array(ring.length * 2);
+      for (var k = 0; k < ring.length; k++) { var u = aUTM(ring[k][0], ring[k][1], zona, sur); arr[2 * k] = u[0]; arr[2 * k + 1] = u[1]; if (u[0] < minx) minx = u[0]; if (u[0] > maxx) maxx = u[0]; if (u[1] < miny) miny = u[1]; if (u[1] > maxy) maxy = u[1]; }
+      var s = 0; for (var k2 = 0, m = ring.length; k2 < m - 1; k2++) s += arr[2 * k2] * arr[2 * k2 + 3] - arr[2 * k2 + 2] * arr[2 * k2 + 1];
+      area += (ir === 0 ? 1 : -1) * Math.abs(s) / 2;
+      anillos.push(arr);
+    }); });
+    if (!anillos.length) return;
+    var fi = feats.length; feats.push({ campoId: f.campoId, anillos: anillos, minx: minx, miny: miny, maxx: maxx, maxy: maxy, areaHa: area / 10000, props: f.props || {} });
+    for (var gx = Math.floor(minx / celda); gx <= Math.floor(maxx / celda); gx++) for (var gy = Math.floor(miny / celda); gy <= Math.floor(maxy / celda); gy++) { var key = gx + ',' + gy; (grid[key] = grid[key] || []).push(fi); }
+  });
+  return { feats: feats, grid: grid, celda: celda };
+}
+function puntoEnFeature(x, y, f) {
+  if (x < f.minx || x > f.maxx || y < f.miny || y > f.maxy) return false;
+  var dentro = false;
+  for (var a = 0; a < f.anillos.length; a++) {
+    var r = f.anillos[a], n = r.length / 2;
+    for (var i = 0, j = n - 1; i < n; j = i++) {
+      var xi = r[2 * i], yi = r[2 * i + 1], xj = r[2 * j], yj = r[2 * j + 1];
+      if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) dentro = !dentro;
+    }
+  }
+  return dentro;
+}
+function loteDePunto(x, y, idx) {
+  if (!isFinite(x)) return -1;
+  var lista = idx.grid[Math.floor(x / idx.celda) + ',' + Math.floor(y / idx.celda)];
+  if (!lista) return -1;
+  for (var k = 0; k < lista.length; k++) if (puntoEnFeature(x, y, idx.feats[lista[k]])) return lista[k];
+  return -1;
+}
+function velocidadCampo(c, porDefecto) {
+  if (c.velFuente === 'manual' && c.velManual > 0) return c.velManual;
+  if (c.velAnterior > 0) return c.velAnterior;
+  return porDefecto;
+}
+// Distanciamiento MEDIDO: los surcos del rumbo principal se ubican sobre una línea perpendicular a ese rumbo y se mide
+// la separación entre cada surco y el siguiente que tiene enfrente (que se superpone a lo largo del surco). La mediana
+// de esas separaciones es el distanciamiento real, sin influencia del área, las cabeceras o los caminos.
+function medirDistanciamiento(lineas, ids, rumbo) {
+  var t = rumbo * Math.PI / 180, s = Math.sin(t), c = Math.cos(t), pts = [];
+  for (var k = 0; k < ids.length; k++) {
+    var i = ids[k], d = Math.abs(lineas.ang[i] - rumbo); d = Math.min(d, 180 - d);
+    if (d > 15 || lineas.largo[i] <= 5) continue;   // solo surcos del rumbo principal y de más de 5 m
+    pts.push([lineas.mx[i] * c - lineas.my[i] * s, lineas.mx[i] * s + lineas.my[i] * c, lineas.largo[i]]);
+  }
+  pts.sort(function(a, b) { return a[0] - b[0]; });
+  var gaps = [];
+  for (var i2 = 0; i2 < pts.length; i2++) {
+    var pi = pts[i2];
+    for (var j = i2 + 1; j < Math.min(pts.length, i2 + 40); j++) {
+      var pj = pts[j], du = pj[0] - pi[0];
+      if (du <= 0.3) continue;                                          // tramos del mismo surco o líneas duplicadas
+      if (Math.abs(pj[1] - pi[1]) < (pi[2] + pj[2]) / 2) { gaps.push(du); break; }   // el vecino que tiene enfrente
+    }
+  }
+  if (!gaps.length) return { esp: null, n: 0 };
+  gaps.sort(function(a, b) { return a - b; });
+  var m = gaps.length;
+  return { esp: m % 2 ? gaps[(m - 1) / 2] : (gaps[m / 2 - 1] + gaps[m / 2]) / 2, n: m };
+}
+var MIN_SEPARACIONES = 10, TOL_DISTANCIAMIENTO = 0.05;
+function clasificar(r) {
+  if (!r.surcos) return { estado: 'Sin líneas', tipo: 'nada' };
+  if (!r.anchoPlan && !(r.espMedido > 0)) return { estado: 'Sin ancho de surco', tipo: 'revisar' };
+  if (r.cobertura < 0.7) return { estado: 'Diseño incompleto', tipo: 'error' };
+  if (r.cobertura > 1.4) return { estado: 'Líneas de más', tipo: 'error' };
+  if (!(r.espMedido > 0) || r.nSeparaciones < MIN_SEPARACIONES) return { estado: 'No se pudo medir', tipo: 'revisar' };
+  if (!r.anchoPlan) return { estado: 'Sin ancho de surco', tipo: 'revisar' };
+  if (Math.abs(r.espMedido / r.anchoPlan - 1) > TOL_DISTANCIAMIENTO) return { estado: 'Distanciamiento distinto', tipo: 'revisar' };
+  if (!(r.distPlan > 0)) return { estado: 'Nuevo para el planificador', tipo: 'ok' };
+  if (Math.abs(r.difDist) <= 0.05) return { estado: 'Coincide', tipo: 'ok' };
+  return { estado: 'Diferente al planificador', tipo: 'ok' };
+}
+// Agrega por lote (y por capa) y arma las filas de resultado
+function calcularLotes(plan, lineas, capas, asign, idx, params) {
+  var campos = {}; (plan.campos || []).forEach(function(c) { campos[c.id] = c; });
+  var frenteDe = {};
+  (plan.planItems || []).forEach(function(p) { if (!params.zafra || p.zafra === params.zafra) frenteDe[p.campoNombre] = p.frenteNombre; });
+  var areaPoly = {}; idx.feats.forEach(function(f) { areaPoly[f.campoId] = (areaPoly[f.campoId] || 0) + f.areaHa; });
+  var acum = {};   // campoId -> capaIdx -> {n, L, sx, sy, cortos, largos[]}
+  for (var i = 0; i < lineas.n; i++) {
+    var fi = asign[i]; if (fi < 0) continue;
+    var cid = idx.feats[fi].campoId, cp = capas ? capas.idx[i] : 0, Li = lineas.largo[i];
+    var porCapa = acum[cid] = acum[cid] || {}, a = porCapa[cp] = porCapa[cp] || { n: 0, L: 0, sx: 0, sy: 0, cortos: 0, largos: [], ids: [] };
+    a.ids.push(i);
+    var t = 2 * lineas.ang[i] * Math.PI / 180;
+    a.n++; a.L += Li; a.sx += Math.cos(t) * Li; a.sy += Math.sin(t) * Li; if (Li < params.corto) a.cortos++; a.largos.push(Li);
+  }
+  var nombresCapa = capas ? capas.nombres : ['(sin capa)'];
+  var conPoligono = {}; idx.feats.forEach(function(f) { conPoligono[f.campoId] = true; });
+  var filas = [];
+  Object.keys(conPoligono).forEach(function(cidTxt) {
+    var cid = isNaN(+cidTxt) ? cidTxt : +cidTxt, c = campos[cid] || {};
+    var porCapa = acum[cid] || {}, claves = Object.keys(porCapa).sort(function(x, y) { return prioridadCapa(nombresCapa[x]) - prioridadCapa(nombresCapa[y]); });
+    var a = claves.length ? porCapa[claves[0]] : null;
+    var area = c.area > 0 ? c.area : (areaPoly[cid] || 0);
+    var r = { campoId: cid, lote: c.nombre || String(cid), finca: c.finca || '', region: c.region || '', tenencia: c.tenencia || '', frente: frenteDe[c.nombre] || '', area: area,
+              capa: a ? nombresCapa[claves[0]] : '', capasDescartadas: claves.slice(1).map(function(k) { return nombresCapa[k]; }).join(' | '),
+              surcos: a ? a.n : 0, distKm: a ? a.L / 1000 : 0, anchoPlan: c.surcoAncho || 0, distPlan: c.distTotalKm || 0, surcosPlan: c.surcos || 0 };
+    if (a) {
+      a.largos.sort(function(x, y) { return x - y; });
+      r.largoMed = a.largos[Math.floor(a.largos.length / 2)];
+      r.pctCortos = a.cortos / a.n;
+      r.rumbo = ((Math.atan2(a.sy, a.sx) * 180 / Math.PI / 2) % 180 + 180) % 180;
+      r.coherencia = a.L > 0 ? Math.sqrt(a.sx * a.sx + a.sy * a.sy) / a.L : 0;
+      r.espArea = a.L > 0 ? area * 10000 / a.L : 0;   // estimado: área ÷ largo de surcos (referencia)
+      var med = medirDistanciamiento(lineas, a.ids, r.rumbo);
+      r.espMedido = med.esp; r.nSeparaciones = med.n;
+      r.espReal = r.espMedido || 0;
+      // Cobertura: qué parte del lote cubren los surcos. Usa el distanciamiento MEDIDO si es confiable (así un ancho mal
+      // registrado en el planificador no se confunde con líneas duplicadas o faltantes); si no, el del planificador.
+      var anchoCob = (r.espMedido > 0 && r.nSeparaciones >= MIN_SEPARACIONES) ? r.espMedido : r.anchoPlan;
+      r.cobertura = (anchoCob > 0 && area > 0) ? (a.L * anchoCob) / (area * 10000) : 0;
+
+      r.difDist = r.distPlan > 0 ? (r.distKm - r.distPlan) / r.distPlan : null;
+      r.tGiro = c.tManiobra > 0 ? c.tManiobra : params.giro;
+      r.giros = a.n;
+      r.horasManiobra = r.giros * r.tGiro / 60;
+      r.vel = velocidadCampo(c, params.vel);
+      r.horasCorte = r.distKm / r.vel;
+      r.pctManiobra = (r.horasManiobra + r.horasCorte) > 0 ? r.horasManiobra / (r.horasManiobra + r.horasCorte) : 0;
+    }
+    var cl = clasificar(r); r.estado = cl.estado; r.tipo = cl.tipo;
+    filas.push(r);
+  });
+  return filas;
+}
+async function procesarDiseno(entrada, onProgreso) {
+  var paso = onProgreso || function() {};
+  var espera = function() { return new Promise(function(res) { setTimeout(res, 0); }); };
+  var zon = zonaUTMDePrj(entrada.prj);
+  paso(0.04, 'Leyendo las líneas…'); await espera();
+  var lineas = leerLineasShp(entrada.shp);
+  paso(0.25, 'Leyendo las capas de ' + lineas.n.toLocaleString('es') + ' líneas…'); await espera();
+  var capas = entrada.dbf ? leerCapasDbf(entrada.dbf, 'layer') : null;
+  paso(0.4, 'Preparando los polígonos de los lotes…'); await espera();
+  var idx = prepararLotes(entrada.plan, zon.zona, zon.sur);
+  var asign = new Int32Array(lineas.n), bloque = 25000, fuera = 0;
+  for (var i = 0; i < lineas.n; i += bloque) {
+    var fin = Math.min(lineas.n, i + bloque);
+    for (var k = i; k < fin; k++) { var f = loteDePunto(lineas.mx[k], lineas.my[k], idx); asign[k] = f; if (f < 0) fuera++; }
+    paso(0.4 + 0.5 * fin / lineas.n, 'Asignando líneas a lotes: ' + fin.toLocaleString('es') + ' de ' + lineas.n.toLocaleString('es')); await espera();
+  }
+  paso(0.94, 'Calculando el diseño de cada lote…'); await espera();
+  var filas = calcularLotes(entrada.plan, lineas, capas, asign, idx, entrada.params);
+  paso(1, 'Listo.');
+  return { filas: filas, idx: idx, lineas: lineas, asign: asign, nLineas: lineas.n, fuera: fuera, zona: zon, capas: capas ? capas.nombres : [], kmTotal: Array.prototype.reduce.call(lineas.largo, function(s, v) { return s + v; }, 0) / 1000 };
+}
+window.procesarDiseno = procesarDiseno;
+/* ═══ Posibles unificaciones de lotes vecinos ═══
+   Dos lotes son candidatos a unirse si se tocan (borde común), son del mismo propietario, tienen la misma variedad
+   (opcional) y una diferencia de edad pequeña. Si además sus surcos tienen el mismo rumbo y distanciamiento, la unión es
+   DIRECTA: los surcos siguen de un lote al otro y se ahorra un giro por cada surco que cruza el borde. Si no, la unión
+   REQUIERE REDISEÑO (se puede hacer en la renovación). Los pares se agrupan en cadenas (lote A + B + C…). */
+function bordesDeLote(idx) {
+  var porCampo = {};
+  idx.feats.forEach(function(f) {
+    var c = porCampo[f.campoId] = porCampo[f.campoId] || { campoId: f.campoId, anillos: [], minx: Infinity, miny: Infinity, maxx: -Infinity, maxy: -Infinity, props: f.props || {} };
+    f.anillos.forEach(function(r) { c.anillos.push(r); });
+    c.minx = Math.min(c.minx, f.minx); c.miny = Math.min(c.miny, f.miny); c.maxx = Math.max(c.maxx, f.maxx); c.maxy = Math.max(c.maxy, f.maxy);
+  });
+  return Object.keys(porCampo).map(function(k) { return porCampo[k]; });
+}
+function distPuntoSegmento(px, py, ax, ay, bx, by) {
+  var dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy, t = l2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / l2 : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t; var qx = ax + t * dx - px, qy = ay + t * dy - py;
+  return Math.sqrt(qx * qx + qy * qy);
+}
+// Largo del borde de A que queda a menos de «tol» metros del borde de B, y su dirección (0–180°)
+function bordeComun(A, B, tol, paso) {
+  var x0 = Math.max(A.minx, B.minx) - tol, x1 = Math.min(A.maxx, B.maxx) + tol, y0 = Math.max(A.miny, B.miny) - tol, y1 = Math.min(A.maxy, B.maxy) + tol;
+  if (x0 > x1 || y0 > y1) return { largo: 0 };
+  var segB = [];
+  B.anillos.forEach(function(r) { for (var k = 0; k < r.length / 2 - 1; k++) { var ax = r[2 * k], ay = r[2 * k + 1], bx = r[2 * k + 2], by = r[2 * k + 3]; if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(ay, by) < y0 || Math.min(ay, by) > y1) continue; segB.push([ax, ay, bx, by]); } });
+  if (!segB.length) return { largo: 0 };
+  var n = 0, nPtos = 0, sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+  A.anillos.forEach(function(r) {
+    for (var k = 0; k < r.length / 2 - 1; k++) {
+      var ax = r[2 * k], ay = r[2 * k + 1], bx = r[2 * k + 2], by = r[2 * k + 3], L = Math.sqrt((bx - ax) * (bx - ax) + (by - ay) * (by - ay));
+      if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(ay, by) < y0 || Math.min(ay, by) > y1) continue;
+      var m = Math.max(1, Math.round(L / paso));
+      for (var s = 0; s < m; s++) {
+        var t = (s + 0.5) / m, px = ax + t * (bx - ax), py = ay + t * (by - ay);
+        if (px < x0 || px > x1 || py < y0 || py > y1) continue;
+        for (var q = 0; q < segB.length; q++) { var g = segB[q]; if (distPuntoSegmento(px, py, g[0], g[1], g[2], g[3]) <= tol) { n += L / m; nPtos++; sx += px; sy += py; sxx += px * px; syy += py * py; sxy += px * py; break; } }
+      }
+    }
+  });
+  if (n <= 0) return { largo: 0 };
+  return { largo: n, k: nPtos, mom: [sx, sy, sxx, syy, sxy] };   // k = puntos del borde común (para su dirección principal)
+}
+function direccionMomentos(mom, nPuntos) {
+  var mx = mom[0] / nPuntos, my = mom[1] / nPuntos, cxx = mom[2] / nPuntos - mx * mx, cyy = mom[3] / nPuntos - my * my, cxy = mom[4] / nPuntos - mx * my;
+  var ang = 0.5 * Math.atan2(2 * cxy, cxx - cyy);           // ángulo del eje principal desde el eje x (este)
+  var rumbo = 90 - ang * 180 / Math.PI;                     // convertido a rumbo desde el norte
+  return ((rumbo % 180) + 180) % 180;
+}
+async function analizarUnificaciones(plan, idx, filas, params, onProgreso) {
+  var paso = onProgreso || function() {};
+  var espera = function() { return new Promise(function(res) { setTimeout(res, 0); }); };
+  var campos = {}; (plan.campos || []).forEach(function(c) { campos[c.id] = c; });
+  var fcPlan = {}; (plan.planItems || []).forEach(function(p) { if (!params.zafra || p.zafra === params.zafra) fcPlan[p.campoNombre] = p.fechaCorte; });
+  var filaDe = {}; filas.forEach(function(r) { filaDe[r.campoId] = r; });
+  var L = bordesDeLote(idx), tol = params.tol, minBorde = params.minBorde;
+  var celda = 1000, grid = {};
+  L.forEach(function(c, i) { for (var gx = Math.floor((c.minx - tol) / celda); gx <= Math.floor((c.maxx + tol) / celda); gx++) for (var gy = Math.floor((c.miny - tol) / celda); gy <= Math.floor((c.maxy + tol) / celda); gy++) { var k = gx + ',' + gy; (grid[k] = grid[k] || []).push(i); } });
+  var pares = [], vistos = {};
+  for (var i = 0; i < L.length; i++) {
+    var A = L[i], cands = {};
+    for (var gx = Math.floor((A.minx - tol) / celda); gx <= Math.floor((A.maxx + tol) / celda); gx++) for (var gy = Math.floor((A.miny - tol) / celda); gy <= Math.floor((A.maxy + tol) / celda); gy++) (grid[gx + ',' + gy] || []).forEach(function(j) { if (j > i) cands[j] = 1; });
+    Object.keys(cands).forEach(function(jt) {
+      var j = +jt, B = L[j];
+      if (A.maxx + tol < B.minx || B.maxx + tol < A.minx || A.maxy + tol < B.miny || B.maxy + tol < A.miny) return;
+      var bc = bordeComun(A, B, tol, 5);
+      if (bc.largo >= minBorde) pares.push({ i: i, j: j, borde: bc.largo, mom: bc.mom, k: bc.k });
+    });
+    if (i % 60 === 0) { paso(0.85 * i / L.length, 'Buscando lotes vecinos: ' + i + ' de ' + L.length); await espera(); }
+  }
+  paso(0.9, 'Evaluando ' + pares.length + ' pares de lotes vecinos…'); await espera();
+  var dias = function(a, b) { if (!a || !b) return null; return Math.round(Math.abs(new Date(a + 'T00:00:00') - new Date(b + 'T00:00:00')) / 86400000); };
+  var difAng = function(a, b) { var d = Math.abs(a - b) % 180; return Math.min(d, 180 - d); };
+  var descartes = { 'Distinto propietario': 0, 'Distinta variedad': 0, 'Edad muy distinta': 0 }, candidatos = [];
+  pares.forEach(function(p) {
+    var A = L[p.i], B = L[p.j], ca = campos[A.campoId] || {}, cb = campos[B.campoId] || {};
+    var duenoA = (A.props.Propietari || A.props.Propietario || ca.tenencia || '').trim(), duenoB = (B.props.Propietari || B.props.Propietario || cb.tenencia || '').trim();
+    if (duenoA !== duenoB) { descartes['Distinto propietario']++; return; }
+    var varA = ca.variedad || A.props.Variedad || '', varB = cb.variedad || B.props.Variedad || '';
+    if (params.mismaVariedad && (!varA || varA !== varB)) { descartes['Distinta variedad']++; return; }
+    var fa = fcPlan[ca.nombre] || ca.fechaCorte, fb = fcPlan[cb.nombre] || cb.fechaCorte, de = dias(fa, fb);
+    if (de === null || de > params.edadMax) { descartes['Edad muy distinta']++; return; }
+    var ra = filaDe[A.campoId] || {}, rb = filaDe[B.campoId] || {};
+    var okA = ra.espMedido > 0 && ra.nSeparaciones >= MIN_SEPARACIONES, okB = rb.espMedido > 0 && rb.nSeparaciones >= MIN_SEPARACIONES;
+    var dRumbo = (ra.rumbo !== undefined && rb.rumbo !== undefined) ? difAng(ra.rumbo, rb.rumbo) : null;
+    var directa = okA && okB && dRumbo !== null && dRumbo <= params.rumboMax && Math.abs(ra.espMedido - rb.espMedido) / Math.max(ra.espMedido, rb.espMedido) <= TOL_DISTANCIAMIENTO;
+    var dirBorde = direccionMomentos(p.mom, Math.max(2, p.k));
+    var surcosUnidos = 0;
+    if (directa) { var cruce = Math.abs(Math.sin(difAng(dirBorde, (ra.rumbo + rb.rumbo) / 2) * Math.PI / 180)); surcosUnidos = Math.round(p.borde * cruce / ((ra.espMedido + rb.espMedido) / 2)); }
+    var tGiro = (window.tGiroReal && window.tGiroReal(A.lote)) || (ca.tManiobra > 0 ? ca.tManiobra : params.giro);
+    var alertas = [];
+    if ((ca.riego || '') !== (cb.riego || '')) alertas.push('riego distinto (' + (ca.riego || '–') + ' / ' + (cb.riego || '–') + ')');
+    if ((ca.cortes || 0) !== (cb.cortes || 0)) alertas.push('número de corte distinto (' + (ca.cortes || '–') + ' / ' + (cb.cortes || '–') + ')');
+    if ((ca.tipoCana || '') !== (cb.tipoCana || '')) alertas.push('tipo de caña distinto');
+    if (varA !== varB) alertas.push('variedad distinta (' + (varA || '–') + ' / ' + (varB || '–') + ')');
+    if ((A.props.Textura || '') !== (B.props.Textura || '')) alertas.push('textura distinta');
+    if (!directa && dRumbo !== null && dRumbo > params.rumboMax) alertas.push('rumbos a ' + Math.round(dRumbo) + '°');
+    if (!directa && okA && okB && Math.abs(ra.espMedido - rb.espMedido) / Math.max(ra.espMedido, rb.espMedido) > TOL_DISTANCIAMIENTO) alertas.push('distanciamientos ' + ra.espMedido.toFixed(2) + ' / ' + rb.espMedido.toFixed(2) + ' m');
+    candidatos.push({ a: A.campoId, b: B.campoId, loteA: ca.nombre || String(A.campoId), loteB: cb.nombre || String(B.campoId), finca: ca.finca || '', dueno: duenoA, variedad: varA === varB ? varA : varA + ' / ' + varB,
+      difEdad: de, borde: p.borde, dRumbo: dRumbo, directa: directa, surcosUnidos: surcosUnidos, girosAhorrados: surcosUnidos, horasAhorradas: surcosUnidos * tGiro / 60, alertas: alertas,
+      area: (ca.area || 0) + (cb.area || 0), fechas: [fa, fb] });
+  });
+  // agrupar en cadenas (componentes conexos)
+  var padre = {}; var raiz = function(x) { while (padre[x] !== undefined && padre[x] !== x) x = padre[x]; return x; };
+  candidatos.forEach(function(c) { if (padre[c.a] === undefined) padre[c.a] = c.a; if (padre[c.b] === undefined) padre[c.b] = c.b; var ra = raiz(c.a), rb = raiz(c.b); if (ra !== rb) padre[rb] = ra; });
+  var grupos = {};
+  candidatos.forEach(function(c) { var r = raiz(c.a); var g = grupos[r] = grupos[r] || { lotes: {}, pares: [] }; g.pares.push(c); g.lotes[c.a] = 1; g.lotes[c.b] = 1; });
+  var lista = Object.keys(grupos).map(function(k, n) {
+    var g = grupos[k], ids = Object.keys(g.lotes), cs = ids.map(function(id) { return campos[isNaN(+id) ? id : +id] || {}; });
+    var fechas = ids.map(function(id) { var c = campos[isNaN(+id) ? id : +id] || {}; return fcPlan[c.nombre] || c.fechaCorte; }).filter(Boolean).sort();
+    var alertas = {}; g.pares.forEach(function(p) { p.alertas.forEach(function(a) { alertas[a.replace(/ \(.*\)$/, '').replace(/ a \d+°$/, '').replace(/ [\d.]+ \/ [\d.]+ m$/, '')] = 1; }); });
+    var directos = g.pares.filter(function(p) { return p.directa; }).length;
+    return { lotes: cs.map(function(c) { return c.nombre; }).sort(function(a, b) { return String(a).localeCompare(String(b), 'es', { numeric: true }); }), finca: cs[0].finca || '', dueno: g.pares[0].dueno,
+      variedad: Array.from(new Set(cs.map(function(c) { return c.variedad || '–'; }))).join(' / '), area: cs.reduce(function(s, c) { return s + (c.area || 0); }, 0),
+      difEdad: fechas.length > 1 ? dias(fechas[0], fechas[fechas.length - 1]) : 0, tipo: directos === g.pares.length ? 'Directa' : directos ? 'Parcialmente directa' : 'Requiere rediseño',
+      borde: g.pares.reduce(function(s, p) { return s + p.borde; }, 0), surcosUnidos: g.pares.reduce(function(s, p) { return s + p.surcosUnidos; }, 0),
+      horasAhorradas: g.pares.reduce(function(s, p) { return s + p.horasAhorradas; }, 0), trasladosMenos: ids.length - 1, alertas: Object.keys(alertas), pares: g.pares };
+  }).sort(function(x, y) { return y.horasAhorradas - x.horasAhorradas || y.area - x.area; });
+  paso(1, 'Listo.');
+  return { nVecinos: pares.length, descartes: descartes, pares: candidatos, grupos: lista };
+}
+window.analizarUnificaciones = analizarUnificaciones;
+
+
+/* ═══ Interfaz ═══ */
+window.estado = null; var estado = { plan: null, shp: null, dbf: null, prj: '', resultado: null, orden: { col: 'estadoOrden', dir: 1 } };
+var $ = function(id) { return document.getElementById(id); };
+var fmt = function(v, d) { return (v === null || v === undefined || isNaN(v)) ? '–' : Number(v).toLocaleString('es', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); };
+var pct = function(v, d) { return (v === null || v === undefined || isNaN(v)) ? '–' : (v * 100).toLocaleString('es', { maximumFractionDigits: d === undefined ? 0 : d }) + '%'; };
+var esc = function(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]; }); };
+function mensaje(id, texto, clase) { var el = $(id); el.textContent = texto; el.className = 'estado-archivo' + (clase ? ' ' + clase : ''); }
+function listo() { $('b-procesar').disabled = !(estado.plan && estado.shp); }
+
+function aceptarPlan(d, origen) {   // la misma ruta para los datos leídos de la base y para el archivo .json
+  try {
+    if (!d.campos || !d.geoFeatures) throw new Error('No trae campos ni polígonos del mapa.');
+    estado.plan = d;
+    var zafras = Array.from(new Set((d.planItems || []).map(function(p) { return p.zafra; }).filter(Boolean))).sort();
+    $('p-zafra').innerHTML = zafras.map(function(z) { return '<option>' + esc(z) + '</option>'; }).join('') || '<option value="">—</option>';
+    if (zafras.length) $('p-zafra').value = zafras[zafras.length - 1];
+    mensaje('e-plan', origen + ': ' + d.campos.length.toLocaleString('es') + ' campos y ' + d.geoFeatures.length.toLocaleString('es') + ' polígonos.', 'ok');
+  } catch (e) { estado.plan = null; mensaje('e-plan', 'No se pudo usar ' + origen + ': ' + e.message, 'error'); }
+  listo();
+  if (typeof refrescarMaquinas === 'function') refrescarMaquinas();
+}
+$('f-plan').addEventListener('change', function(ev) {
+  var f = ev.target.files[0]; if (!f) return;
+  mensaje('e-plan', 'Leyendo ' + f.name + '…');
+  var lector = new FileReader();
+  lector.onload = function() {
+    try { aceptarPlan(JSON.parse(lector.result), f.name); }
+    catch (e) { estado.plan = null; mensaje('e-plan', 'No se pudo leer: ' + e.message + ' Usa el .json que exporta el planificador.', 'error'); listo(); }
+  };
+  lector.readAsText(f);
+});
+/* Lectura directa de la base del planificador (solo lectura): inicio de sesión con el usuario del planificador. */
+var leyendoBase = false;
+async function leerDeBase() {
+  if (typeof ISA === 'undefined' || leyendoBase) return;
+  leyendoBase = true; $('b-isa-leer').disabled = true;
+  try { aceptarPlan(await ISA.leerPlan(function(t) { mensaje('e-plan', t); }), 'Base del planificador'); estado.planOrigen = 'base'; }
+  catch (e) { mensaje('e-plan', 'No se pudo leer la base: ' + e.message + ' También puedes usar el archivo .json.', 'error'); }
+  finally { leyendoBase = false; $('b-isa-leer').disabled = false; }
+}
+function pintarSesion(s) {
+  var dentro = !!(s && s.user);
+  $('isa-form').hidden = dentro; $('isa-ok').hidden = !dentro;
+  if (dentro) { $('isa-usuario').textContent = s.email; $('isa-rol').textContent = s.listo ? (s.rol ? '(' + s.rol + ')' : '(sin rol asignado)') : '(comprobando rol…)'; }
+}
+(function() {
+  if (typeof ISA === 'undefined' || !ISA.iniciar()) { $('isa-acceso').hidden = true; $('isa-o-txt') && ($('isa-o-txt').hidden = true); mensaje('e-plan', 'Sin conexión a la base: usa el archivo .json.'); return; }
+  ISA.alCambiarSesion(function(s) {
+    pintarSesion(s);
+    if (s.user && s.listo && s.rol && !estado.plan && !leyendoBase) leerDeBase();   // sesión recordada: lee la base sola
+    if (s.user && s.listo && !s.rol) mensaje('e-plan', 'Tu usuario no tiene rol asignado en el planificador. Pide a un administrador que te lo asigne.', 'error');
+  });
+  $('b-isa-entrar').addEventListener('click', async function() {
+    var b = $('b-isa-entrar'); b.disabled = true; mensaje('e-plan', 'Conectando…');
+    try { await ISA.login($('isa-email').value, $('isa-pass').value); $('isa-pass').value = ''; }
+    catch (e) { mensaje('e-plan', e.message, 'error'); }
+    finally { b.disabled = false; }
+  });
+  $('isa-pass').addEventListener('keydown', function(ev) { if (ev.key === 'Enter') $('b-isa-entrar').click(); });
+  $('b-isa-leer').addEventListener('click', leerDeBase);
+  $('b-isa-salir').addEventListener('click', function() { ISA.logout(); estado.planOrigen = null; });
+})();
+$('f-lineas').addEventListener('change', async function(ev) {
+  var archivos = Array.from(ev.target.files); if (!archivos.length) return;
+  estado.shp = estado.dbf = null; estado.prj = '';
+  try {
+    var zip = archivos.find(function(a) { return /\.zip$/i.test(a.name); });
+    if (zip) {
+      if (!window.JSZip) throw new Error('No se pudo cargar el lector de .zip. Elige los archivos .shp y .dbf sueltos.');
+      mensaje('e-lineas', 'Abriendo ' + zip.name + '…');
+      var z = await JSZip.loadAsync(zip);
+      var buscar = function(ext) { return Object.keys(z.files).find(function(n) { return new RegExp('\\.' + ext + '$', 'i').test(n) && !z.files[n].dir; }); };
+      var nShp = buscar('shp'), nDbf = buscar('dbf'), nPrj = buscar('prj');
+      if (!nShp) throw new Error('El .zip no trae un archivo .shp.');
+      mensaje('e-lineas', 'Extrayendo ' + nShp.split('/').pop() + '…');
+      estado.shp = await z.files[nShp].async('arraybuffer');
+      if (nDbf) estado.dbf = await z.files[nDbf].async('arraybuffer');
+      if (nPrj) estado.prj = await z.files[nPrj].async('string');
+    } else {
+      var shp = archivos.find(function(a) { return /\.shp$/i.test(a.name); }), dbf = archivos.find(function(a) { return /\.dbf$/i.test(a.name); }), prj = archivos.find(function(a) { return /\.prj$/i.test(a.name); });
+      if (!shp) throw new Error('Falta el archivo .shp.');
+      estado.shp = await shp.arrayBuffer(); if (dbf) estado.dbf = await dbf.arrayBuffer(); if (prj) estado.prj = await prj.text();
+    }
+    var z2 = zonaUTMDePrj(estado.prj);
+    mensaje('e-lineas', 'Líneas listas (' + (estado.shp.byteLength / 1048576).toFixed(0) + ' MB, UTM ' + z2.zona + (z2.sur ? 'S' : 'N') + (estado.prj ? '' : ', supuesta') + ')' + (estado.dbf ? '.' : '. Sin .dbf: no se distinguen capas.'), 'ok');
+  } catch (e) { estado.shp = null; mensaje('e-lineas', 'No se pudo leer: ' + e.message, 'error'); }
+  listo();
+});
+
+$('b-procesar').addEventListener('click', async function() {
+  var b = $('b-procesar'); b.disabled = true; $('progreso').hidden = false;
+  var params = { giro: parseFloat($('p-giro').value) || 1.25, corto: parseFloat($('p-corto').value) || 50, vel: parseFloat($('p-vel').value) || 4.5, zafra: $('p-zafra').value };
+  try {
+    estado.resultado = await procesarDiseno({ plan: estado.plan, shp: estado.shp, dbf: estado.dbf, prj: estado.prj, params: params }, function(f, t) { $('barra').style.width = (f * 100).toFixed(1) + '%'; $('progreso-txt').textContent = t; });
+    aplicarRegistro();
+    mostrarResultado();
+    refrescarMaquinas(true);
+  } catch (e) { $('progreso-txt').textContent = 'No se pudo procesar: ' + e.message; }
+  b.disabled = false;
+});
+
+/* ============ REGISTRO DE COSECHADORAS: tiempos reales por lote ============
+   Se carga el CSV de la pestaña registro_lotes del Google Sheet. Por cada lote del diseño se busca su fila (mismo nombre de
+   lote; si hay nombres repetidos, también la finca) en la zafra elegida, o en la más reciente anterior.
+   - TIEMPOS reales (min por maniobra, km/h): siempre que haya datos suficientes.
+   - CANTIDAD de maniobras: real mientras el diseño sea el mismo con el que se cosechó; si el rumbo cambió, la cobertura de los
+     datos es baja o el lote está marcado como rediseñado, se usan los giros del diseño nuevo con el tiempo real por giro. */
+var REG = window.REG = { filas: null, idx: {}, idxF: {}, fincasPorLote: {}, zafras: [], resumen: null, tGiroPorLote: {} };
+function normTxt(s) { return String(s === null || s === undefined ? '' : s).toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' '); }
+function normCol(s) { return normTxt(s).replace(/[\s\-]+/g, '_'); }
+function numReg(s) {
+  var t = String(s === null || s === undefined ? '' : s).replace(/\s/g, '');
+  if (t === '') return NaN;
+  var c = t.lastIndexOf(','), p = t.lastIndexOf('.');
+  if (c >= 0 && p >= 0) t = (c > p) ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  else if (c >= 0) t = t.replace(',', '.');
+  var v = parseFloat(t); return isNaN(v) ? NaN : v;
+}
+function parseCSVTexto(t) {
+  t = t.replace(/^\uFEFF/, '');
+  var fin = t.search(/\r?\n/), cab = fin < 0 ? t : t.slice(0, fin), nP = 0, nC = 0, q = false, i, ch;
+  for (i = 0; i < cab.length; i++) { ch = cab[i]; if (ch === '"') q = !q; else if (!q) { if (ch === ';') nP++; else if (ch === ',') nC++; } }
+  var sep = nP > nC ? ';' : ',', filas = [], fila = [], cel = '', dentro = false;
+  for (i = 0; i < t.length; i++) {
+    ch = t[i];
+    if (dentro) { if (ch === '"') { if (t[i + 1] === '"') { cel += '"'; i++; } else dentro = false; } else cel += ch; }
+    else if (ch === '"') dentro = true;
+    else if (ch === sep) { fila.push(cel); cel = ''; }
+    else if (ch === '\n') { fila.push(cel); filas.push(fila); fila = []; cel = ''; }
+    else if (ch !== '\r') cel += ch;
+  }
+  if (cel !== '' || fila.length) { fila.push(cel); filas.push(fila); }
+  return filas.filter(function(f) { return f.some(function(x) { return String(x).trim() !== ''; }); });
+}
+function cargarRegistroTexto(txt) {
+  var f = parseCSVTexto(txt);
+  if (f.length < 2) throw new Error('El archivo está vacío.');
+  var enc = f[0].map(normCol), ix = function(n) { return enc.indexOf(n); };
+  var iLote = ix('lote'), iFinca = ix('finca'), iZaf = ix('zafra');
+  if (iLote < 0 || iZaf < 0) throw new Error('No encontré las columnas "lote" y "zafra". Descarga como CSV la pestaña registro_lotes del Google Sheet.');
+  var c = { man: ix('maniobras_n'), giros: ix('giros_n'), lat: ix('giros_laterales_n'), t: ix('t_maniobra_media_s'), tg: ix('giro_media_s'), vel: ix('vel_efectiva_kmh'),
+    area: ix('area_ha'), hc: ix('h_corte'), esp: ix('espera_av_giro_s_por_maniobra'), hesp: ix('h_ralenti_espera_av_giro'), rum: ix('rumbo_real_grados'), rpct: ix('rumbo_real_pct'), dist: ix('distancia_km'), ton: ix('ton_estimadas'), rot: ix('ralenti_otro_min_por_ton') };
+  if (c.man < 0 && c.giros < 0) throw new Error('El CSV no trae las columnas de giros (maniobras_n o giros_n).');
+  if (c.t < 0 && c.tg < 0) throw new Error('El CSV no trae el tiempo por giro (t_maniobra_media_s o giro_media_s).');
+  var filas = [];
+  f.slice(1).forEach(function(v) {
+    var g = function(k) { return c[k] >= 0 ? numReg(v[c[k]]) : NaN; };
+    var lote = String(v[iLote] || '').trim(); if (!lote) return;
+    var man = c.man >= 0 ? g('man') : (g('giros') + (c.lat >= 0 ? (g('lat') || 0) : 0));
+    var t = c.t >= 0 ? g('t') : g('tg');
+    if (!(man > 0) || !(t > 0)) return;
+    var esp = c.esp >= 0 ? g('esp') : (c.hesp >= 0 ? g('hesp') * 3600 / man : NaN);
+    filas.push({ lote: lote, finca: iFinca >= 0 ? String(v[iFinca] || '').trim() : '', zafra: String(v[iZaf] || '').trim(), man: man, t: t, vel: g('vel'), area: g('area'), hc: g('hc'), esp: esp, rum: g('rum'), rpct: g('rpct'), dist: g('dist'), ton: g('ton'), rot: g('rot') });
+  });
+  if (!filas.length) throw new Error('No encontré filas con maniobras y tiempo por giro.');
+  REG.filas = filas; REG.idx = {}; REG.idxF = {}; REG.fincasPorLote = {};
+  var zs = {};
+  filas.forEach(function(x) {
+    var kL = normTxt(x.lote), kF = kL + '|' + normTxt(x.finca);
+    ((REG.idx[kL] = REG.idx[kL] || {})[x.zafra] = REG.idx[kL][x.zafra] || []).push(x);
+    ((REG.idxF[kF] = REG.idxF[kF] || {})[x.zafra] = REG.idxF[kF][x.zafra] || []).push(x);
+    (REG.fincasPorLote[kL] = REG.fincasPorLote[kL] || {})[normTxt(x.finca)] = true;
+    zs[x.zafra] = true;
+  });
+  REG.zafras = Object.keys(zs).sort();
+  return { filas: filas.length, lotes: Object.keys(REG.idx).length, zafras: REG.zafras };
+}
+function agregarFilasReg(rows) {
+  var man = 0, tS = 0, vS = 0, vW = 0, area = 0, eS = 0, eW = 0, sx = 0, sy = 0, rw = 0, rp = 0, rpw = 0, rotMin = 0, rotTon = 0;
+  rows.forEach(function(x) {
+    man += x.man; tS += x.t * x.man; if (x.area === x.area) area += x.area;
+    if (x.vel > 0) { var w = x.hc > 0 ? x.hc : 1; vS += x.vel * w; vW += w; }
+    if (x.esp === x.esp) { eS += x.esp * x.man; eW += x.man; }
+    if (x.rot === x.rot && x.ton > 0) { rotMin += x.rot * x.ton; rotTon += x.ton; }
+    if (x.rum === x.rum && x.rum >= 0) {
+      var w2 = (x.dist > 0 ? x.dist : 1) * (x.rpct > 0 ? x.rpct / 100 : 1);
+      sx += w2 * Math.cos(2 * x.rum * Math.PI / 180); sy += w2 * Math.sin(2 * x.rum * Math.PI / 180); rw += w2;
+      if (x.rpct > 0) { rp += x.rpct * w2; rpw += w2; }
+    }
+  });
+  return { n: rows.length, man: man, tS: tS / man, vel: vW > 0 ? vS / vW : NaN, area: area, esp: eW > 0 ? eS / eW : NaN, rot: rotTon > 0 ? rotMin / rotTon : NaN, ton: rotTon,
+    rumbo: rw > 0 ? ((Math.atan2(sy, sx) * 90 / Math.PI) % 180 + 180) % 180 : NaN, rumboPct: rpw > 0 ? rp / rpw : NaN };
+}
+function buscarRegistro(r, zafraSel, nombresPlan) {
+  if (!REG.filas) return null;
+  var kL = normTxt(r.lote), porZ = REG.idxF[kL + '|' + normTxt(r.finca)];
+  if (!porZ) {
+    var fs = REG.fincasPorLote[kL];
+    if (!fs) return null;
+    if (Object.keys(fs).length === 1 && (nombresPlan[kL] || 0) <= 1) porZ = REG.idx[kL];
+    else return { repetido: true };
+  }
+  var zs = Object.keys(porZ).sort(), z = null;
+  if (zafraSel && porZ[zafraSel]) z = zafraSel;
+  else if (zafraSel) { var prev = zs.filter(function(x) { return x < zafraSel; }); z = prev.length ? prev[prev.length - 1] : null; }
+  else z = zs[zs.length - 1];
+  if (!z) return null;
+  var ag = agregarFilasReg(porZ[z]); ag.zafra = z; ag.anterior = !!zafraSel && z !== zafraSel;
+  return ag;
+}
+function difAxial(a, b) { var d = Math.abs(a - b) % 180; return Math.min(d, 180 - d); }
+function leerParamsReg() {
+  return { usar: $('p-usar-real').checked, minMan: parseFloat($('p-min-giros').value) || 30 };
+}
+function aplicarRegistro() {
+  var R = estado.resultado; if (!R) return;
+  var P = leerParamsReg(), zafraSel = $('p-zafra').value, nombres = {};
+  R.filas.forEach(function(r) { var k = normTxt(r.lote); nombres[k] = (nombres[k] || 0) + 1; });
+  REG.tGiroPorLote = {};
+  var cuenta = { real: 0, mixto: 0, defecto: 0, sinDatos: 0 }, esp = 0, espW = 0, tS = 0, tW = 0, ratios = [], rotM = 0, rotT = 0;
+  R.filas.forEach(function(r) {
+    // valores del diseño (se guardan la primera vez para poder volver a ellos)
+    if (r._dis === undefined) r._dis = r.surcos > 0 ? { giros: r.giros, tGiro: r.tGiro, vel: r.vel } : null;
+    if (r._dis) { r.giros = r._dis.giros; r.tGiro = r._dis.tGiro; r.vel = r._dis.vel; r.horasManiobra = r.giros * r.tGiro / 60; r.horasCorte = r.distKm / r.vel; r.pctManiobra = (r.horasManiobra + r.horasCorte) > 0 ? r.horasManiobra / (r.horasManiobra + r.horasCorte) : 0; }
+    r.modo = 'defecto'; r.reg = null; r.motivoReg = ''; r.fuenteOrden = 2; r.ratioGiros = null; r.esperaS = null; r.ralOtro = null;
+    if (!REG.filas || !P.usar) return;
+    var reg = buscarRegistro(r, zafraSel, nombres);
+    if (!reg) { r.motivoReg = 'el lote no está en el registro'; cuenta.sinDatos++; return; }
+    if (reg.repetido) { r.motivoReg = 'nombre de lote repetido: no se pudo enlazar'; cuenta.sinDatos++; return; }
+    r.reg = reg;
+    if (reg.man < P.minMan) { r.motivoReg = 'solo ' + Math.round(reg.man) + ' maniobras medidas (mínimo ' + P.minMan + ')'; r.reg = null; cuenta.defecto++; return; }
+    // El registro de cosechadoras aporta solo los TIEMPOS (maniobra, espera, ralentí) y la velocidad. Las CANTIDADES (surcos, maniobras,
+    // distancia) son SIEMPRE las del diseño: si el diseño tiene 500 surcos y el registro cuenta 498 maniobras, se respetan los 500.
+    r.tGiro = reg.tS / 60; r.vel = reg.vel > 0.5 ? reg.vel : r.vel;
+    r.modo = 'real'; r.fuenteOrden = 0; cuenta.real++;
+    // avisos informativos (no cambian nada): ayudan a ver si el registro corresponde al mismo diseño
+    var avisos = [], cob = (r.area > 0 && reg.area > 0) ? reg.area / r.area : null;
+    var dR = (r._dis && r.rumbo !== undefined && reg.rumbo === reg.rumbo && reg.rumboPct >= 40) ? difAxial(r.rumbo, reg.rumbo) : null;
+    if (dR !== null && dR > 15) avisos.push('rumbo distinto: diseño ' + Math.round(r.rumbo) + '°, real ' + Math.round(reg.rumbo) + '°');
+    if (cob !== null && (cob < 0.85 || cob > 1.15)) avisos.push('los registros cubren ' + Math.round(cob * 100) + '% del lote');
+    if (r._dis && r._dis.giros > 0 && Math.abs(reg.man / r._dis.giros - 1) > 0.1) avisos.push('maniobras reales ' + Math.round(reg.man) + ' contra ' + r._dis.giros + ' surcos del diseño');
+    r.motivoReg = 'tiempos y velocidad reales' + (reg.anterior ? ' (de la zafra ' + reg.zafra + ')' : '') + '; los surcos y maniobras son los del diseño' + (avisos.length ? '. Aviso: ' + avisos.join('; ') : '');
+    r.horasManiobra = r.giros > 0 ? r.giros * r.tGiro / 60 : r.horasManiobra;
+    if (r._dis) { r.horasCorte = r.distKm / r.vel; r.pctManiobra = (r.horasManiobra + r.horasCorte) > 0 ? r.horasManiobra / (r.horasManiobra + r.horasCorte) : 0; r.ratioGiros = r._dis.giros > 0 ? reg.man / r._dis.giros : null; }
+    r.esperaS = reg.esp === reg.esp ? reg.esp : null; r.ralOtro = reg.rot === reg.rot ? reg.rot : null;
+    REG.tGiroPorLote[normTxt(r.lote)] = r.tGiro;
+    if (reg.esp === reg.esp) { esp += reg.esp * reg.man; espW += reg.man; ratios.push(reg.esp); }
+    if (reg.rot === reg.rot && reg.ton > 0) { rotM += reg.rot * reg.ton; rotT += reg.ton; }
+    tS += reg.tS * reg.man; tW += reg.man;
+  });
+  var espS = espW > 0 ? esp / espW : NaN, tGs = tW > 0 ? tS / tW : NaN;
+  ratios.sort(function(a, b) { return a - b; });
+  var q = function(p) { return ratios.length ? ratios[Math.min(ratios.length - 1, Math.floor(p * (ratios.length - 1) + 0.5))] : NaN; };
+  // Espera de la cosechadora al inicio de la cabecera (s por maniobra): maniobra del autovolteo = maniobra de la cosechadora + esa espera.
+  // Otro ralentí (dentro del surco y al final): min por tonelada. Ambos se mandan por lote al planificador.
+  REG.resumen = { cuenta: cuenta, espS: espS, tGiroS: tGs, p10: q(0.1), p90: q(0.9), rotMinTon: rotT > 0 ? rotM / rotT : NaN, zafra: zafraSel };
+}
+window.tGiroReal = function(nombre) { return REG.tGiroPorLote[normTxt(nombre)] || null; };
+function chipDatos(r) {
+  var t = r.modo === 'real' ? [(r.motivoReg || '').indexOf('Aviso:') >= 0 ? 'revisar' : 'ok', 'Real'] : ['nada', 'Por defecto'];
+  return '<span class="chip ' + t[0] + '" title="' + esc(r.motivoReg || 'Sin datos reales de cosechadoras: se usan el tiempo y la velocidad del planificador o los valores por defecto.') + '">' + t[1] + '</span>';
+}
+function pintarResumenRegistro() {
+  var el = $('reg-resumen'), S = REG.resumen;
+  if (!REG.filas || !S) { el.hidden = true; return; }
+  var c = S.cuenta;
+  var txt = 'Registro de cosechadoras (zafra ' + (S.zafra || 'más reciente') + '): ' + c.real.toLocaleString('es') + ' lotes con tiempos y velocidad reales; ' +
+    (c.defecto + c.sinDatos).toLocaleString('es') + ' sin datos suficientes, con valores por defecto. Los surcos y las maniobras son siempre los del diseño.';
+  if (S.tGiroS > 0) txt += ' Tiempo promedio por maniobra: ' + fmt(S.tGiroS / 60, 2) + ' min.';
+  if (S.espS === S.espS) txt += ' Espera de la cosechadora al inicio de la cabecera: ' + fmt(S.espS, 0) + ' s por maniobra (la mayoría de los lotes entre ' + fmt(S.p10, 0) + ' y ' + fmt(S.p90, 0) + ' s). La maniobra del autovolteo será la maniobra de la cosechadora más esa espera.';
+  if (S.rotMinTon === S.rotMinTon) txt += ' Otro ralentí dentro del surco y al final: ' + fmt(S.rotMinTon, 2) + ' min por tonelada. Los dos valores se envían por lote al planificador.';
+  el.textContent = txt; el.hidden = false;
+}
+$('f-registro').addEventListener('change', async function(ev) {
+  var f = ev.target.files[0]; if (!f) return;
+  try {
+    var info = cargarRegistroTexto(await f.text());
+    mensaje('e-registro', f.name + ': ' + info.filas.toLocaleString('es') + ' filas de ' + info.lotes.toLocaleString('es') + ' lotes, zafras ' + info.zafras.join(', ') + '.', 'ok');
+  } catch (e) { REG.filas = null; REG.resumen = null; mensaje('e-registro', 'No se pudo leer: ' + e.message, 'error'); }
+  if (estado.resultado) { aplicarRegistro(); mostrarResultado(true); }
+});
+['p-usar-real', 'p-min-giros', 'p-zafra'].forEach(function(id) {
+  $(id).addEventListener(id === 'p-zafra' || id === 'p-usar-real' ? 'change' : 'input', function() { if (estado.resultado) { aplicarRegistro(); mostrarResultado(true); } });
+});
+
+/* ============ PÁGINA «ANÁLISIS POR MÁQUINA» ============
+   Horas de trabajo por día y velocidad real contra la tabla del planificador, separada por grupo (tenencia × tipo de caña).
+   Las filas con el mismo código de máquina (WYB, WYB #1, WYB #2…) se unen en una sola; dentro de cada máquina se puede
+   desplegar el turno de día y el de noche. Aparte, una tabla de operadores. Se calcula sola al pulsar Procesar. */
+var MAQ = window.MAQ = { filasLote: null, filasDia: null, resultado: null, abiertos: {} };
+var RANGOS_TCH = ['0–70', '71–105', '106–130', '>130'];
+var GRUPOS_VEL = [{ k: 'vpv', nombre: 'Propio · Caña verde' }, { k: 'vpq', nombre: 'Propio · Caña quemada' }, { k: 'vvv', nombre: 'Proveedor · Caña verde' }, { k: 'vvq', nombre: 'Proveedor · Caña quemada' }];
+var TURNOS = ['Día', 'Noche'];
+function rangoTCH(t) { return t <= 70 ? 0 : t <= 105 ? 1 : t <= 130 ? 2 : 3; }
+function grupoDeCampo(c) { var propio = c.tenencia === 'Propio', quem = c.tipoCana === 'Quemada'; return propio ? (quem ? 'vpq' : 'vpv') : (quem ? 'vvq' : 'vvv'); }
+function tablaVelPlan(plan) {
+  var ok = function(a) { return Array.isArray(a) && a.length >= 4 && a.slice(0, 4).every(function(x) { return x > 0; }); };
+  if (!plan || !ok(plan.velVPV) || !ok(plan.velVPQ) || !ok(plan.velVVV) || !ok(plan.velVVQ)) return null;
+  return { vpv: plan.velVPV, vpq: plan.velVPQ, vvv: plan.velVVV, vvq: plan.velVVQ };
+}
+function modeloVelPlan(plan) {   // v277: mínimos por TCH (106–130 y >130) y % por antigüedad (0–70 y 71–105), todo como % del máximo de la tabla
+  var pe = plan && Array.isArray(plan.velPctEdad) ? plan.velPctEdad : [], pt = plan && plan.velPctTCH && typeof plan.velPctTCH === 'object' ? plan.velPctTCH : {}, hay = false;
+  pe.forEach(function(a) { (a || []).forEach(function(v) { if (v > 0) hay = true; }); }); Object.keys(pt).forEach(function(k) { (pt[k] || []).forEach(function(v) { if (v > 0) hay = true; }); });
+  return { edad: pe, tch: pt, hay: hay };
+}
+function tramoEdad(e) { return e <= 3 ? 0 : e <= 5 ? 1 : 2; }
+var TRAMOS_EDAD = ['0 a 3 años', 'más de 3 a 5 años', 'más de 5 años'];
+function anioDeSerie(txt) {   // serie de Deere de 17 caracteres: el año está en el carácter 10 (código VIN) y en los 2 primeros dígitos del número
+  var s = String(txt || '').toUpperCase().replace(/\s/g, '');
+  if (!/^[A-Z0-9]{17}$/.test(s)) return null;
+  var cod = 'ABCDEFGHJKLMNPRSTVWXY', y = cod.indexOf(s.charAt(9)), vin = y >= 0 ? 2010 + y : null, m = /[A-Z](\d{2})\d{4}$/.exec(s);
+  if (m) { var a = 2000 + parseInt(m[1], 10); if (vin === null || Math.abs(a - vin) <= 1) return a; }
+  return vin;
+}
+function leerAnios() {
+  var o = {}; ($('m-anios').value || '').split(/\n/).forEach(function(l) {
+    var p = l.split(/[;,\t:]/); if (p.length < 2) return; var y = parseInt(p[1], 10); if (p[0].trim() && y > 1980 && y < 2100) o[normTxt(limpiarMaq(p[0]))] = y;
+  });
+  return o;
+}
+function cuantilPonderado(items, p) {
+  var a = items.slice().sort(function(u, v) { return u.x - v.x; }), tot = a.reduce(function(t, i) { return t + i.w; }, 0), acc = 0;
+  for (var i = 0; i < a.length; i++) { acc += a[i].w; if (acc >= p * tot - 1e-9) return a[i].x; }
+  return a.length ? a[a.length - 1].x : NaN;
+}
+function colorRatio(r) { return r >= 1 ? 'rgba(80,150,70,.35)' : r >= 0.95 ? 'rgba(130,180,90,.30)' : r >= 0.9 ? 'rgba(230,200,90,.35)' : r >= 0.8 ? 'rgba(230,150,70,.38)' : 'rgba(200,80,60,.40)'; }
+function fH(v, d) { return (v === null || v === undefined || isNaN(v)) ? '–' : Number(v).toLocaleString('es', { minimumFractionDigits: d === undefined ? 1 : d, maximumFractionDigits: d === undefined ? 1 : d }); }
+function fechaCorta(f) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(f || ''); if (!m) return f || '';
+  return parseInt(m[3], 10) + '-' + ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][parseInt(m[2], 10) - 1];
+}
+function fechaISO(t) {   // acepta 2026-04-18 o 18/04/2026
+  t = String(t || '').trim(); var a = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(t), b = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(t), p = function(x) { return (x < 10 ? '0' : '') + parseInt(x, 10); };
+  return a ? a[1] + '-' + p(a[2]) + '-' + p(a[3]) : (b ? b[3] + '-' + p(b[2]) + '-' + p(b[1]) : '');
+}
+function limpiarMaq(n) { return String(n === null || n === undefined ? '' : n).replace(/\s*#\d+\s*$/, '').trim(); }   // WYB #2 -> WYB
+function turnoNorm(t) { t = String(t || '').toLowerCase(); return /noche/.test(t) ? 'Noche' : /d[ií]a/.test(t) ? 'Día' : ''; }
+function cargarRegMaqTexto(txt) {
+  var f = parseCSVTexto(txt);
+  if (f.length < 2) throw new Error('El archivo está vacío.');
+  var enc = f[0].map(normCol), ix = function(n) { return enc.indexOf(n); };
+  var c = { maq: ix('maquina'), cod: ix('maquina_codigo'), serie: ix('maquina_serie'), oper: ix('operador'), lote: ix('lote'), finca: ix('finca'), zafra: ix('zafra'), h: ix('h_corte'), v: ix('vel_efectiva_kmh'), t: ix('rend_medio_tch'),
+    hd: ix('h_corte_dia'), hn: ix('h_corte_noche'), vd: ix('vel_efectiva_dia_kmh'), vn: ix('vel_efectiva_noche_kmh') };
+  if (c.maq < 0 || c.lote < 0 || c.h < 0 || c.v < 0) throw new Error('No encontré las columnas maquina, lote, h_corte y vel_efectiva_kmh. Descarga como CSV la pestaña registro_lotes_maquina del Google Sheet.');
+  var filas = [], maqs = {}, hayTurno = c.hd >= 0 && c.hn >= 0, hayOper = false, num = function(v, i) { return i >= 0 ? numReg(v[i]) : NaN; };
+  f.slice(1).forEach(function(v) {
+    var raw = String(v[c.maq] || '').trim(), lote = String(v[c.lote] || '').trim(); if (!raw || !lote) return;
+    var cod = limpiarMaq(c.cod >= 0 && String(v[c.cod] || '').trim() ? v[c.cod] : raw), oper = c.oper >= 0 ? String(v[c.oper] || '').trim() : ''; maqs[cod] = 1; if (oper) hayOper = true;
+    filas.push({ maq: cod, serie: c.serie >= 0 ? String(v[c.serie] || '').trim() : '', oper: oper, lote: lote, finca: c.finca >= 0 ? String(v[c.finca] || '').trim() : '', zafra: c.zafra >= 0 ? String(v[c.zafra] || '').trim() : '',
+      h: numReg(v[c.h]), v: numReg(v[c.v]), tchM: num(v, c.t), hd: num(v, c.hd), vd: num(v, c.vd), hn: num(v, c.hn), vn: num(v, c.vn) });
+  });
+  if (!filas.length) throw new Error('No encontré filas con cosechadora y lote.');
+  MAQ.filasLote = filas; MAQ.hayTurnoLote = hayTurno; MAQ.hayOperLote = hayOper;
+  return { filas: filas.length, maquinas: Object.keys(maqs).length, turnos: hayTurno, operadores: hayOper };
+}
+function cargarRegDiaTexto(txt) {
+  var f = parseCSVTexto(txt);
+  if (f.length < 2) throw new Error('El archivo está vacío.');
+  var enc = f[0].map(normCol), ix = function(n) { return enc.indexOf(n); };
+  var c = { maq: ix('maquina'), cod: ix('maquina_codigo'), serie: ix('maquina_serie'), oper: ix('operador'), zafra: ix('zafra'), fecha: ix('fecha'), turno: ix('turno'), h: ix('h_trabajo'), hc: ix('h_corte'), ton: ix('ton'), ha: ix('ha') };
+  if (c.maq < 0 || c.fecha < 0 || c.h < 0) throw new Error('No encontré las columnas maquina, fecha y h_trabajo. Usa la pestaña registro_maquina_dia del Sheet o el horas_maquina_dia.csv de la herramienta.');
+  var filas = [], maqs = {}, dias = {}, hayTurno = false, hayOper = false;
+  f.slice(1).forEach(function(v) {
+    var raw = String(v[c.maq] || '').trim(), fecha = fechaISO(v[c.fecha]); if (!raw || !fecha) return;
+    var cod = limpiarMaq(c.cod >= 0 && String(v[c.cod] || '').trim() ? v[c.cod] : raw), tn = c.turno >= 0 ? turnoNorm(v[c.turno]) : '', oper = c.oper >= 0 ? String(v[c.oper] || '').trim() : ''; maqs[cod] = 1; dias[fecha] = 1; if (tn) hayTurno = true; if (oper) hayOper = true;
+    filas.push({ maq: cod, serie: c.serie >= 0 ? String(v[c.serie] || '').trim() : '', oper: oper, zafra: c.zafra >= 0 ? String(v[c.zafra] || '').trim() : '', fecha: fecha, turno: tn, h: numReg(v[c.h]) || 0, hc: c.hc >= 0 ? (numReg(v[c.hc]) || 0) : 0, ton: c.ton >= 0 ? (numReg(v[c.ton]) || 0) : 0, ha: c.ha >= 0 ? (numReg(v[c.ha]) || 0) : 0 });
+  });
+  if (!filas.length) throw new Error('No encontré filas con máquina y fecha.');
+  MAQ.filasDia = filas; MAQ.hayTurnoDia = hayTurno; MAQ.hayOperDia = hayOper;
+  return { filas: filas.length, maquinas: Object.keys(maqs).length, dias: Object.keys(dias).length, turnos: hayTurno, operadores: hayOper };
+}
+// ---- estadística de horas por día a partir de {fecha: {h, hc, ton, ha}} ----
+function estadDias(porFecha, minDia) {
+  var lista = Object.keys(porFecha).map(function(f) { var x = porFecha[f]; return { fecha: f, h: x.h, hc: x.hc, ton: x.ton, ha: x.ha }; }).filter(function(d) { return d.h >= minDia; }).sort(function(a, b) { return a.fecha < b.fecha ? -1 : 1; });
+  if (!lista.length) return null;
+  var n = lista.length, tot = lista.reduce(function(t, d) { return t + d.h; }, 0), mx = lista[0], mn = lista[0];
+  lista.forEach(function(d) { if (d.h > mx.h) mx = d; if (d.h < mn.h) mn = d; });
+  var ord = lista.map(function(d) { return d.h; }).sort(function(a, b) { return a - b; }), med = n % 2 ? ord[(n - 1) / 2] : (ord[n / 2 - 1] + ord[n / 2]) / 2;
+  return { dias: n, total: tot, prom: tot / n, med: med, max: mx, min: mn, promCorte: lista.reduce(function(t, d) { return t + d.hc; }, 0) / n, promTon: lista.reduce(function(t, d) { return t + d.ton; }, 0) / n, detalle: lista };
+}
+function sumaFecha(mapa, fecha, d) { var x = mapa[fecha] = mapa[fecha] || { h: 0, hc: 0, ton: 0, ha: 0 }; x.h += d.h; x.hc += d.hc; x.ton += d.ton; x.ha += d.ha; }
+// ---- acumulados de velocidad ----
+function nuevoAgg() { return { h: 0, hv: 0, ht: 0, htw: 0, lotes: {}, rg: [0, 1, 2, 3].map(function() { return { h: 0, hv: 0, ht: 0 }; }), items: [] }; }
+function sumarObs(a, h, v, vt, vw, r, clave) { a.h += h; a.hv += h * v; a.ht += h * vt; a.htw += h * vw; a.lotes[clave] = 1; a.items.push({ x: v / vt, w: h }); a.rg[r].h += h; a.rg[r].hv += h * v; a.rg[r].ht += h * vt; }
+function filaVelDe(a, nombre, e, minH, umbral) {
+  var ratio = a.hv / a.ht, p90 = cuantilPonderado(a.items, 0.9), pocos = a.h < minH, est;
+  var hTab = a.items.filter(function(i) { return i.x >= 0.95; }).reduce(function(t, i) { return t + i.w; }, 0);
+  if (pocos) est = ['nada', 'Pocos datos']; else if (ratio >= umbral) est = ['ok', 'Alcanza la tabla']; else if (p90 >= 1) est = ['revisar', 'Por debajo (llega en sus mejores lotes)']; else est = ['error', 'No alcanza la tabla'];
+  return { nombre: nombre, anio: e ? e.anio : null, edad: e ? e.edad : null, horas: a.h, lotes: Object.keys(a.lotes).length, vReal: a.hv / a.h, vTabla: a.ht / a.h, vTrabajo: a.htw / a.h, ratio: ratio, ratioTrabajo: a.hv / a.htw, p90: p90, pctHoras95: hTab / a.h,
+    rg: a.rg.map(function(g) { return g.h > 0 ? { h: g.h, vReal: g.hv / g.h, vTabla: g.ht / g.h, ratio: g.hv / g.ht } : null; }), estado: est[1], tipo: est[0] };
+}
+function analizarMaquinas() {
+  var zsel = $('m-zafra').value, minDia = parseFloat($('m-mindia').value), minH = parseFloat($('m-minh').value) || 20, umbral = (parseFloat($('m-umbral').value) || 90) / 100, modoTch = $('m-tch').value;
+  if (isNaN(minDia)) minDia = 1;
+  var anios = leerAnios(), lotes = (MAQ.filasLote || []).filter(function(r) { return !zsel || r.zafra === zsel; }), dias = (MAQ.filasDia || []).filter(function(r) { return !zsel || r.zafra === zsel; });
+  var zs = {}; (MAQ.filasLote || []).concat(MAQ.filasDia || []).forEach(function(r) { if (r.zafra) zs[r.zafra] = 1; });
+  var zafras = Object.keys(zs).sort(), anioRef = parseInt(((zsel || zafras[zafras.length - 1] || '').split('-')[0]), 10) || new Date().getFullYear();
+  var series = {}; lotes.concat(dias).forEach(function(r) { if (r.serie) (series[r.maq] = series[r.maq] || {})[r.serie] = 1; });
+  var anioPlan = {}; ((estado.plan && estado.plan.modelosCosech) || []).forEach(function(m) { var a = parseInt(m.anioInicio, 10); if (m.codigo !== undefined && m.codigo !== null && a > 1900) anioPlan[normTxt(limpiarMaq(String(m.codigo)))] = a; });
+  var anioDe = function(nom) { var s0 = Object.keys(series[nom] || {})[0]; return anios[normTxt(nom)] || anioPlan[normTxt(nom)] || anioDeSerie(s0) || anioDeSerie(nom) || null; };   // lo escrito a mano, luego el año de inicio del planificador, luego la serie
+  var edadDe = function(nom) { var a = anioDe(nom); return { anio: a, edad: a ? Math.max(0, anioRef - a) : null }; };
+  var hayTurno = dias.some(function(d) { return d.turno; }), hayOper = lotes.some(function(f) { return f.oper; }) || dias.some(function(d) { return d.oper; });
+  var OPS = function(o) { return o || '(sin operador)'; };
+  // ----- horas de trabajo por día: por máquina (con turnos) y por operador -----
+  var pm = {}, po = {};
+  dias.forEach(function(d) {
+    var m = pm[d.maq] = pm[d.maq] || { nombre: d.maq, todo: {}, tur: { 'Día': {}, 'Noche': {} }, opers: {} };
+    sumaFecha(m.todo, d.fecha, d); if (d.turno) sumaFecha(m.tur[d.turno], d.fecha, d); if (d.oper) m.opers[d.oper] = 1;
+    var o = po[OPS(d.oper)] = po[OPS(d.oper)] || { nombre: OPS(d.oper), todo: {}, maq: {}, hDia: 0, hNoche: 0 };
+    sumaFecha(o.todo, d.fecha, d); sumaFecha((o.maq[d.maq] = o.maq[d.maq] || {}), d.fecha, d); if (d.turno === 'Noche') o.hNoche += d.h; else if (d.turno === 'Día') o.hDia += d.h;
+  });
+  var horas = Object.keys(pm).map(function(k) {
+    var m = pm[k], tot = estadDias(m.todo, minDia); if (!tot) return null;
+    var e = edadDe(m.nombre), ns = Object.keys(series[m.nombre] || {});
+    return { nombre: m.nombre, anio: e.anio, edad: e.edad, tot: tot, tur: { 'Día': estadDias(m.tur['Día'], minDia), 'Noche': estadDias(m.tur['Noche'], minDia) }, opers: Object.keys(m.opers).sort(), series: ns, completo: m.todo, completoTur: m.tur };
+  }).filter(Boolean).sort(function(a, b) { return b.tot.prom - a.tot.prom; });
+  // ----- velocidad contra la tabla, SEPARADA por grupo: tenencia × tipo de caña -----
+  var vel = null, calib = null, oper = null, desc = { sinLote: 0, repetido: 0, sinTch: 0, sinAnio: 0, usadas: 0 }, tabla = tablaVelPlan(estado.plan), modelo = modeloVelPlan(estado.plan), om = {};
+  if (estado.plan && tabla && lotes.length) {
+    var porLote = {}; (estado.plan.campos || []).forEach(function(c) { (porLote[normTxt(c.nombre)] = porLote[normTxt(c.nombre)] || []).push(c); });
+    var gm = {}, cal = { edad: [0, 1].map(function() { return [0, 1, 2].map(function() { return { h: 0, hv: 0, ht: 0, maq: {} }; }); }), tch: {} }, anioCache = {};
+    lotes.forEach(function(f) {
+      var h = f.h, v = f.v;
+      if (!(h >= 0.5) || !(v > 0.5 && v < 12)) return;
+      var cs = porLote[normTxt(f.lote)]; if (!cs) { desc.sinLote += h; return; }
+      var c = cs.length === 1 ? cs[0] : cs.filter(function(x) { return normTxt(x.finca) === normTxt(f.finca); })[0];
+      if (!c) { desc.repetido += h; return; }
+      var tch = modoTch === 'medido' ? f.tchM : parseFloat(c.tch); if (!(tch > 0)) { desc.sinTch += h; return; }
+      var gk = grupoDeCampo(c), r = rangoTCH(tch), vt = tabla[gk][r]; if (!(vt > 0)) return;
+      var an = anioCache[f.maq] === undefined ? (anioCache[f.maq] = anioDe(f.maq)) : anioCache[f.maq], zi = parseInt(String(f.zafra || '').split('-')[0], 10) || anioRef;
+      var tr = an ? tramoEdad(Math.max(0, zi - an)) : null, pct = null;
+      if (r >= 2) pct = modelo.tch[gk] ? modelo.tch[gk][r] : null; else if (tr !== null && modelo.edad[r]) pct = modelo.edad[r][tr];
+      var vw = pct > 0 ? vt * pct / 100 : vt, clave = f.lote + '|' + f.finca;   // vw: velocidad de trabajo que usa el planificador
+      var mm = gm[gk] = gm[gk] || {}, m = mm[f.maq] = mm[f.maq] || { tot: nuevoAgg(), tur: { 'Día': nuevoAgg(), 'Noche': nuevoAgg() } };
+      sumarObs(m.tot, h, v, vt, vw, r, clave); desc.usadas += h;
+      if (f.hd >= 0.25 && f.vd > 0.5 && f.vd < 12) sumarObs(m.tur['Día'], f.hd, f.vd, vt, vw, r, clave);
+      if (f.hn >= 0.25 && f.vn > 0.5 && f.vn < 12) sumarObs(m.tur['Noche'], f.hn, f.vn, vt, vw, r, clave);
+      var o = om[OPS(f.oper)] = om[OPS(f.oper)] || { tot: nuevoAgg(), maq: {} }; sumarObs(o.tot, h, v, vt, vw, r, clave); sumarObs((o.maq[f.maq] = o.maq[f.maq] || nuevoAgg()), h, v, vt, vw, r, clave);
+      if (r < 2) { if (tr === null) desc.sinAnio += h; else { var q = cal.edad[r][tr]; q.h += h; q.hv += h * v; q.ht += h * vt; q.maq[f.maq] = 1; } }
+      else { var ct = cal.tch[gk] = cal.tch[gk] || {}; ct = ct[r] = ct[r] || { h: 0, hv: 0, ht: 0 }; ct.h += h; ct.hv += h * v; ct.ht += h * vt; }
+    });
+    vel = GRUPOS_VEL.map(function(G) {
+      var mm = gm[G.k]; if (!mm) return null;
+      var lista = Object.keys(mm).map(function(k) {
+        var m = mm[k], e = edadDe(k), fila = filaVelDe(m.tot, k, e, minH, umbral);
+        fila.series = Object.keys(series[k] || {}); fila.tur = { 'Día': m.tur['Día'].h > 0 ? filaVelDe(m.tur['Día'], k, e, minH / 2, umbral) : null, 'Noche': m.tur['Noche'].h > 0 ? filaVelDe(m.tur['Noche'], k, e, minH / 2, umbral) : null };
+        return fila;
+      }).sort(function(a, b) { return (a.tipo === 'nada') - (b.tipo === 'nada') || a.ratio - b.ratio; });
+      return { k: G.k, nombre: G.nombre, tabla: tabla[G.k].slice(0, 4), lista: lista, horas: lista.reduce(function(t, x) { return t + x.horas; }, 0) };
+    }).filter(Boolean);
+    calib = { edad: cal.edad.map(function(fila, r) { return fila.map(function(q, b) { return { h: q.h, maq: Object.keys(q.maq).length, real: q.ht > 0 ? q.hv / q.ht * 100 : null, plan: (modelo.edad[r] && modelo.edad[r][b] > 0) ? modelo.edad[r][b] : null }; }); }),
+      tch: GRUPOS_VEL.map(function(G) { var ct = cal.tch[G.k]; if (!ct) return null; return { nombre: G.nombre, r: [2, 3].map(function(r) { var q = ct[r]; return q ? { h: q.h, real: q.hv / q.ht * 100, plan: (modelo.tch[G.k] && modelo.tch[G.k][r] > 0) ? modelo.tch[G.k][r] : null } : null; }) }; }).filter(Boolean) };
+  }
+  // ----- operadores: horas por día + velocidad -----
+  var nombresOp = {}; Object.keys(po).forEach(function(k) { nombresOp[k] = 1; }); Object.keys(om).forEach(function(k) { nombresOp[k] = 1; });
+  oper = Object.keys(nombresOp).map(function(k) {
+    var o = po[k], v = om[k], est = o ? estadDias(o.todo, minDia) : null, vf = v ? filaVelDe(v.tot, k, null, minH, umbral) : null;
+    var maqs = {}; if (o) Object.keys(o.maq).forEach(function(mk) { maqs[mk] = 1; }); if (v) Object.keys(v.maq).forEach(function(mk) { maqs[mk] = 1; });
+    var subs = Object.keys(maqs).sort().map(function(mk) { return { nombre: mk, est: o && o.maq[mk] ? estadDias(o.maq[mk], minDia) : null, vel: v && v.maq[mk] ? filaVelDe(v.maq[mk], mk, null, minH / 2, umbral) : null }; });
+    var hT = o ? o.hDia + o.hNoche : 0;
+    return { nombre: k, sin: k === '(sin operador)', est: est, vel: vf, maquinas: Object.keys(maqs).sort(), pctNoche: hT > 0 ? o.hNoche / hT : null, subs: subs };
+  }).filter(function(x) { return x.est || x.vel; }).sort(function(a, b) { return (a.sin - b.sin) || ((b.est ? b.est.total : 0) - (a.est ? a.est.total : 0)); });
+  return { horas: horas, vel: vel, calib: calib, oper: oper, hayModelo: modelo.hay, hayTurno: hayTurno, hayOper: hayOper, desc: desc, hayPlan: !!estado.plan, hayTabla: !!tabla, hayLotes: lotes.length > 0, hayDias: dias.length > 0, minDia: minDia, zafra: zsel, zafras: zafras };
+}
+// ---- dibujo de las tablas ----
+function filaAbierta(key) { return !!MAQ.abiertos[key]; }
+function celdaNombre(nombre, key, tieneSub, extra) {
+  return '<td style="text-align:left">' + (tieneSub ? '<button class="exp" data-k="' + esc(key) + '" aria-expanded="' + (filaAbierta(key) ? 'true' : 'false') + '" title="Ver por turno">' + (filaAbierta(key) ? '▾' : '▸') + '</button>' : '<span class="exp-hueco"></span>') + '<b>' + esc(nombre) + '</b>' + (extra || '') + '</td>';
+}
+function celdaSub(texto) { return '<td style="text-align:left;padding-left:30px">↳ ' + esc(texto) + '</td>'; }
+function marcaSeries(ns) { return ns && ns.length > 1 ? ' <span title="Este código aparece con ' + ns.length + ' series distintas (' + esc(ns.join(', ')) + '). Revisa que sea la misma máquina." style="color:var(--ocre);cursor:help">⚠</span>' : ''; }
+function anioTxt(m) { return m && m.anio ? m.anio + (m.edad !== null ? ' <small>(' + m.edad + ' años)</small>' : '') : '–'; }
+function celdasHoras(e) {
+  return e ? '<td>' + e.dias + '</td><td>' + fH(e.total, 0) + '</td><td><b>' + fH(e.prom) + '</b></td><td>' + fH(e.max.h) + ' <small>' + esc(fechaCorta(e.max.fecha)) + '</small></td><td>' + fH(e.min.h) + ' <small>' + esc(fechaCorta(e.min.fecha)) + '</small></td><td>' + fH(e.med) + '</td><td>' + fH(e.promCorte) + '</td><td>' + fH(e.promTon, 0) + '</td>'
+    : '<td style="color:var(--tinta-3)">–</td><td style="color:var(--tinta-3)">–</td><td style="color:var(--tinta-3)">–</td><td style="color:var(--tinta-3)">–</td><td style="color:var(--tinta-3)">–</td><td style="color:var(--tinta-3)">–</td><td style="color:var(--tinta-3)">–</td><td style="color:var(--tinta-3)">–</td>';
+}
+function celdasVel(x, conTrab) {
+  if (!x) return '<td colspan="' + (conTrab ? 15 : 13) + '" style="color:var(--tinta-3);text-align:left">Sin datos de este turno</td>';
+  return '<td>' + fH(x.horas, 0) + '</td><td>' + x.lotes + '</td><td>' + fH(x.vReal, 2) + '</td><td>' + fH(x.vTabla, 2) + '</td>' + (conTrab ? '<td>' + fH(x.vTrabajo, 2) + '</td>' : '') +
+    '<td style="background:' + colorRatio(x.ratio) + '"><b>' + Math.round(x.ratio * 100) + '%</b></td>' + (conTrab ? '<td style="background:' + colorRatio(x.ratioTrabajo) + '">' + Math.round(x.ratioTrabajo * 100) + '%</td>' : '') +
+    '<td style="background:' + colorRatio(x.p90) + '">' + Math.round(x.p90 * 100) + '%</td><td>' + Math.round(x.pctHoras95 * 100) + '%</td>' +
+    x.rg.map(function(g) { return g ? '<td style="background:' + colorRatio(g.ratio) + '" title="' + esc(fH(g.h, 0) + ' h · real ' + fH(g.vReal, 2) + ' km/h · tabla ' + fH(g.vTabla, 2) + ' km/h') + '">' + Math.round(g.ratio * 100) + '%</td>' : '<td style="color:var(--tinta-3)">–</td>'; }).join('') +
+    '<td style="text-align:left"><span class="chip ' + x.tipo + '">' + esc(x.estado) + '</span></td>';
+}
+function calibHtml(R) {
+  var C = R.calib; if (!C) return '';
+  var cel = function(real, plan) { return real == null ? '<td style="color:var(--tinta-3)">–</td>' : '<td style="background:' + colorRatio(plan ? real / plan : real / 100) + '"><b>' + Math.round(real) + '%</b></td>'; };
+  var pl = function(v) { return v == null ? '<td style="color:var(--tinta-3)">–</td>' : '<td>' + Math.round(v) + '%</td>'; };
+  var h = '<h3 class="sub">Calibración de los porcentajes del planificador</h3><p class="sub">«Real» es la velocidad real dividida entre el <b>máximo</b> de la tabla, ponderada por horas. «Planificador» es el porcentaje que hoy usa el planificador (v277). Si el real es menor, el planificador es optimista; si es mayor, es conservador. Sirve de guía para ajustar esos porcentajes.</p>';
+  h += '<h4 style="margin:18px 0 6px;font-size:17px">Por antigüedad de la cosechadora (rangos 0–70 y 71–105 TCH; las cuatro combinaciones juntas)</h4><div class="tabla-caja"><table><thead><tr><th style="text-align:left">Antigüedad</th>' +
+    ['0–70 TCH', '71–105 TCH'].map(function(r) { return '<th>' + r + ': real</th><th>Planificador</th><th>Horas</th><th>Máquinas</th>'; }).join('') + '</tr></thead><tbody>' +
+    TRAMOS_EDAD.map(function(t, b) { return '<tr><td style="text-align:left"><b>' + t + '</b></td>' + [0, 1].map(function(r) { var q = C.edad[r][b]; return cel(q.real, q.plan) + pl(q.plan) + '<td>' + fH(q.h, 0) + '</td><td>' + q.maq + '</td>'; }).join('') + '</tr>'; }).join('') + '</tbody></table></div>';
+  if (R.desc.sinAnio > 0) h += '<p class="sub" style="margin-top:6px">' + fH(R.desc.sinAnio, 0) + ' h de cosechadoras sin año de inicio no entran en esta tabla (el año sale de Equipos → Modelos de cosechadora del planificador, de la serie, o de lo que escribas arriba).</p>';
+  h += '<h4 style="margin:18px 0 6px;font-size:17px">Rangos de TCH altos (mínimo como % del máximo)</h4><div class="tabla-caja"><table><thead><tr><th style="text-align:left">Grupo</th>' +
+    ['106–130 TCH', '>130 TCH'].map(function(r) { return '<th>' + r + ': real</th><th>Mín. planificador</th><th>Horas</th>'; }).join('') + '</tr></thead><tbody>' +
+    (C.tch.length ? C.tch.map(function(g) { return '<tr><td style="text-align:left"><b>' + esc(g.nombre) + '</b></td>' + g.r.map(function(q) { return q ? cel(q.real, q.plan) + pl(q.plan) + '<td>' + fH(q.h, 0) + '</td>' : '<td>–</td><td>–</td><td>–</td>'; }).join('') + '</tr>'; }).join('') : '<tr><td colspan="7" style="text-align:left">No hay horas en estos rangos.</td></tr>') + '</tbody></table></div>';
+  return h;
+}
+function pintarMaquinas() {
+  var R = MAQ.resultado; if (!R) return;
+  var hs = R.horas, totDias = hs.reduce(function(t, m) { return t + m.tot.dias; }, 0), horasTot = hs.reduce(function(t, m) { return t + m.tot.total; }, 0);
+  var kp = [[hs.length, 'cosechadoras con horas por día'], [totDias ? fH(horasTot / totDias) + ' h' : '–', 'promedio de horas de trabajo por máquina y día']];
+  if (hs.length) {
+    var mx = hs.reduce(function(a, m) { return m.tot.max.h > a.tot.max.h ? m : a; }, hs[0]), mn = hs.reduce(function(a, m) { return m.tot.min.h < a.tot.min.h ? m : a; }, hs[0]);
+    kp.push([fH(mx.tot.max.h) + ' h', 'máximo en un día (' + mx.nombre + ', ' + fechaCorta(mx.tot.max.fecha) + ')'], [fH(mn.tot.min.h) + ' h', 'mínimo en un día (' + mn.nombre + ', ' + fechaCorta(mn.tot.min.fecha) + ')']);
+  }
+  if (R.vel && R.vel.length) {
+    var todos = [].concat.apply([], R.vel.map(function(g) { return g.lista; })), fh = todos.reduce(function(t, x) { return t + x.horas; }, 0), flota = todos.reduce(function(t, x) { return t + x.ratio * x.horas; }, 0) / fh, malas = {};
+    todos.forEach(function(x) { if (x.tipo === 'error') malas[x.nombre] = 1; });
+    kp.push([Math.round(flota * 100) + '%', 'de la tabla en promedio (cada lote contra la tabla de su grupo)'], [Object.keys(malas).length, 'cosechadoras que no alcanzan la tabla en algún grupo']);
+  }
+  $('m-kpis').innerHTML = kp.map(function(k) { return '<div class="dato"><strong>' + esc(k[0]) + '</strong><span>' + esc(k[1]) + '</span></div>'; }).join('');
+  // horas por día
+  var ch = ['Cosechadora', 'Año', 'Días', 'Horas totales', 'Promedio h/día', 'Máximo h/día', 'Mínimo h/día', 'Mediana h/día', 'Corte h/día', 'Ton/día'];
+  $('m-tabla-horas').querySelector('thead').innerHTML = '<tr>' + ch.map(function(c, i) { return '<th' + (i === 0 ? ' style="text-align:left"' : '') + '>' + esc(c) + '</th>'; }).join('') + '</tr>';
+  $('m-tabla-horas').querySelector('tbody').innerHTML = hs.length ? hs.map(function(m) {
+    var key = 'h|' + m.nombre, sub = R.hayTurno, ab = filaAbierta(key);
+    var fila = '<tr>' + celdaNombre(m.nombre, key, sub, marcaSeries(m.series) + (m.opers.length ? ' <small title="' + esc(m.opers.join(', ')) + '">· ' + m.opers.length + (m.opers.length === 1 ? ' operador' : ' operadores') + '</small>' : '')) + '<td>' + anioTxt(m) + '</td>' + celdasHoras(m.tot) + '</tr>';
+    if (sub) TURNOS.forEach(function(t) { fila += '<tr class="sub" data-p="' + esc(key) + '"' + (ab ? '' : ' hidden') + '>' + celdaSub('Turno ' + (t === 'Día' ? 'día' : 'noche')) + '<td></td>' + celdasHoras(m.tur[t]) + '</tr>'; });
+    return fila;
+  }).join('') : '<tr><td colspan="' + ch.length + '" style="text-align:left">' + (R.hayDias ? 'Ninguna máquina tiene días con al menos ' + R.minDia + ' h de trabajo.' : 'Carga el CSV de horas por día (paso opcional en «Diseño de lotes»).') + '</td></tr>';
+  $('m-aviso-turno').textContent = (R.hayDias && !R.hayTurno) ? 'Este registro no trae los turnos ni los operadores: procesa de nuevo los shapes con la versión 1.6 de la herramienta y carga el registro otra vez con «Reemplazar».' : '';
+  // velocidad
+  var vm = $('m-velmsg'), cont = $('m-vel-grupos');
+  if (!R.hayLotes) { vm.textContent = 'Carga el CSV del registro por cosechadora (registro_lotes_maquina) para comparar la velocidad.'; cont.innerHTML = ''; }
+  else if (!R.hayPlan) { vm.textContent = 'Carga el .json del planificador (paso 1) para comparar la velocidad con su tabla.'; cont.innerHTML = ''; }
+  else if (!R.hayTabla) { vm.textContent = 'El .json del planificador no trae la tabla de velocidades (velVPV, velVPQ, velVVV, velVVQ). Expórtalo de nuevo desde el planificador.'; cont.innerHTML = ''; }
+  else {
+    var d = R.desc, notas = []; if (d.sinLote > 0) notas.push(fH(d.sinLote, 0) + ' h de lotes que no están en el planificador'); if (d.repetido > 0) notas.push(fH(d.repetido, 0) + ' h de lotes con nombre repetido sin finca que coincida'); if (d.sinTch > 0) notas.push(fH(d.sinTch, 0) + ' h sin TCH');
+    vm.textContent = notas.length ? 'No se usaron: ' + notas.join('; ') + '.' : '';
+    var conTrab = R.hayModelo;
+    var cv = ['Cosechadora', 'Año', 'Horas', 'Lotes', 'Vel. real (km/h)', 'Vel. tabla máx. (km/h)'].concat(conTrab ? ['Vel. de trabajo del planificador (km/h)'] : []).concat(['% de la tabla (máx.)']).concat(conTrab ? ['% de la vel. de trabajo'] : []).concat(['Mejor 10%', 'Horas ≥ 95%']).concat(RANGOS_TCH.map(function(x) { return x + ' TCH'; })).concat(['Estado']);
+    var cab = '<tr>' + cv.map(function(c, i) { return '<th' + (i === 0 || i === cv.length - 1 ? ' style="text-align:left"' : '') + '>' + esc(c) + '</th>'; }).join('') + '</tr>';
+    cont.innerHTML = R.vel.length ? R.vel.map(function(G) {
+      var filas = G.lista.map(function(x) {
+        var key = 'v|' + G.k + '|' + x.nombre, sub = R.hayTurno && (x.tur['Día'] || x.tur['Noche']), ab = filaAbierta(key);
+        var f = '<tr>' + celdaNombre(x.nombre, key, sub, marcaSeries(x.series)) + '<td>' + anioTxt(x) + '</td>' + celdasVel(x, conTrab) + '</tr>';
+        if (sub) TURNOS.forEach(function(t) { f += '<tr class="sub" data-p="' + esc(key) + '"' + (ab ? '' : ' hidden') + '>' + celdaSub('Turno ' + (t === 'Día' ? 'día' : 'noche')) + '<td></td>' + celdasVel(x.tur[t], conTrab) + '</tr>'; });
+        return f;
+      }).join('');
+      var conAnio = G.lista.filter(function(x) { return x.edad !== null && x.tipo !== 'nada'; }), ed = '';
+      if (conAnio.length >= 2) {
+        var tx = [];
+        [['hasta 5 años', 0, 5], ['6 a 10 años', 6, 10], ['más de 10 años', 11, 99]].forEach(function(b) {
+          var g = conAnio.filter(function(x) { return x.edad >= b[1] && x.edad <= b[2]; }), h = g.reduce(function(t, x) { return t + x.horas; }, 0);
+          if (g.length) tx.push(b[0] + ': ' + g.length + (g.length === 1 ? ' máquina' : ' máquinas') + ', ' + Math.round(g.reduce(function(t, x) { return t + x.ratio * x.horas; }, 0) / h * 100) + '% de la tabla');
+        });
+        ed = '<p class="sub" style="margin:4px 0">Por antigüedad: ' + esc(tx.join(' · ')) + '.</p>';
+      }
+      return '<h4 style="margin:22px 0 2px;font-size:17px">' + esc(G.nombre) + ' <span class="sub">· ' + fH(G.horas, 0) + ' h · ' + G.lista.length + (G.lista.length === 1 ? ' máquina' : ' máquinas') + '</span></h4>' +
+        '<p class="sub" style="margin:0 0 6px">Máximos de la tabla del planificador para este grupo: ' + G.tabla.map(function(v, i) { return RANGOS_TCH[i] + ' TCH → ' + fH(v, 1) + ' km/h'; }).join(' · ') + '</p>' + ed +
+        '<div class="tabla-caja"><table><thead>' + cab + '</thead><tbody>' + filas + '</tbody></table></div>';
+    }).join('') : '<p class="nota">Ninguna fila del registro se pudo enlazar con los lotes del planificador.</p>';
+    cont.innerHTML += calibHtml(R);
+  }
+  // operadores
+  var po = $('m-oper'), pmsg = $('m-opermsg');
+  if (!R.hayOper) { pmsg.textContent = 'El registro no trae operadores. Procesa de nuevo los shapes en la herramienta (versión 1.6) con «Incluir el operador de cada máquina» marcada y carga el registro otra vez con «Reemplazar».'; po.innerHTML = ''; }
+  else {
+    pmsg.textContent = '';
+    var co = ['Operador', 'Máquinas', 'Días', 'Horas totales', 'Promedio h/día', 'Máximo h/día', 'Mínimo h/día', '% de horas de noche', 'Vel. real (km/h)', '% de la tabla (máx.)', 'Mejor 10%', 'Estado'];
+    var vacio = '<td style="color:var(--tinta-3)">–</td>';
+    var celdasOp = function(est, vel, noche) {
+      return (est ? '<td>' + est.dias + '</td><td>' + fH(est.total, 0) + '</td><td><b>' + fH(est.prom) + '</b></td><td>' + fH(est.max.h) + ' <small>' + esc(fechaCorta(est.max.fecha)) + '</small></td><td>' + fH(est.min.h) + ' <small>' + esc(fechaCorta(est.min.fecha)) + '</small></td>' : vacio + vacio + vacio + vacio + vacio) +
+        (noche === null || noche === undefined ? vacio : '<td>' + Math.round(noche * 100) + '%</td>') +
+        (vel ? '<td>' + fH(vel.vReal, 2) + '</td><td style="background:' + colorRatio(vel.ratio) + '"><b>' + Math.round(vel.ratio * 100) + '%</b></td><td style="background:' + colorRatio(vel.p90) + '">' + Math.round(vel.p90 * 100) + '%</td><td style="text-align:left"><span class="chip ' + vel.tipo + '">' + esc(vel.estado) + '</span></td>' : vacio + vacio + vacio + vacio);
+    };
+    po.innerHTML = '<div class="tabla-caja"><table><thead><tr>' + co.map(function(c, i) { return '<th' + (i === 0 || i === 1 || i === co.length - 1 ? ' style="text-align:left"' : '') + '>' + esc(c) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+      R.oper.map(function(o) {
+        var key = 'o|' + o.nombre, ab = filaAbierta(key), sub = o.subs.length > 1 || (o.subs.length === 1 && false);
+        var f = '<tr>' + celdaNombre(o.nombre, key, o.subs.length > 0, '') + '<td style="text-align:left">' + esc(o.maquinas.join(', ')) + '</td>' + celdasOp(o.est, o.vel, o.pctNoche) + '</tr>';
+        o.subs.forEach(function(s) { f += '<tr class="sub" data-p="' + esc(key) + '"' + (ab ? '' : ' hidden') + '>' + celdaSub(s.nombre) + '<td></td>' + celdasOp(s.est, s.vel, null) + '</tr>'; });
+        return f;
+      }).join('') + '</tbody></table></div>';
+  }
+}
+function refrescarMaquinas(marcarListo) {
+  var hay = (MAQ.filasLote && MAQ.filasLote.length) || (MAQ.filasDia && MAQ.filasDia.length);
+  $('m-vacio').hidden = !!hay; $('m-contenido').hidden = !hay;
+  if (!hay) return;
+  var zs = {}; (MAQ.filasLote || []).concat(MAQ.filasDia || []).forEach(function(r) { if (r.zafra) zs[r.zafra] = 1; });
+  var sel = $('m-zafra'), actual = sel.value, lista = Object.keys(zs).sort();
+  sel.innerHTML = '<option value="">Todas</option>' + lista.map(function(z) { return '<option>' + esc(z) + '</option>'; }).join(''); sel.value = lista.indexOf(actual) >= 0 ? actual : '';
+  try { MAQ.resultado = analizarMaquinas(); pintarMaquinas(); $('m-msg').textContent = ''; } catch (e) { $('m-msg').textContent = 'No pude calcular el análisis: ' + e.message; }
+  if (marcarListo && $('pag-maquinas').hidden) $('punto-maq').hidden = false;
+}
+window.refrescarMaquinas = refrescarMaquinas;
+function mostrarPagina(p) {
+  var m = p === 'maquinas';
+  $('pag-diseno').hidden = m; $('pag-maquinas').hidden = !m;
+  $('tab-diseno').setAttribute('aria-selected', String(!m)); $('tab-maq').setAttribute('aria-selected', String(m));
+  if (m) { $('punto-maq').hidden = true; refrescarMaquinas(); }
+  try { history.replaceState(null, '', m ? '#maquinas' : '#diseno'); } catch (e) {}
+}
+$('tab-diseno').addEventListener('click', function() { mostrarPagina('diseno'); });
+$('tab-maq').addEventListener('click', function() { mostrarPagina('maquinas'); });
+window.addEventListener('hashchange', function() { mostrarPagina(location.hash === '#maquinas' ? 'maquinas' : 'diseno'); });
+$('pag-maquinas').addEventListener('click', function(ev) {   // desplegar o plegar los turnos y las máquinas de cada operador
+  var b = ev.target.closest && ev.target.closest('button.exp'); if (!b) return;
+  var key = b.getAttribute('data-k'), abre = b.getAttribute('aria-expanded') !== 'true'; MAQ.abiertos[key] = abre;
+  b.setAttribute('aria-expanded', String(abre)); b.textContent = abre ? '▾' : '▸';
+  $('pag-maquinas').querySelectorAll('tr.sub').forEach(function(tr) { if (tr.getAttribute('data-p') === key) tr.hidden = !abre; });
+});
+$('f-regmaq').addEventListener('change', async function(ev) {
+  var f = ev.target.files[0]; if (!f) return;
+  try { var i = cargarRegMaqTexto(await f.text()); mensaje('e-regmaq', f.name + ': ' + i.filas.toLocaleString('es') + ' filas de ' + i.maquinas.toLocaleString('es') + ' cosechadoras' + (i.turnos ? ', con turnos' : '') + (i.operadores ? ' y operadores' : '') + '.', 'ok'); refrescarMaquinas(true); }
+  catch (e) { MAQ.filasLote = null; mensaje('e-regmaq', 'No se pudo leer: ' + e.message, 'error'); refrescarMaquinas(); }
+});
+$('f-regdia').addEventListener('change', async function(ev) {
+  var f = ev.target.files[0]; if (!f) return;
+  try { var i = cargarRegDiaTexto(await f.text()); mensaje('e-regdia', f.name + ': ' + i.filas.toLocaleString('es') + ' filas, ' + i.maquinas.toLocaleString('es') + ' cosechadoras en ' + i.dias.toLocaleString('es') + ' días' + (i.turnos ? ', con turnos' : ', sin turnos (registro anterior)') + '.', 'ok'); refrescarMaquinas(true); }
+  catch (e) { MAQ.filasDia = null; mensaje('e-regdia', 'No se pudo leer: ' + e.message, 'error'); refrescarMaquinas(); }
+});
+['m-zafra', 'm-tch'].forEach(function(id) { $(id).addEventListener('change', function() { refrescarMaquinas(); }); });
+['m-mindia', 'm-minh', 'm-umbral', 'm-anios'].forEach(function(id) { $(id).addEventListener('input', function() { refrescarMaquinas(); }); });
+function tablaATexto(filas, sep) {
+  var coma = sep === ';';
+  return filas.map(function(r) { return r.map(function(v) { var t = String(v); return coma && /^-?\d+\.\d+$/.test(t) ? t.replace('.', ',') : t; }).join(sep); }).join('\n');
+}
+function copiarTexto(texto) {
+  var ok = false;
+  try { var ta = document.createElement('textarea'); ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove(); } catch (e) {}
+  $('m-msg').textContent = ok ? 'Copiado: pégalo en Excel o Google Sheets.' : 'No pude copiar automáticamente.';
+}
+var f1m = function(v) { return v == null || isNaN(v) ? '' : (+v).toFixed(2); };
+function filasHorasDia() {   // una fila por máquina, fecha y turno (con todas las horas, sin el mínimo de horas por día)
+  var R = MAQ.resultado, out = [['cosechadora', 'anio', 'fecha', 'turno', 'operadores', 'horas_trabajo', 'horas_corte', 'toneladas', 'hectareas']];
+  if (!R) return out;
+  var dias = (MAQ.filasDia || []).filter(function(r) { return !R.zafra || r.zafra === R.zafra; }), agg = {}, anios = {}; R.horas.forEach(function(m) { anios[m.nombre] = m.anio; });
+  dias.forEach(function(d) { var k = d.maq + '|' + d.fecha + '|' + d.turno, x = agg[k] = agg[k] || { maq: d.maq, fecha: d.fecha, turno: d.turno, h: 0, hc: 0, ton: 0, ha: 0, ops: {} }; x.h += d.h; x.hc += d.hc; x.ton += d.ton; x.ha += d.ha; if (d.oper) x.ops[d.oper] = 1; });
+  Object.keys(agg).sort().forEach(function(k) { var x = agg[k]; out.push([x.maq, anios[x.maq] || '', x.fecha, x.turno || 'sin dato', Object.keys(x.ops).join('; '), f1m(x.h), f1m(x.hc), (+x.ton).toFixed(1), f1m(x.ha)]); });
+  return out;
+}
+function filasTablaHoras() {
+  var R = MAQ.resultado, out = [['cosechadora', 'turno', 'anio', 'dias', 'horas_totales', 'prom_h_dia', 'max_h_dia', 'fecha_max', 'min_h_dia', 'fecha_min', 'mediana_h_dia', 'prom_corte_h_dia', 'prom_ton_dia']];
+  var fila = function(n, tn, a, e) { return [n, tn, a || '', e.dias, f1m(e.total), f1m(e.prom), f1m(e.max.h), e.max.fecha, f1m(e.min.h), e.min.fecha, f1m(e.med), f1m(e.promCorte), f1m(e.promTon)]; };
+  (R ? R.horas : []).forEach(function(m) { out.push(fila(m.nombre, 'Todos', m.anio, m.tot)); TURNOS.forEach(function(t) { if (m.tur[t]) out.push(fila(m.nombre, t, m.anio, m.tur[t])); }); });
+  return out;
+}
+function filasVelocidad() {
+  var R = MAQ.resultado, out = [['cosechadora', 'turno', 'anio', 'grupo', 'horas_corte', 'lotes', 'vel_real_kmh', 'vel_tabla_max_kmh', 'vel_trabajo_planificador_kmh', 'pct_de_la_tabla', 'pct_de_vel_trabajo', 'pct_mejor_10', 'pct_horas_95', 'pct_tch_0_70', 'pct_tch_71_105', 'pct_tch_106_130', 'pct_tch_mas_130', 'horas_tch_0_70', 'horas_tch_71_105', 'horas_tch_106_130', 'horas_tch_mas_130', 'estado']];
+  var fila = function(x, tn, G) { return [x.nombre, tn, x.anio || '', G.nombre, f1m(x.horas), x.lotes, f1m(x.vReal), f1m(x.vTabla), f1m(x.vTrabajo), (x.ratio * 100).toFixed(1), (x.ratioTrabajo * 100).toFixed(1), (x.p90 * 100).toFixed(1), (x.pctHoras95 * 100).toFixed(1)]
+    .concat([0, 1, 2, 3].map(function(i) { return x.rg[i] ? (x.rg[i].ratio * 100).toFixed(1) : ''; })).concat([0, 1, 2, 3].map(function(i) { return x.rg[i] ? f1m(x.rg[i].h) : ''; })).concat([x.estado]); };
+  ((R && R.vel) || []).forEach(function(G) { G.lista.forEach(function(x) { out.push(fila(x, 'Todos', G)); TURNOS.forEach(function(t) { if (x.tur[t]) out.push(fila(x.tur[t], t, G)); }); }); });
+  return out;
+}
+function filasOperadores() {
+  var R = MAQ.resultado, out = [['operador', 'cosechadora', 'maquinas', 'dias', 'horas_totales', 'prom_h_dia', 'max_h_dia', 'fecha_max', 'min_h_dia', 'fecha_min', 'pct_horas_noche', 'vel_real_kmh', 'pct_de_la_tabla', 'pct_mejor_10', 'estado_velocidad']];
+  var fila = function(n, mq, ms, e, v, noche) { return [n, mq, ms, e ? e.dias : '', e ? f1m(e.total) : '', e ? f1m(e.prom) : '', e ? f1m(e.max.h) : '', e ? e.max.fecha : '', e ? f1m(e.min.h) : '', e ? e.min.fecha : '', noche == null ? '' : (noche * 100).toFixed(1), v ? f1m(v.vReal) : '', v ? (v.ratio * 100).toFixed(1) : '', v ? (v.p90 * 100).toFixed(1) : '', v ? v.estado : '']; };
+  ((R && R.oper) || []).forEach(function(o) { out.push(fila(o.nombre, 'Todas', o.maquinas.join('; '), o.est, o.vel, o.pctNoche)); o.subs.forEach(function(s) { out.push(fila(o.nombre, s.nombre, '', s.est, s.vel, null)); }); });
+  return out;
+}
+$('b-m-horas-csv').addEventListener('click', function() { descargar('horas-por-dia-por-maquina-' + hoyTxt() + '.csv', csv(filasHorasDia())); });
+$('b-m-horas-copiar').addEventListener('click', function() { copiarTexto(tablaATexto(filasTablaHoras(), '\t')); });
+$('b-m-vel-csv').addEventListener('click', function() { descargar('velocidad-por-maquina-y-grupo-' + hoyTxt() + '.csv', csv(filasVelocidad())); });
+$('b-m-vel-copiar').addEventListener('click', function() { copiarTexto(tablaATexto(filasVelocidad(), '\t')); });
+$('b-m-oper-csv').addEventListener('click', function() { descargar('operadores-' + hoyTxt() + '.csv', csv(filasOperadores())); });
+$('b-m-oper-copiar').addEventListener('click', function() { copiarTexto(tablaATexto(filasOperadores(), '\t')); });
+if (location.hash === '#maquinas') mostrarPagina('maquinas');
+
+/* ============ MAPA DE LAS UNIFICACIONES ============
+   Dibuja en SVG (sin mapa de fondo) los lotes de la propuesta elegida, el borde que comparten y, si se pide, los surcos de diseño de cada lote.
+   Coordenadas en metros (UTM), como el resto del módulo. */
+var mapaU = { sel: 0, vb: null, porCampo: null, idxRef: null };
+var COLOR_TIPO_U = { 'Directa': 'var(--brote)', 'Parcialmente directa': 'var(--ocre)', 'Requiere rediseño': 'var(--barro)' };
+var PALETA_SURCOS = ['#2f6b4d', '#b25b1e', '#3a5fa8', '#8a3a7a', '#8a7d1e', '#1e7f86'];
+function lotesPorCampoU() {
+  var idx = estado.resultado.idx;
+  if (!mapaU.porCampo || mapaU.idxRef !== idx) { var o = {}; bordesDeLote(idx).forEach(function(c) { o[c.campoId] = c; }); mapaU.porCampo = o; mapaU.idxRef = idx; }
+  return mapaU.porCampo;
+}
+function idsDeGrupoU(g) { var o = {}; g.pares.forEach(function(p) { o[p.a] = 1; o[p.b] = 1; }); return Object.keys(o).map(function(k) { return isNaN(+k) ? k : +k; }); }
+function trazoLoteU(c) {
+  var d = '';
+  c.anillos.forEach(function(r) { var n = r.length / 2; for (var k = 0; k < n; k++) d += (k ? 'L' : 'M') + r[2 * k].toFixed(1) + ' ' + (-r[2 * k + 1]).toFixed(1); d += 'Z'; });
+  return d;
+}
+function centroideU(c) {   // promedio de los vértices del anillo más grande
+  var mejor = null; c.anillos.forEach(function(r) { if (!mejor || r.length > mejor.length) mejor = r; });
+  var n = mejor.length / 2, sx = 0, sy = 0; for (var k = 0; k < n; k++) { sx += mejor[2 * k]; sy += mejor[2 * k + 1]; }
+  return [sx / n, sy / n];
+}
+function segmentosComunesU(A, B, tol) {   // tramos del borde de A que quedan a menos de «tol» metros del borde de B
+  var x0 = Math.max(A.minx, B.minx) - tol, x1 = Math.min(A.maxx, B.maxx) + tol, y0 = Math.max(A.miny, B.miny) - tol, y1 = Math.min(A.maxy, B.maxy) + tol, segB = [], out = [];
+  if (x0 > x1 || y0 > y1) return out;
+  B.anillos.forEach(function(r) { for (var k = 0; k < r.length / 2 - 1; k++) { var ax = r[2 * k], ay = r[2 * k + 1], bx = r[2 * k + 2], by = r[2 * k + 3]; if (Math.max(ax, bx) < x0 || Math.min(ax, bx) > x1 || Math.max(ay, by) < y0 || Math.min(ay, by) > y1) continue; segB.push([ax, ay, bx, by]); } });
+  A.anillos.forEach(function(r) {
+    for (var k = 0; k < r.length / 2 - 1; k++) {
+      var ax = r[2 * k], ay = r[2 * k + 1], bx = r[2 * k + 2], by = r[2 * k + 3], mx = (ax + bx) / 2, my = (ay + by) / 2;
+      if (mx < x0 || mx > x1 || my < y0 || my > y1) continue;
+      for (var q = 0; q < segB.length; q++) { if (distPuntoSegmento(mx, my, segB[q][0], segB[q][1], segB[q][2], segB[q][3]) <= tol) { out.push([ax, ay, bx, by]); break; } }
+    }
+  });
+  return out;
+}
+function vbPara(bb, svg) {   // encuadre con el mismo aspecto que el recuadro del mapa
+  var r = svg.getBoundingClientRect(), asp = (r.width || 800) / (r.height || 540), w = (bb.maxx - bb.minx) * 1.25 || 100, h = (bb.maxy - bb.miny) * 1.25 || 100;
+  if (w / h < asp) w = h * asp; else h = w / asp;
+  return [(bb.minx + bb.maxx) / 2 - w / 2, -(bb.miny + bb.maxy) / 2 - h / 2, w, h];
+}
+function aplicarVbU() {
+  var svg = $('u-mapa'), vb = mapaU.vb; if (!vb) return;
+  svg.setAttribute('viewBox', vb.join(' '));
+  var tam = vb[2] / 55; svg.querySelectorAll('text').forEach(function(t) { t.setAttribute('font-size', (t.getAttribute('data-k') === 'ctx' ? tam * 0.7 : tam).toFixed(2)); t.style.strokeWidth = (tam / 5).toFixed(2) + 'px'; });
+  svg.querySelectorAll('text[data-k="ctx"]').forEach(function(t) { t.style.display = vb[2] > 2600 ? 'none' : ''; });
+}
+function dibujarMapaUnif(ajustar) {
+  var caja = $('u-mapa-caja'), V = unifEstado.vista || [];
+  if (!V.length || !estado.resultado || !estado.resultado.idx) { caja.hidden = true; return; }
+  caja.hidden = false; if (mapaU.sel >= V.length || mapaU.sel < 0) mapaU.sel = 0;
+  var g = V[mapaU.sel], todas = $('u-ver-todas').checked, verSurcos = $('u-ver-surcos').checked, porCampo = lotesPorCampoU(), nombreDe = {};
+  (estado.plan.campos || []).forEach(function(c) { nombreDe[c.id] = c.nombre; });
+  var grupos = todas ? V : [g], bb = { minx: Infinity, miny: Infinity, maxx: -Infinity, maxy: -Infinity }, enGrupo = {};
+  grupos.forEach(function(gg) { idsDeGrupoU(gg).forEach(function(id) { var c = porCampo[id]; if (!c) return; enGrupo[id] = 1; bb.minx = Math.min(bb.minx, c.minx); bb.miny = Math.min(bb.miny, c.miny); bb.maxx = Math.max(bb.maxx, c.maxx); bb.maxy = Math.max(bb.maxy, c.maxy); }); });
+  if (!isFinite(bb.minx)) { caja.hidden = true; return; }
+  var partes = [], etiquetas = [];
+  // lotes de alrededor (solo con una propuesta a la vez)
+  if (!todas) {
+    var mx = (bb.maxx - bb.minx) * 0.4 + 150, my = (bb.maxy - bb.miny) * 0.4 + 150;
+    Object.keys(porCampo).forEach(function(k) {
+      var c = porCampo[k]; if (enGrupo[c.campoId] || c.maxx < bb.minx - mx || c.minx > bb.maxx + mx || c.maxy < bb.miny - my || c.miny > bb.maxy + my) return;
+      partes.push('<path d="' + trazoLoteU(c) + '" fill-rule="evenodd" style="fill:var(--surco);stroke:var(--tinta-3);stroke-width:1"/>');
+      var ct = centroideU(c); etiquetas.push('<text data-k="ctx" x="' + ct[0].toFixed(1) + '" y="' + (-ct[1]).toFixed(1) + '" text-anchor="middle" style="fill:var(--tinta-3)">' + esc(nombreDe[c.campoId] || '') + '</text>');
+    });
+  }
+  grupos.forEach(function(gg) {
+    var sel = gg === g, col = COLOR_TIPO_U[gg.tipo] || 'var(--tinta-2)', gi = V.indexOf(gg);
+    idsDeGrupoU(gg).forEach(function(id) {
+      var c = porCampo[id]; if (!c) return;
+      partes.push('<path data-gi="' + gi + '" d="' + trazoLoteU(c) + '" fill-rule="evenodd" style="fill:' + col + ';fill-opacity:' + (sel ? 0.42 : 0.22) + ';stroke:' + col + ';stroke-width:' + (sel ? 2.6 : 1.2) + ';cursor:pointer"><title>' + esc(gg.lotes.join(' + ') + ' · ' + gg.tipo) + '</title></path>');
+      if (sel || !todas) { var ct = centroideU(c); etiquetas.push('<text x="' + ct[0].toFixed(1) + '" y="' + (-ct[1]).toFixed(1) + '" text-anchor="middle" style="fill:var(--tinta);font-weight:700">' + esc(nombreDe[id] || '') + '</text>'); }
+    });
+  });
+  // surcos de diseño de los lotes de la propuesta elegida
+  var nSurcos = 0, muestreo = 1;
+  if (verSurcos && estado.resultado.lineas && !todas) {
+    var R = estado.resultado, feats = R.idx.feats, L = R.lineas, A = R.asign, ids = idsDeGrupoU(g), color = {}; ids.forEach(function(id, i) { color[id] = PALETA_SURCOS[i % PALETA_SURCOS.length]; });
+    var propias = []; for (var k = 0; k < L.n; k++) { var f = A[k]; if (f >= 0 && color[feats[f].campoId]) propias.push(k); }
+    muestreo = Math.max(1, Math.ceil(propias.length / 9000));
+    var lineas = []; for (var q = 0; q < propias.length; q += muestreo) { var k2 = propias[q], an = L.ang[k2] * Math.PI / 180, h = L.largo[k2] / 2, dx = Math.sin(an) * h, dy = Math.cos(an) * h, cx = L.mx[k2], cy = L.my[k2];
+      lineas.push('<line x1="' + (cx - dx).toFixed(1) + '" y1="' + (-(cy - dy)).toFixed(1) + '" x2="' + (cx + dx).toFixed(1) + '" y2="' + (-(cy + dy)).toFixed(1) + '" style="stroke:' + color[feats[A[k2]].campoId] + ';stroke-width:0.7;opacity:.85"/>'); nSurcos++; }
+    partes.push(lineas.join(''));
+  }
+  // borde común de cada par de la propuesta elegida
+  var tol = Math.max(5, parseFloat($('u-tol').value) || 5);
+  g.pares.forEach(function(p) {
+    var A2 = porCampo[p.a], B2 = porCampo[p.b]; if (!A2 || !B2) return;
+    segmentosComunesU(A2, B2, tol).forEach(function(sg) { partes.push('<line x1="' + sg[0].toFixed(1) + '" y1="' + (-sg[1]).toFixed(1) + '" x2="' + sg[2].toFixed(1) + '" y2="' + (-sg[3]).toFixed(1) + '" style="stroke:var(--foco);stroke-width:4.5;stroke-linecap:round"/>'); });
+  });
+  var svg = $('u-mapa'); svg.innerHTML = partes.join('') + etiquetas.join('');
+  if (ajustar || !mapaU.vb) mapaU.vb = vbPara(bb, svg);
+  mapaU.bb = bb; aplicarVbU();
+  // título e información
+  $('u-mapa-titulo').textContent = todas ? V.length + ' propuestas' : (mapaU.sel + 1) + ' de ' + V.length + ': ' + g.lotes.join(' + ');
+  var info = '<p><strong>' + esc(g.lotes.join(' + ')) + '</strong> <span class="chip ' + (g.tipo === 'Directa' ? 'ok' : g.tipo === 'Requiere rediseño' ? 'revisar' : 'nada') + '">' + esc(g.tipo) + '</span></p>' +
+    '<p>' + esc(g.finca) + ' · ' + esc(g.dueno) + ' · ' + esc(g.variedad) + '</p><p>Área ' + fmt(g.area, 1) + ' ha · diferencia de edad ' + fmt(g.difEdad) + ' días</p>' +
+    '<p>Giros menos: <b>' + (g.surcosUnidos ? fmt(g.surcosUnidos) : '–') + '</b> · horas menos: <b>' + (g.horasAhorradas ? fmt(g.horasAhorradas, 1) : '–') + '</b> · traslados menos: <b>' + g.trasladosMenos + '</b></p>';
+  g.pares.forEach(function(p) { info += '<div class="par"><b>' + esc(p.loteA) + ' – ' + esc(p.loteB) + '</b><br>Borde común ' + fmt(p.borde) + ' m · ' + (p.dRumbo === null ? 'rumbo sin datos' : 'rumbos a ' + fmt(p.dRumbo) + '°') + ' · ' + (p.directa ? 'une ' + fmt(p.surcosUnidos) + ' surcos' : 'requiere rediseño') + (p.alertas.length ? '<br><span style="color:var(--ocre)">' + esc(p.alertas.join('; ')) + '</span>' : '') + '</div>'; });
+  if (verSurcos && !todas) info += '<p class="par" style="color:var(--tinta-2)">Se dibujan ' + fmt(nSurcos) + ' surcos' + (muestreo > 1 ? ' (1 de cada ' + muestreo + ', para que el mapa no se ponga lento)' : '') + ', un color por lote. Si los surcos de los dos lotes van en la misma dirección y se alinean en el borde, la unión es directa.</p>';
+  $('u-mapa-info').innerHTML = info;
+  $('u-tabla').querySelectorAll('tbody tr').forEach(function(tr) { var on = +tr.getAttribute('data-i') === mapaU.sel; tr.classList.toggle('sel', on); });
+}
+function elegirUnif(i, desplazar) { mapaU.sel = i; dibujarMapaUnif(true); if (desplazar) { var tr = $('u-tabla').querySelector('tbody tr.sel'); if (tr) tr.scrollIntoView({ block: 'nearest' }); } }
+$('u-prev').addEventListener('click', function() { var n = (unifEstado.vista || []).length; if (n) elegirUnif((mapaU.sel - 1 + n) % n, true); });
+$('u-sig').addEventListener('click', function() { var n = (unifEstado.vista || []).length; if (n) elegirUnif((mapaU.sel + 1) % n, true); });
+$('u-ver-surcos').addEventListener('change', function() { dibujarMapaUnif(false); });
+$('u-ver-todas').addEventListener('change', function() { dibujarMapaUnif(true); });
+$('u-ajustar').addEventListener('click', function() { dibujarMapaUnif(true); });
+$('u-tabla').addEventListener('click', function(ev) { var tr = ev.target.closest && ev.target.closest('tbody tr'); if (!tr || tr.getAttribute('data-i') === null) return; elegirUnif(+tr.getAttribute('data-i'), false); $('u-mapa-caja').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); });
+(function() {   // acercar con la rueda, mover arrastrando, elegir con un clic
+  var svg = $('u-mapa'), arr = null, movio = false;
+  svg.addEventListener('wheel', function(ev) {
+    ev.preventDefault(); if (!mapaU.vb) return;
+    var r = svg.getBoundingClientRect(), f = ev.deltaY < 0 ? 0.8 : 1.25, vb = mapaU.vb, cx = vb[0] + (ev.clientX - r.left) / r.width * vb[2], cy = vb[1] + (ev.clientY - r.top) / r.height * vb[3];
+    vb[0] = cx - (cx - vb[0]) * f; vb[1] = cy - (cy - vb[1]) * f; vb[2] *= f; vb[3] *= f; aplicarVbU();
+  }, { passive: false });
+  svg.addEventListener('pointerdown', function(ev) { arr = { x: ev.clientX, y: ev.clientY }; movio = false; svg.setPointerCapture(ev.pointerId); });
+  svg.addEventListener('pointermove', function(ev) {
+    if (!arr || !mapaU.vb) return; var r = svg.getBoundingClientRect(), dx = ev.clientX - arr.x, dy = ev.clientY - arr.y;
+    if (Math.abs(dx) + Math.abs(dy) > 3) movio = true;
+    mapaU.vb[0] -= dx / r.width * mapaU.vb[2]; mapaU.vb[1] -= dy / r.height * mapaU.vb[3]; arr = { x: ev.clientX, y: ev.clientY }; aplicarVbU();
+  });
+  svg.addEventListener('pointerup', function(ev) {
+    var fue = arr; arr = null; if (movio || !fue) return;
+    var el = document.elementFromPoint(ev.clientX, ev.clientY), gi = el && el.getAttribute && el.getAttribute('data-gi'); if (gi !== null && gi !== undefined) elegirUnif(+gi, true);
+  });
+  window.addEventListener('resize', function() { if (!$('u-mapa-caja').hidden && mapaU.bb) { mapaU.vb = vbPara(mapaU.bb, svg); aplicarVbU(); } });
+})();
+
+var ESTADOS = [
+  { nombre: 'Coincide', tipo: 'ok', color: 'var(--brote)', ayuda: 'El diseño da la misma distancia que el planificador (±5%).' },
+  { nombre: 'Diferente al planificador', tipo: 'ok', color: '#7FA86A', ayuda: 'Diseño correcto, pero la distancia del planificador difiere más de 5%.' },
+  { nombre: 'Nuevo para el planificador', tipo: 'ok', color: '#A8C894', ayuda: 'El planificador no tenía distancia: hoy la estima con el área.' },
+  { nombre: 'Distanciamiento distinto', tipo: 'revisar', color: 'var(--ocre)', ayuda: 'El distanciamiento medido entre surcos difiere más de 5% del ancho de surco del planificador.' },
+  { nombre: 'No se pudo medir', tipo: 'revisar', color: '#D8B57A', ayuda: 'Menos de 10 separaciones entre surcos vecinos: no alcanza para medir el distanciamiento.' },
+  { nombre: 'Sin ancho de surco', tipo: 'revisar', color: '#C9A15A', ayuda: 'El planificador no tiene ancho de surco para comparar.' },
+  { nombre: 'Diseño incompleto', tipo: 'error', color: 'var(--barro)', ayuda: 'Las líneas cubren menos del 70% del lote.' },
+  { nombre: 'Líneas de más', tipo: 'error', color: '#B0624F', ayuda: 'Hay más líneas que surcos posibles: duplicadas o de otra capa.' },
+  { nombre: 'Sin líneas', tipo: 'nada', color: 'var(--tinta-3)', ayuda: 'El lote tiene polígono pero ninguna línea del maestro.' }
+];
+function ordenEstado(nombre) { var i = ESTADOS.findIndex(function(e) { return e.nombre === nombre; }); return i < 0 ? 99 : i; }
+
+function mostrarResultado(sinScroll) {
+  var R = estado.resultado, F = R.filas;
+  $('s-resultado').hidden = false;
+  var asignadas = R.nLineas - R.fuera, conDiseno = F.filter(function(r) { return r.surcos > 0; });
+  var paraPlan = F.filter(function(r) { return r.tipo === 'ok'; });
+  $('resumen-txt').textContent = R.nLineas.toLocaleString('es') + ' líneas leídas (' + fmt(R.kmTotal) + ' km). ' + asignadas.toLocaleString('es') + ' quedaron dentro de algún lote (' + pct(asignadas / R.nLineas, 1) + '); las demás están fuera de los polígonos del planificador.';
+  var kmD = conDiseno.reduce(function(s, r) { return s + r.distKm; }, 0), gir = conDiseno.reduce(function(s, r) { return s + r.giros; }, 0), hm = conDiseno.reduce(function(s, r) { return s + r.horasManiobra; }, 0), hc = conDiseno.reduce(function(s, r) { return s + r.horasCorte; }, 0);
+  $('resumen').innerHTML = [
+    ['' + conDiseno.length.toLocaleString('es'), 'lotes con diseño, de ' + F.length.toLocaleString('es') + ' con polígono'],
+    [fmt(kmD), 'km de surcos a recorrer'],
+    [fmt(gir), 'giros en cabecera'],
+    [pct(hm / (hm + hc), 0), 'del tiempo de las cosechadoras en maniobras'],
+    ['' + paraPlan.length.toLocaleString('es'), 'lotes listos para el planificador']
+  ].map(function(d) { return '<div class="dato"><strong>' + d[0] + '</strong><span>' + d[1] + '</span></div>'; }).join('');
+  var cuenta = {}; F.forEach(function(r) { cuenta[r.estado] = (cuenta[r.estado] || 0) + 1; });
+  $('reparto').innerHTML = ESTADOS.filter(function(e) { return cuenta[e.nombre]; }).map(function(e) { return '<i style="width:' + (cuenta[e.nombre] / F.length * 100) + '%;background:' + e.color + '" title="' + esc(e.nombre) + ': ' + cuenta[e.nombre] + '"></i>'; }).join('');
+  $('leyenda').innerHTML = ESTADOS.filter(function(e) { return cuenta[e.nombre]; }).map(function(e) { return '<span title="' + esc(e.ayuda) + '"><b style="background:' + e.color + '"></b>' + esc(e.nombre) + ': ' + cuenta[e.nombre].toLocaleString('es') + '</span>'; }).join('');
+  $('f-estado').innerHTML = '<option value="">Todos los estados</option>' + ESTADOS.filter(function(e) { return cuenta[e.nombre]; }).map(function(e) { return '<option>' + esc(e.nombre) + '</option>'; }).join('');
+  var frs = Array.from(new Set(F.map(function(r) { return r.frente; }).filter(Boolean))).sort();
+  $('f-frente').innerHTML = '<option value="">Todos los frentes</option>' + frs.map(function(f) { return '<option>' + esc(f) + '</option>'; }).join('');
+  pintarTabla();
+  pintarResumenRegistro();
+  $('s-unif').hidden = false;
+  var calmo = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : true;
+  if (!sinScroll && $('s-resultado').scrollIntoView) $('s-resultado').scrollIntoView({ behavior: calmo ? 'auto' : 'smooth', block: 'start' });
+}
+
+var COLUMNAS = [
+  { id: 'lote', t: 'Lote', izq: true }, { id: 'frente', t: 'Frente', izq: true }, { id: 'tenencia', t: 'Tenencia', izq: true }, { id: 'area', t: 'Área (ha)' },
+  { id: 'surcos', t: 'Surcos' }, { id: 'distKm', t: 'Distancia (km)' }, { id: 'difDist', t: 'Vs. planificador' }, { id: 'largoMed', t: 'Largo medio (m)' },
+  { id: 'pctCortos', t: 'Surcos cortos' }, { id: 'rumbo', t: 'Rumbo' }, { id: 'espReal', t: 'Distanciamiento (m)' }, { id: 'giros', t: 'Giros' }, { id: 'ratioGiros', t: 'Real ÷ diseño' }, { id: 'tGiro', t: 'Giro (min)' }, { id: 'vel', t: 'Vel. (km/h)' }, { id: 'esperaS', t: 'Espera AV (s)' }, { id: 'ralOtro', t: 'Otro ralentí (min/t)' },
+  { id: 'horasManiobra', t: 'Horas de maniobra' }, { id: 'pctManiobra', t: 'Tiempo en maniobras' }, { id: 'fuenteOrden', t: 'Datos', izq: true }, { id: 'estadoOrden', t: 'Estado', izq: true }
+];
+function glifoRumbo(r) {
+  if (r.rumbo === undefined) return '';
+  var a = r.rumbo * Math.PI / 180, dx = Math.sin(a) * 7, dy = -Math.cos(a) * 7, op = r.coherencia < 0.8 ? 0.45 : 1;
+  return '<svg class="rumbo" width="18" height="18" viewBox="-9 -9 18 18" aria-hidden="true"><circle r="8" fill="none" stroke="currentColor" stroke-opacity="0.25"/><line x1="' + (-dx).toFixed(1) + '" y1="' + (-dy).toFixed(1) + '" x2="' + dx.toFixed(1) + '" y2="' + dy.toFixed(1) + '" stroke="var(--hoja)" stroke-width="2" stroke-linecap="round" opacity="' + op + '"/></svg>';
+}
+function filtradas() {
+  var q = $('q').value.trim().toLowerCase(), fe = $('f-estado').value, ft = $('f-tenencia').value, ff = $('f-frente').value;
+  return estado.resultado.filas.filter(function(r) {
+    return (!q || r.lote.toLowerCase().indexOf(q) >= 0 || r.finca.toLowerCase().indexOf(q) >= 0) && (!fe || r.estado === fe) && (!ft || r.tenencia === ft) && (!ff || r.frente === ff);
+  });
+}
+function pintarTabla() {
+  var o = estado.orden, filas = filtradas().slice();
+  filas.forEach(function(r) { r.estadoOrden = ordenEstado(r.estado); });
+  filas.sort(function(a, b) {
+    var va = a[o.col], vb = b[o.col];
+    var na = va === null || va === undefined || va === '', nb = vb === null || vb === undefined || vb === '';
+    if (na && nb) return 0; if (na) return 1; if (nb) return -1;
+    if (typeof va === 'string') return va.localeCompare(vb, 'es', { numeric: true }) * o.dir;
+    return (va - vb) * o.dir;
+  });
+  $('tabla').querySelector('thead').innerHTML = '<tr>' + COLUMNAS.map(function(c) { return '<th scope="col" data-col="' + c.id + '" class="' + (c.izq ? 'izq' : '') + '"' + (o.col === c.id ? ' aria-sort="' + (o.dir > 0 ? 'ascending' : 'descending') + '"' : '') + ' tabindex="0">' + c.t + '</th>'; }).join('') + '</tr>';
+  var tb = $('tabla').querySelector('tbody');
+  if (!filas.length) { tb.innerHTML = '<tr><td colspan="' + COLUMNAS.length + '" class="vacio izq">Ningún lote coincide con los filtros. Quita algún filtro para ver más lotes.</td></tr>'; return; }
+  tb.innerHTML = filas.map(function(r) {
+    var d = r.difDist, dTxt = d === null || d === undefined ? '<small>sin dato</small>' : (Math.abs(d) <= 0.05 ? '<small>igual</small>' : '<span class="' + (d > 0 ? 'diff-pos' : 'diff-neg') + '">' + (d > 0 ? '+' : '') + pct(d, 0) + '</span>');
+    var espDif = r.espMedido && r.anchoPlan && Math.abs(r.espMedido / r.anchoPlan - 1) > TOL_DISTANCIAMIENTO;
+    var esp = r.espMedido ? '<span' + (espDif ? ' class="diff-pos"' : '') + ' title="Medido entre ' + fmt(r.nSeparaciones) + ' pares de surcos vecinos. Por área: ' + fmt(r.espArea, 2) + ' m">' + fmt(r.espMedido, 2) + '</span>' + (r.anchoPlan ? ' <small>de ' + fmt(r.anchoPlan, 2) + '</small>' : '') : '–';
+    return '<tr><td class="izq"><strong>' + esc(r.lote) + '</strong> <small>' + esc(r.finca) + '</small></td><td class="izq">' + esc(r.frente || '–') + '</td><td class="izq">' + esc(r.tenencia) + '</td>' +
+      '<td>' + fmt(r.area, 1) + '</td><td>' + fmt(r.surcos) + (r.surcosPlan ? ' <small>de ' + fmt(r.surcosPlan) + '</small>' : '') + '</td><td>' + fmt(r.distKm, 1) + (r.distPlan ? ' <small>de ' + fmt(r.distPlan, 1) + '</small>' : '') + '</td><td>' + dTxt + '</td>' +
+      '<td>' + fmt(r.largoMed) + '</td><td>' + pct(r.pctCortos) + '</td><td title="' + (r.coherencia !== undefined ? 'Coherencia ' + fmt(r.coherencia, 2) + (r.coherencia < 0.8 ? ': surcos en varias direcciones' : '') : '') + '">' + glifoRumbo(r) + (r.rumbo !== undefined ? fmt(r.rumbo) + '°' : '–') + '</td>' +
+      '<td>' + esp + '</td><td>' + fmt(r.giros) + '</td><td>' + (r.ratioGiros ? fmt(r.ratioGiros, 2) : '–') + '</td><td>' + (r.tGiro ? fmt(r.tGiro, 2) : '–') + '</td><td>' + (r.vel ? fmt(r.vel, 1) : '–') + '</td><td>' + (r.esperaS !== null && r.esperaS !== undefined ? fmt(r.esperaS, 0) : '–') + '</td><td>' + (r.ralOtro !== null && r.ralOtro !== undefined ? fmt(r.ralOtro, 2) : '–') + '</td><td>' + fmt(r.horasManiobra, 1) + '</td><td>' + pct(r.pctManiobra) + '</td>' +
+      '<td class="izq">' + chipDatos(r) + '</td>' +
+      '<td class="izq"><span class="chip ' + r.tipo + '" title="' + esc((ESTADOS.find(function(e) { return e.nombre === r.estado; }) || {}).ayuda || '') + (r.capasDescartadas ? ' · Capa usada: ' + r.capa + '; descartada: ' + r.capasDescartadas : '') + '">' + esc(r.estado) + '</span></td></tr>';
+  }).join('');
+}
+$('tabla').querySelector('thead').addEventListener('click', function(ev) {
+  var th = ev.target.closest('th'); if (!th) return;
+  var col = th.dataset.col; estado.orden = { col: col, dir: estado.orden.col === col ? -estado.orden.dir : 1 }; pintarTabla();
+});
+$('tabla').querySelector('thead').addEventListener('keydown', function(ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.target.click(); } });
+['q', 'f-estado', 'f-tenencia', 'f-frente'].forEach(function(id) { $(id).addEventListener('input', pintarTabla); });
+
+function csv(filas) { return '\uFEFF' + filas.map(function(f) { return f.map(function(v) { var s = v === null || v === undefined ? '' : String(v); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(';'); }).join('\r\n'); }
+var n2 = function(v, d) { return (v === null || v === undefined || isNaN(v)) ? '' : Number(v).toFixed(d).replace('.', ','); };
+async function descargar(nombre, texto) {
+  var msg = $('msg-descarga'); msg.textContent = '';
+  try {
+    var dl = (window.claude && window.claude.use) ? await window.claude.use('downloads') : null;
+    if (dl) { await dl.save({ filename: nombre, data: new Blob([texto], { type: 'text/csv' }) }); msg.textContent = 'Descargado: ' + nombre; return; }
+    var url = URL.createObjectURL(new Blob([texto], { type: 'text/csv;charset=utf-8' })), a = document.createElement('a');
+    a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function() { URL.revokeObjectURL(url); }, 4000);
+    msg.textContent = 'Descargado: ' + nombre;
+  } catch (e) { msg.textContent = (e && e.code === 'declined') ? 'Descarga cancelada.' : 'No se pudo descargar: ' + ((e && e.message) || e); }
+}
+var unifEstado = window.unifEstado = { res: null };
+$('b-unif').addEventListener('click', async function() {
+  var b = $('b-unif'); b.disabled = true; $('u-progreso').hidden = false;
+  var params = { edadMax: parseFloat($('u-edad').value) || 0, rumboMax: parseFloat($('u-rumbo').value) || 0, minBorde: parseFloat($('u-borde').value) || 0, tol: parseFloat($('u-tol').value) || 0, mismaVariedad: $('u-var').checked, giro: parseFloat($('p-giro').value) || 1.25, zafra: $('p-zafra').value };
+  try {
+    unifEstado.res = await analizarUnificaciones(estado.plan, estado.resultado.idx, estado.resultado.filas, params, function(f, t) { $('u-barra').style.width = (f * 100).toFixed(1) + '%'; $('u-progreso-txt').textContent = t; });
+    mostrarUnificaciones();
+  } catch (e) { $('u-progreso-txt').textContent = 'No se pudo analizar: ' + e.message; }
+  b.disabled = false;
+});
+function mostrarUnificaciones() {
+  var U = unifEstado.res, G = U.grupos; $('u-resultado').hidden = false;
+  var d = U.descartes;
+  $('u-resumen-txt').textContent = U.nVecinos.toLocaleString('es') + ' pares de lotes se tocan. Se descartan ' + d['Distinto propietario'] + ' por distinto propietario, ' + d['Distinta variedad'] + ' por distinta variedad y ' + d['Edad muy distinta'] + ' por edad muy distinta. Quedan ' + U.pares.length + ' pares, agrupados en ' + G.length + ' posibles unificaciones.';
+  var dir = G.filter(function(g) { return g.tipo !== 'Requiere rediseño'; });
+  $('u-resumen').innerHTML = [
+    ['' + G.length, 'posibles unificaciones (' + G.reduce(function(s, g) { return s + g.lotes.length; }, 0) + ' lotes)'],
+    ['' + dir.length, 'con unión directa de surcos'],
+    [fmt(G.reduce(function(s, g) { return s + g.surcosUnidos; }, 0)), 'giros menos por zafra'],
+    [fmt(G.reduce(function(s, g) { return s + g.horasAhorradas; }, 0)), 'horas de maniobra menos por zafra'],
+    [fmt(G.reduce(function(s, g) { return s + g.trasladosMenos; }, 0)), 'traslados menos por zafra']
+  ].map(function(x) { return '<div class="dato"><strong>' + x[0] + '</strong><span>' + x[1] + '</span></div>'; }).join('');
+  pintarUnificaciones();
+}
+function pintarUnificaciones() {
+  var ft = $('u-f-tipo').value, G = unifEstado.res.grupos.filter(function(g) { return !ft || g.tipo === ft; });
+  unifEstado.vista = G;
+  $('u-tabla').querySelector('thead').innerHTML = '<tr><th class="izq">Lotes</th><th class="izq">Finca</th><th class="izq">Propietario</th><th class="izq">Variedad</th><th>Área (ha)</th><th>Diferencia de edad</th><th class="izq">Tipo de unión</th><th>Borde común (m)</th><th>Giros menos</th><th>Horas menos</th><th>Traslados menos</th><th class="izq">A revisar</th></tr>';
+  var tb = $('u-tabla').querySelector('tbody');
+  if (!G.length) { tb.innerHTML = '<tr><td colspan="12" class="vacio izq">No hay unificaciones con estos criterios. Prueba con una diferencia de edad mayor o sin exigir la misma variedad.</td></tr>'; $('u-mapa-caja').hidden = true; return; }
+  tb.innerHTML = G.map(function(g, gi) {
+    var chip = g.tipo === 'Directa' ? 'ok' : g.tipo === 'Requiere rediseño' ? 'revisar' : 'nada';
+    return '<tr data-i="' + gi + '"><td class="izq"><strong>' + esc(g.lotes.join(' + ')) + '</strong></td><td class="izq">' + esc(g.finca) + '</td><td class="izq">' + esc(g.dueno) + '</td><td class="izq">' + esc(g.variedad) + '</td>' +
+      '<td>' + fmt(g.area, 1) + '</td><td>' + fmt(g.difEdad) + ' días</td><td class="izq"><span class="chip ' + chip + '">' + esc(g.tipo) + '</span></td><td>' + fmt(g.borde) + '</td>' +
+      '<td>' + (g.surcosUnidos ? fmt(g.surcosUnidos) : '–') + '</td><td>' + (g.horasAhorradas ? fmt(g.horasAhorradas, 1) : '–') + '</td><td>' + g.trasladosMenos + '</td><td class="izq" style="white-space:normal;min-width:180px"><small>' + esc(g.alertas.join(', ') || '—') + '</small></td></tr>';
+  }).join('');
+  mapaU.sel = 0; dibujarMapaUnif(true);
+}
+$('u-f-tipo').addEventListener('input', pintarUnificaciones);
+$('b-unif-csv').addEventListener('click', function() {
+  var U = unifEstado.res; if (!U) return;
+  var out = [['grupo', 'lotes_del_grupo', 'lote_a', 'lote_b', 'finca', 'propietario', 'variedad', 'fecha_corte_a', 'fecha_corte_b', 'diferencia_edad_dias', 'borde_comun_m', 'diferencia_rumbo_grados', 'tipo_union', 'surcos_que_se_unen', 'giros_menos', 'horas_menos', 'alertas']];
+  U.grupos.forEach(function(g, n) { g.pares.forEach(function(p) { out.push([n + 1, g.lotes.join(' + '), p.loteA, p.loteB, p.finca, p.dueno, p.variedad, p.fechas[0] || '', p.fechas[1] || '', p.difEdad, n2(p.borde, 0), p.dRumbo === null ? '' : n2(p.dRumbo, 0), p.directa ? 'Directa' : 'Requiere rediseño', p.surcosUnidos, p.girosAhorrados, n2(p.horasAhorradas, 2), p.alertas.join(', ')]); }); });
+  var msg = $('msg-descarga'); descargar('unificaciones-posibles.csv', csv(out)).then(function() { $('u-msg').textContent = msg.textContent; msg.textContent = ''; });
+});
+$('b-detalle').addEventListener('click', function() {
+  var F = estado.resultado.filas, out = [['lote', 'finca', 'region', 'frente', 'tenencia', 'area_ha', 'capa', 'capas_descartadas', 'surcos', 'surcos_planificador', 'distancia_km', 'distancia_planificador_km', 'diferencia_pct', 'largo_medio_m', 'pct_surcos_cortos', 'rumbo_grados', 'coherencia_rumbo', 'distanciamiento_medido_m', 'separaciones_medidas', 'distanciamiento_por_area_m', 'ancho_planificador_m', 'cobertura', 'giros', 'tiempo_giro_min', 'horas_maniobra', 'velocidad_kmh', 'horas_corte', 'pct_tiempo_maniobra', 'estado']];
+  F.forEach(function(r) { out.push([r.lote, r.finca, r.region, r.frente, r.tenencia, n2(r.area, 2), r.capa, r.capasDescartadas, r.surcos, r.surcosPlan, n2(r.distKm, 3), n2(r.distPlan, 3), r.difDist === null || r.difDist === undefined ? '' : n2(r.difDist * 100, 1), n2(r.largoMed, 0), n2((r.pctCortos || 0) * 100, 1), n2(r.rumbo, 0), n2(r.coherencia, 2), n2(r.espMedido, 2), r.nSeparaciones || 0, n2(r.espArea, 2), n2(r.anchoPlan, 2), n2(r.cobertura, 2), r.giros || 0, n2(r.tGiro, 2), n2(r.horasManiobra, 2), n2(r.vel, 2), n2(r.horasCorte, 2), n2((r.pctManiobra || 0) * 100, 1), r.estado]); });
+  descargar('diseno-lotes-detalle.csv', csv(out));
+});
+/* ===== PLANTILLAS PARA EL PLANIFICADOR =====
+   Salen en el MISMO formato que las plantillas del planificador («Plantilla vel. anterior» y «Plantilla tiempos»): mismas columnas,
+   mismo orden, separador «;», decimales con punto. Solo traen los lotes con algo que subir; el planificador no toca los demás. */
+var nP = function(v, d) { return (v === null || v === undefined || isNaN(v)) ? '' : String(Math.round(Number(v) * Math.pow(10, d)) / Math.pow(10, d)); };
+function hoyTxt() { var d = new Date(), p = function(x) { return (x < 10 ? '0' : '') + x; }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+var COLS_PLANTILLA_VEL = ['nombre', 'finca', 'region', 'vel_anterior_kmh', 'usar_vel_anterior'];
+var COLS_PLANTILLA_TIEMPOS = ['nombre', 'finca', 'region', 't_maniobra_min', 'maniobras', 'surcos', 'dist_total_km', 'vel_anterior_kmh', 'usar_vel_anterior', 'espera_av_s', 'ralenti_otro_min_ton', 'distanciamiento_m'];
+function datosPlantilla(r, incluirDistinto) {
+  var real = !!(r.reg && r.modo !== 'defecto');
+  var medidoOk = r.surcos > 0 && r.cobertura >= 0.7 && r.cobertura <= 1.4 && r.espMedido > 0 && r.nSeparaciones >= MIN_SEPARACIONES;
+  // diseño que se puede subir: el confiable (como antes) y, si se pide, el de lotes cuyo distanciamiento medido es confiable pero distinto del registrado
+  var disenoUtil = r.surcos > 0 && (r.tipo === 'ok' || (incluirDistinto && medidoOk && (r.estado === 'Distanciamiento distinto' || r.estado === 'Sin ancho de surco')));
+  var distinto = medidoOk && (!(r.anchoPlan > 0) || Math.abs(r.espMedido / r.anchoPlan - 1) > TOL_DISTANCIAMIENTO);
+  return {
+    t: real ? nP(r.tGiro, 3) : '',
+    man: disenoUtil && r.giros > 0 ? r.giros : '',   // siempre los surcos del diseño: el registro real no cambia cantidades
+    surcos: disenoUtil ? r.surcos : '',
+    dist: disenoUtil ? nP(r.distKm, 3) : '',
+    vel: real && r.vel > 0 ? nP(r.vel, 2) : '',
+    usar: real && r.vel > 0 ? 'si' : '',
+    esp: real && r.esperaS !== null && r.esperaS !== undefined ? nP(r.esperaS, 1) : '',
+    ral: real && r.ralOtro !== null && r.ralOtro !== undefined ? nP(r.ralOtro, 3) : '',
+    ancho: disenoUtil && distinto ? nP(r.espMedido, 2) : ''
+  };
+}
+function filasPlantilla(tipo) {
+  var inc = $('p-incluir-distinto').checked, vel = tipo === 'vel';
+  var out = [vel ? COLS_PLANTILLA_VEL : COLS_PLANTILLA_TIEMPOS];
+  estado.resultado.filas.forEach(function(r) {
+    var d = datosPlantilla(r, inc);
+    if (vel) { if (d.vel !== '') out.push([r.lote, r.finca, r.region, d.vel, d.usar]); return; }
+    if ([d.t, d.man, d.surcos, d.dist, d.vel, d.esp, d.ral, d.ancho].every(function(x) { return x === ''; })) return;   // nada que subir: el lote no va en la plantilla
+    out.push([r.lote, r.finca, r.region, d.t, d.man, d.surcos, d.dist, d.vel, d.usar, d.esp, d.ral, d.ancho]);
+  });
+  return out;
+}
+$('b-plan-vel').addEventListener('click', function() {
+  var f = filasPlantilla('vel');
+  if (f.length < 2) { $('msg-descarga').textContent = 'Ningún lote tiene velocidad real: carga el registro de cosechadoras (paso 3) y vuelve a procesar.'; return; }
+  descargar('plantilla-velocidad-anterior-' + hoyTxt() + '.csv', csv(f));
+});
+$('b-plan-tiempos').addEventListener('click', function() {
+  var f = filasPlantilla('tiempos');
+  if (f.length < 2) { $('msg-descarga').textContent = 'Ningún lote tiene algo que subir.'; return; }
+  descargar('plantilla-tiempos-maniobra-' + hoyTxt() + '.csv', csv(f));
+});
+</script>
+</body>
+</html>
