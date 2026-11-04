@@ -2250,6 +2250,10 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
         <input type="file" id="lab-file-Q" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="labImportarArchivo('Q', this)">
         <input type="file" id="lab-file-M" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="labImportarArchivo('M', this)">
       </div>
+      <div class="card" id="lab-ventana-card" style="display:none">
+        <div class="card-title" id="lab-ventana-titulo">Ventana del madurador</div>
+        <div id="lab-ventana"></div>
+      </div>
       <div class="card">
         <div id="lab-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"></div>
         <div id="lab-contenido"></div>
@@ -4298,7 +4302,6 @@ function labConfirmarCarga() {
   _labPend = null; document.getElementById('lab-preview-modal').style.display = 'none';
   labRefrescarMotor(); autoSave();
   var sel = document.getElementById('lab-zafra'); if (sel) { labPoblarZafras(); sel.value = z; }
-  if (!esQ) _labTab = 'ventana';   // al subir una versión del madurador se abre la ventana para revisarla
   renderLabores();
   showToast('Plan de ' + (esQ ? 'quema' : 'madurador') + ' ' + z + ' v' + ficha.version + ' cargado: ' + S.filas + ' filas, ' + S.codigos + ' lotes');
 }
@@ -4359,7 +4362,7 @@ function labVentReset() { if (!labPuedeEditar() || !confirm('¿Restablecer la ve
 function labHtmlVentana(z) {
   var G = labVentGrupos(z), cfg = labVentRead(), puede = labPuedeEditar(), dis = puede ? '' : ' disabled';
   var v = laboresMeta.vigente['M||' + z];
-  if (!G.list.length) return '<div class="alert alert-warn"><i class="ti ti-info-circle"></i><span>No hay Plan de Madurador con días a corte para ' + z + '. Cárgalo y aquí podrás revisar la ventana.</span></div>';
+  if (!G.list.length) return '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>Hay plan de madurador cargado para ' + z + ', pero ninguna fila pudo entrar al cálculo de la ventana' + (G.sinTen ? ': ' + G.sinTen + ' fila(s) con un código que no existe en Campos ni en Planificación (no se conoce su tenencia)' : '') + (G.sinDias ? '; ' + G.sinDias + ' fila(s) sin «Días Madurador a Corte (Plan)»' : '') + '.</span></div>';
   var h = '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">Ventana en la que el corte debe llegar al lote, contada desde la aplicación del madurador: <strong>media ponderada por hectáreas aplicadas</strong> de los «Días Madurador a Corte (Plan)» de cada producto, separada por tenencia, <strong>± tolerancia</strong>. ' +
     (v ? 'Calculada con el plan vigente v' + (v.version || 1) + ' (' + labEsc(v.archivo || '') + '). ' : '') + 'El seguimiento de cosecha usa esta configuración. Los ajustes manuales se conservan al subir una nueva versión del plan.</p>';
   h += '<div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:10px"><div style="width:180px"><label style="font-size:11px">Tolerancia general (± días)</label><input type="number" min="0" max="30" step="1" value="' + cfg.tol + '" onchange="labVentTol(this)"' + dis + ' style="margin:0"></div>' +
@@ -4444,10 +4447,15 @@ function renderLabores() {
   var kQ = ixQ ? labKpi('Lotes', labFmt(sQ.codigos), labFmt(sQ.filas) + ' registros') + labKpi('Ha a quemar', labFmt(sQ.ha, 1), '') + labKpi('Primera quema', sQ.fMin, '') + labKpi('Última quema', sQ.fMax, '') : '';
   var kM = ixM ? labKpi('Lotes', labFmt(sM.codigos), labFmt(sM.filas) + ' aplicaciones') + labKpi('Ha aplicadas', labFmt(sM.ha, 1), '') + labKpi('Días a corte', sM.diasProm != null ? labFmt(sM.diasProm, 1) : '–', 'promedio ponderado') + labKpi('Aplicaciones', sM.fMin ? sM.fMin.slice(5) + ' → ' + sM.fMax.slice(5) : '–', '') : '';
   document.getElementById('lab-resumen').innerHTML = '<div class="grid2">' + tarjeta('Q', ixQ, fQ, kQ) + tarjeta('M', ixM, fM, kM) + '</div>';
-  var tabs = [['cruce', 'Cruce con la cosecha'], ['quema', 'Detalle quema'], ['madurador', 'Detalle madurador'], ['ventana', 'Ventana madurador'], ['historial', 'Historial de cargas']];
+  var vc = document.getElementById('lab-ventana-card');
+  if (vc) {
+    vc.style.display = ixM ? 'block' : 'none';
+    if (ixM) { document.getElementById('lab-ventana-titulo').textContent = 'Ventana del madurador · ' + z + (fM ? ' · plan v' + (fM.version || 1) : ''); document.getElementById('lab-ventana').innerHTML = labHtmlVentana(z); }
+  }
+  var tabs = [['cruce', 'Cruce con la cosecha'], ['quema', 'Detalle quema'], ['madurador', 'Detalle madurador'], ['historial', 'Historial de cargas']];
   document.getElementById('lab-tabs').innerHTML = tabs.map(function (t) { return '<button class="btn btn-sm' + (_labTab === t[0] ? ' btn-primary' : '') + '" onclick="labTab(\'' + t[0] + '\')">' + t[1] + '</button>'; }).join(' ');
   var h = '';
-  if (_labTab === 'cruce') h = labHtmlCruce(z); else if (_labTab === 'quema') h = labHtmlDetalle('Q', z); else if (_labTab === 'madurador') h = labHtmlDetalle('M', z); else if (_labTab === 'ventana') h = labHtmlVentana(z); else h = labHtmlHistorial();
+  if (_labTab === 'cruce') h = labHtmlCruce(z); else if (_labTab === 'quema') h = labHtmlDetalle('Q', z); else if (_labTab === 'madurador') h = labHtmlDetalle('M', z); else h = labHtmlHistorial();
   document.getElementById('lab-contenido').innerHTML = h;
 }
 function labFiltroVal(id) { var el = document.getElementById(id); return el ? el.value : ''; }
