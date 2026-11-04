@@ -11,7 +11,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="author" content="Carlos Rafael Colindres M.">
 <title>Planificador de Cosecha de Caña</title>
-<!-- v292: red vial con geometría persistida (simplificada), validación del grafo al restaurar, salidas ordenadas por cercanía, mapa base con respaldo -->
+<!-- v293: N° de serie por cosechadora (Equipos → Modelos de cosechadora). v292: red vial con geometría persistida (simplificada), validación del grafo al restaurar, salidas ordenadas por cercanía, mapa base con respaldo -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -659,17 +659,18 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
           <span style="margin-left:auto;display:flex;gap:6px;align-items:center">
             <span title="Horómetro de cada máquina al inicio de la zafra elegida en el filtro de arriba">Horómetros:</span>
             <button class="btn btn-xs" onclick="descargarPlantillaHorometros()" title="Descarga una plantilla con todas las máquinas para llenar el horómetro de la zafra elegida"><i class="ti ti-download"></i> Plantilla CSV</button>
-            <button class="btn btn-xs" onclick="document.getElementById('horo-csv-input').click()" title="Carga el horómetro de varias máquinas a la vez"><i class="ti ti-upload"></i> Importar CSV</button>
+            <button class="btn btn-xs" onclick="document.getElementById('horo-csv-input').click()" title="Carga el horómetro (y opcionalmente el N° de serie) de varias máquinas a la vez"><i class="ti ti-upload"></i> Importar CSV</button>
             <input type="file" id="horo-csv-input" accept=".csv,text/csv" style="display:none" onchange="importarCSVHorometros(this)">
           </span>
         </div>
         <div class="table-wrap">
-          <table><thead><tr><th>Código <button id="ordc-codigo" onclick="ordenarCosech('codigo')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th>Modelo <button id="ordc-nombre" onclick="ordenarCosech('nombre')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th>Vel. máx. <button id="ordc-vel" onclick="ordenarCosech('vel')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th>Ancho corte <button id="ordc-ancho" onclick="ordenarCosech('ancho')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th>Costo/hora <span id="cosech-zafra-lbl" style="font-weight:400;color:var(--text3)"></span> <button id="ordc-costo" onclick="ordenarCosech('costo')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th title="Horómetro de la máquina al inicio de la zafra elegida arriba">Horómetro inicial <button id="ordc-horo" onclick="ordenarCosech('horo')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th title="Año en que la máquina empezó a trabajar. Los años de trabajo se cuentan hasta el año en que empieza la zafra elegida arriba; definen el mínimo de velocidad en los rangos 0–70 y 71–105 TCH (Ajustes)">Año de inicio <button id="ordc-anio" onclick="ordenarCosech('anio')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th>Obs. <button id="ordc-obs" onclick="ordenarCosech('obs')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th></th></tr><tr style="background:var(--bg2)"><th><input type="text" id="cf-codigo" placeholder="Filtrar…" oninput="renderModelosCosech()" style="margin:0;width:80px;padding:2px 6px;font-size:11px"></th><th><select id="cf-modelo" onchange="renderModelosCosech()" style="margin:0;width:110px;padding:2px 4px;font-size:11px"><option value="">Todos</option></select></th><th><div style="display:flex;gap:3px"><input type="number" id="cf-vel-min" placeholder="mín" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"><input type="number" id="cf-vel-max" placeholder="máx" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"></div></th><th><div style="display:flex;gap:3px"><input type="number" id="cf-ancho-min" placeholder="mín" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"><input type="number" id="cf-ancho-max" placeholder="máx" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"></div></th><th><div style="display:flex;gap:3px"><input type="number" id="cf-costo-min" placeholder="mín" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"><input type="number" id="cf-costo-max" placeholder="máx" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"></div></th><th><div style="display:flex;gap:3px"><input type="number" id="cf-horo-min" placeholder="mín" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"><input type="number" id="cf-horo-max" placeholder="máx" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"></div></th><th></th><th><input type="text" id="cf-obs" placeholder="Filtrar…" oninput="renderModelosCosech()" style="margin:0;width:90px;padding:2px 6px;font-size:11px"></th><th><button class="btn btn-xs" onclick="limpiarFiltrosCosech()" title="Quitar todos los filtros">Limpiar</button></th></tr></thead>
-          <tbody id="cosech-body"><tr><td colspan="9" style="color:var(--text2);font-style:italic">Sin modelos.</td></tr></tbody></table>
+          <table><thead><tr><th>Código <button id="ordc-codigo" onclick="ordenarCosech('codigo')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th>Modelo <button id="ordc-nombre" onclick="ordenarCosech('nombre')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th title="Número de serie de la máquina (único por máquina)">N° serie <button id="ordc-serie" onclick="ordenarCosech('serie')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th>Vel. máx. <button id="ordc-vel" onclick="ordenarCosech('vel')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th>Ancho corte <button id="ordc-ancho" onclick="ordenarCosech('ancho')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th>Costo/hora <span id="cosech-zafra-lbl" style="font-weight:400;color:var(--text3)"></span> <button id="ordc-costo" onclick="ordenarCosech('costo')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th title="Horómetro de la máquina al inicio de la zafra elegida arriba">Horómetro inicial <button id="ordc-horo" onclick="ordenarCosech('horo')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th title="Año en que la máquina empezó a trabajar. Los años de trabajo se cuentan hasta el año en que empieza la zafra elegida arriba; definen el mínimo de velocidad en los rangos 0–70 y 71–105 TCH (Ajustes)">Año de inicio <button id="ordc-anio" onclick="ordenarCosech('anio')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th>Obs. <button id="ordc-obs" onclick="ordenarCosech('obs')" title="Ordenar (clic otra vez: descendente; otra vez: sin orden)" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:11px;padding:0 2px">⇅</button></th><th></th></tr><tr style="background:var(--bg2)"><th><input type="text" id="cf-codigo" placeholder="Filtrar…" oninput="renderModelosCosech()" style="margin:0;width:80px;padding:2px 6px;font-size:11px"></th><th><select id="cf-modelo" onchange="renderModelosCosech()" style="margin:0;width:110px;padding:2px 4px;font-size:11px"><option value="">Todos</option></select></th><th><input type="text" id="cf-serie" placeholder="Filtrar…" oninput="renderModelosCosech()" style="margin:0;width:110px;padding:2px 6px;font-size:11px"></th><th><div style="display:flex;gap:3px"><input type="number" id="cf-vel-min" placeholder="mín" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"><input type="number" id="cf-vel-max" placeholder="máx" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"></div></th><th><div style="display:flex;gap:3px"><input type="number" id="cf-ancho-min" placeholder="mín" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"><input type="number" id="cf-ancho-max" placeholder="máx" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"></div></th><th><div style="display:flex;gap:3px"><input type="number" id="cf-costo-min" placeholder="mín" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"><input type="number" id="cf-costo-max" placeholder="máx" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"></div></th><th><div style="display:flex;gap:3px"><input type="number" id="cf-horo-min" placeholder="mín" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"><input type="number" id="cf-horo-max" placeholder="máx" oninput="renderModelosCosech()" style="margin:0;width:54px;padding:2px 4px;font-size:11px"></div></th><th></th><th><input type="text" id="cf-obs" placeholder="Filtrar…" oninput="renderModelosCosech()" style="margin:0;width:90px;padding:2px 6px;font-size:11px"></th><th><button class="btn btn-xs" onclick="limpiarFiltrosCosech()" title="Quitar todos los filtros">Limpiar</button></th></tr></thead>
+          <tbody id="cosech-body"><tr><td colspan="10" style="color:var(--text2);font-style:italic">Sin modelos.</td></tr></tbody></table>
         </div>
         <div class="add-row">
           <div><label>Código</label><input type="text" id="cm-codigo" placeholder="Ej: CH-001" style="width:100px"></div>
           <div><label>Modelo</label><input type="text" id="cm-nombre" placeholder="Ej: John Deere 3520" style="width:170px"></div>
+          <div><label>N° serie</label><input type="text" id="cm-serie" placeholder="Ej: 1NWC570HHRT240127" style="width:170px" title="Número de serie de la máquina (único)"></div>
           <div><label>Vel. máx. (km/h)</label><input type="number" id="cm-vel" value="8" min="1" step="0.1" style="width:80px"></div>
           <div><label>Ancho (m)</label><input type="number" id="cm-ancho" value="0.5" min="0.1" step="0.05" style="width:75px"></div>
           <div><label>Costo/h ($)</label><input type="number" id="cm-costo" value="150" min="0" step="1" style="width:85px"></div>
@@ -1763,6 +1764,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
         <div class="grid2" style="gap:10px;margin-bottom:10px">
           <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:3px">Código</label><input type="text" id="eq-cosech-codigo" style="margin:0"></div>
           <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:3px">Modelo</label><input type="text" id="eq-cosech-nombre" style="margin:0"></div>
+          <div style="grid-column:1/-1"><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:3px">N° de serie de la máquina</label><input type="text" id="eq-cosech-serie" placeholder="Ej: 1NWC570HHRT240127" style="margin:0;font-family:monospace"></div>
           <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:3px">Vel. máx. (km/h)</label><input type="number" id="eq-cosech-vel" min="1" step="0.1" style="margin:0"></div>
           <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:3px">Ancho corte (m)</label><input type="number" id="eq-cosech-ancho" min="0.1" step="0.05" style="margin:0"></div>
           <div><label style="font-size:12px;color:var(--text2);display:block;margin-bottom:3px">Costo/hora ($)</label><input type="number" id="eq-cosech-costo" min="0" step="1" style="margin:0"></div>
@@ -5798,14 +5800,35 @@ function syncSelectorZafraCostos() {
   if (zafrasDisp.indexOf(cur) >= 0) sel.value = cur; else aplicarDefaultZafraSiVacio(sel, cur, zafrasDisp);
 }
 
+/* N° de serie de la máquina: se guarda en MAYÚSCULAS y sin espacios; es único por máquina. */
+function normalizarSerieCosech(v) { return String(v === null || v === undefined ? '' : v).replace(/\s+/g, '').toUpperCase(); }
+function serieValidaCosech(ser) { return /^[A-Z0-9\-._\/]+$/.test(ser); }
+function serieDuplicadaCosech(ser, idPropio) {
+  if (!ser) return null;
+  return modelosCosech.find(function(x) { return x.id !== idPropio && normalizarSerieCosech(x.numSerie) === ser; }) || null;
+}
+/* Devuelve '' si el N° de serie es aceptable (vacío, válido y no repetido); si no, el mensaje de error. */
+function errorSerieCosech(ser, idPropio) {
+  if (!ser) return '';
+  if (!serieValidaCosech(ser)) return 'El N° de serie solo admite letras, números y los símbolos - . _ /';
+  var dup = serieDuplicadaCosech(ser, idPropio);
+  if (dup) return 'El N° de serie ' + ser + ' ya está asignado a la máquina ' + (dup.codigo || dup.nombre) + '.';
+  return '';
+}
+function escHtmlCosech(t) { return String(t === null || t === undefined ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
 function addModeloCosech() {
   var n = document.getElementById('cm-nombre').value.trim();
   if (!n) { alert('Ingresa un modelo.'); return; }
   var codigo = document.getElementById('cm-codigo').value.trim();
+  var serie = normalizarSerieCosech((document.getElementById('cm-serie') || {}).value);
+  var errSerie = errorSerieCosech(serie, null);
+  if (errSerie) { alert(errSerie); return; }
   modelosCosech.push({
     id: cosechIdSeq++,
     codigo: codigo,
     nombre: n,
+    numSerie: serie,
     vel: fv('cm-vel') || 8,
     ancho: fv('cm-ancho') || 0.5,
     costoHora: fv('cm-costo') || 0,
@@ -5813,6 +5836,7 @@ function addModeloCosech() {
   });
   document.getElementById('cm-nombre').value = '';
   document.getElementById('cm-codigo').value = '';
+  if (document.getElementById('cm-serie')) document.getElementById('cm-serie').value = '';
   document.getElementById('cm-obs').value = '';
   renderModelosCosech(); syncFrenteModeloSelects(); autoSave();
 }
@@ -5826,7 +5850,7 @@ function ordenarCosech(col) {
 }
 function cosechNum(id) { var v = parseFloat((document.getElementById(id) || {}).value); return isNaN(v) ? null : v; }
 function limpiarFiltrosCosech() {
-  ['cf-codigo', 'cf-obs', 'cf-modelo'].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
+  ['cf-codigo', 'cf-serie', 'cf-obs', 'cf-modelo'].forEach(function(id) { var e = document.getElementById(id); if (e) e.value = ''; });
   ['vel', 'ancho', 'costo', 'horo'].forEach(function(k) { ['min', 'max'].forEach(function(s) { var e = document.getElementById('cf-' + k + '-' + s); if (e) e.value = ''; }); });
   renderModelosCosech();
 }
@@ -5844,7 +5868,7 @@ function renderModelosCosech() {
     selM.innerHTML = '<option value="">Todos</option>' + nombres.map(function(n) { return '<option value="' + n.replace(/"/g, '&quot;') + '">' + n + '</option>'; }).join('');
     if (nombres.indexOf(cur) >= 0) selM.value = cur;
   }
-  if (!modelosCosech.length) { tb.innerHTML = '<tr><td colspan="9" style="color:var(--text2);font-style:italic">Sin modelos.</td></tr>'; if (cont) cont.textContent = ''; return; }
+  if (!modelosCosech.length) { tb.innerHTML = '<tr><td colspan="10" style="color:var(--text2);font-style:italic">Sin modelos.</td></tr>'; if (cont) cont.textContent = ''; return; }
   var filas = modelosCosech.map(function(m) {
     var horo = (zafraSel && m.horometroPorZafra && m.horometroPorZafra[zafraSel] !== undefined) ? m.horometroPorZafra[zafraSel] : null;
     return { m: m, costo: getCostoHoraCosechadora(m, zafraSel), horo: horo };
@@ -5853,24 +5877,25 @@ function renderModelosCosech() {
   var fCod = ((document.getElementById('cf-codigo') || {}).value || '').trim().toLowerCase();
   var fMod = (selM ? selM.value : '');
   var fObs = ((document.getElementById('cf-obs') || {}).value || '').trim().toLowerCase();
+  var fSer = ((document.getElementById('cf-serie') || {}).value || '').replace(/\s+/g, '').toLowerCase();
   var rango = function(v, k) {
     var mn = cosechNum('cf-' + k + '-min'), mx = cosechNum('cf-' + k + '-max');
     if (mn === null && mx === null) return true;
     if (v === null || v === undefined || isNaN(v)) return false;
     return (mn === null || v >= mn) && (mx === null || v <= mx);
   };
-  var hayFiltro = !!(fCod || fMod || fObs);
+  var hayFiltro = !!(fCod || fMod || fObs || fSer);
   ['vel', 'ancho', 'costo', 'horo'].forEach(function(k) { if (cosechNum('cf-' + k + '-min') !== null || cosechNum('cf-' + k + '-max') !== null) hayFiltro = true; });
   filas = filas.filter(function(f) {
     var m = f.m;
-    return (!fCod || (m.codigo || '').toLowerCase().indexOf(fCod) >= 0) && (!fMod || m.nombre === fMod) && (!fObs || (m.obs || '').toLowerCase().indexOf(fObs) >= 0) &&
+    return (!fCod || (m.codigo || '').toLowerCase().indexOf(fCod) >= 0) && (!fMod || m.nombre === fMod) && (!fObs || (m.obs || '').toLowerCase().indexOf(fObs) >= 0) && (!fSer || (m.numSerie || '').toLowerCase().indexOf(fSer) >= 0) &&
       rango(parseFloat(m.vel), 'vel') && rango(parseFloat(m.ancho), 'ancho') && rango(f.costo, 'costo') && rango(f.horo, 'horo');
   });
   // ── Orden: texto A→Z (con números en orden natural: W4A, W4B, W10A) o número menor→mayor; los vacíos van al final ──
   if (_cosechOrden.col) {
-    var col = _cosechOrden.col, esTexto = (col === 'codigo' || col === 'nombre' || col === 'obs');
+    var col = _cosechOrden.col, esTexto = (col === 'codigo' || col === 'nombre' || col === 'obs' || col === 'serie');
     var valor = function(f) {
-      if (col === 'codigo') return f.m.codigo; if (col === 'nombre') return f.m.nombre; if (col === 'obs') return f.m.obs;
+      if (col === 'codigo') return f.m.codigo; if (col === 'nombre') return f.m.nombre; if (col === 'obs') return f.m.obs; if (col === 'serie') return f.m.numSerie;
       if (col === 'vel') return parseFloat(f.m.vel); if (col === 'ancho') return parseFloat(f.m.ancho); if (col === 'costo') return f.costo; if (col === 'anio') return parseInt(f.m.anioInicio, 10); return f.horo;
     };
     filas.sort(function(a, b) {
@@ -5881,14 +5906,14 @@ function renderModelosCosech() {
       return r * _cosechOrden.dir;
     });
   }
-  ['codigo', 'nombre', 'vel', 'ancho', 'costo', 'horo', 'anio', 'obs'].forEach(function(cl) {
+  ['codigo', 'nombre', 'serie', 'vel', 'ancho', 'costo', 'horo', 'anio', 'obs'].forEach(function(cl) {
     var b = document.getElementById('ordc-' + cl); if (!b) return;
     var act = _cosechOrden.col === cl;
     b.textContent = !act ? '⇅' : (_cosechOrden.dir === 1 ? '▲' : '▼');
     b.style.color = act ? 'var(--teal-text)' : 'var(--text3)';
   });
   if (cont) cont.textContent = 'Mostrando ' + filas.length + ' de ' + modelosCosech.length + ' máquinas' + (hayFiltro ? ' (con filtros)' : '');
-  if (!filas.length) { tb.innerHTML = '<tr><td colspan="9" style="color:var(--text2);font-style:italic">Ninguna máquina coincide con los filtros. Usa «Limpiar» para quitarlos.</td></tr>'; return; }
+  if (!filas.length) { tb.innerHTML = '<tr><td colspan="10" style="color:var(--text2);font-style:italic">Ninguna máquina coincide con los filtros. Usa «Limpiar» para quitarlos.</td></tr>'; return; }
   tb.innerHTML = filas.map(function(f) {
     var m = f.m, costoActual = f.costo;
     var tieneOverride = zafraSel && m.costoHoraPorZafra && m.costoHoraPorZafra[zafraSel] !== undefined;
@@ -5896,6 +5921,7 @@ function renderModelosCosech() {
     return '<tr>' +
       '<td><span class="badge badge-gray" style="font-family:monospace">' + (m.codigo || '–') + '</span></td>' +
       '<td><strong>' + m.nombre + '</strong></td>' +
+      '<td>' + (m.numSerie ? '<span style="font-family:monospace;font-size:12px;user-select:all" title="N° de serie">' + escHtmlCosech(m.numSerie) + '</span>' : '<span style="color:var(--text3)">–</span>') + '</td>' +
       '<td>' + m.vel + ' km/h</td>' +
       '<td>' + m.ancho + ' m</td>' +
       '<td><div style="display:flex;align-items:center;gap:4px">$' +
@@ -5932,13 +5958,13 @@ function descargarPlantillaHorometros() {
   var zafra = (document.getElementById('equipos-zafra-costos') || {}).value || '';
   if (!zafra) { var zs = (getZafrasDisponibles() || []).slice().sort(); zafra = zs.length ? zs[zs.length - 1] : ''; }
   if (!modelosCosech.length) { showToast('No hay cosechadoras registradas.'); return; }
-  var filas = [['zafra', 'codigo', 'modelo', 'horometro_inicial']];
+  var filas = [['zafra', 'codigo', 'modelo', 'numero_serie', 'horometro_inicial']];
   modelosCosech.forEach(function(m) {
     var h = (zafra && m.horometroPorZafra && m.horometroPorZafra[zafra] !== undefined) ? m.horometroPorZafra[zafra] : '';
-    filas.push([zafra, m.codigo || '', m.nombre || '', h]);
+    filas.push([zafra, m.codigo || '', m.nombre || '', m.numSerie || '', h]);
   });
   costDescargarCSVPC('plantilla-horometros-' + (zafra || 'zafra'), filas);
-  showToast('Plantilla descargada' + (zafra ? ' para la zafra ' + zafra : '') + '. Llena la columna horometro_inicial y súbela con «Importar CSV».');
+  showToast('Plantilla descargada' + (zafra ? ' para la zafra ' + zafra : '') + '. Llena la columna horometro_inicial (y numero_serie si la tienes) y súbela con «Importar CSV».');
 }
 function importarCSVHorometros(input) {
   var file = input.files[0]; if (!file) return; input.value = '';
@@ -5948,21 +5974,36 @@ function importarCSVHorometros(input) {
     if (lineas.length < 2) { alert('Archivo vacío o sin datos.'); return; }
     var sep = detectarSeparador(lineas[0]);
     var enc = parsearCSVLinea(lineas[0], sep).map(function(h) { return h.toLowerCase().trim(); });
-    var iCod = enc.indexOf('codigo'), iZaf = enc.indexOf('zafra'), iHor = -1;
-    enc.forEach(function(h, ix) { if (iHor < 0 && h.indexOf('horometro') === 0) iHor = ix; });
-    if (iCod < 0 || iHor < 0) { alert('El archivo debe tener las columnas "codigo" y "horometro_inicial". Descarga la plantilla y úsala como base.'); return; }
+    var iCod = enc.indexOf('codigo'), iZaf = enc.indexOf('zafra'), iHor = -1, iSer = -1;
+    enc.forEach(function(h, ix) { if (iHor < 0 && h.indexOf('horometro') === 0) iHor = ix; if (iSer < 0 && h.indexOf('serie') >= 0) iSer = ix; });
+    if (iCod < 0 || (iHor < 0 && iSer < 0)) { alert('El archivo debe tener la columna "codigo" y al menos una de: "horometro_inicial" o "numero_serie". Descarga la plantilla y úsala como base.'); return; }
     var zafraSel = (document.getElementById('equipos-zafra-costos') || {}).value || '';
     var importados = [], advertencias = [], errores = [], vistos = {};
     lineas.slice(1).forEach(function(linea, i) {
       var nF = i + 2, vals = parsearCSVLinea(linea, sep);
       var cod = (vals[iCod] || '').trim();
       if (!cod) return;
-      var zaf = ((iZaf >= 0 ? vals[iZaf] : '') || '').trim() || zafraSel;
-      if (!zaf) { errores.push('Fila ' + nF + ' (' + cod + '): falta la zafra (columna "zafra", o elige una en el filtro de arriba).'); return; }
       var m = modelosCosech.find(function(x) { return (x.codigo || '').trim().toLowerCase() === cod.toLowerCase(); });
       if (!m) { errores.push('Fila ' + nF + ': el código "' + cod + '" no está registrado en Modelos de cosechadora.'); return; }
-      var crudo = (vals[iHor] || '').replace(/\s/g, '');
-      if (crudo === '') { advertencias.push({ fila: nF, nombre: cod, advertencias: ['sin horómetro: no se cambió'] }); return; }
+      // N° de serie (opcional): único por máquina
+      var notas = [];
+      if (iSer >= 0) {
+        var ser = normalizarSerieCosech(vals[iSer]);
+        if (ser) {
+          var errSer = errorSerieCosech(ser, m.id);
+          if (errSer) errores.push('Fila ' + nF + ' (' + cod + '): ' + errSer);
+          else { m.numSerie = ser; notas.push('serie ' + ser); }
+        }
+      }
+      // Horómetro (opcional si el archivo trae solo números de serie)
+      var crudo = iHor >= 0 ? (vals[iHor] || '').replace(/\s/g, '') : '';
+      if (crudo === '') {
+        if (notas.length) importados.push({ fila: nF, nombre: cod + ' → ' + notas.join(', ') });
+        else if (iHor >= 0) advertencias.push({ fila: nF, nombre: cod, advertencias: ['sin horómetro: no se cambió'] });
+        return;
+      }
+      var zaf = ((iZaf >= 0 ? vals[iZaf] : '') || '').trim() || zafraSel;
+      if (!zaf) { errores.push('Fila ' + nF + ' (' + cod + '): falta la zafra (columna "zafra", o elige una en el filtro de arriba).'); return; }
       var txt = crudo.indexOf(',') >= 0 ? crudo.replace(/\./g, '').replace(',', '.') : crudo;   // «1.234,5» o «1234.5»
       var v = parseFloat(txt);
       if (isNaN(v) || v < 0) { errores.push('Fila ' + nF + ' (' + cod + '): el horómetro "' + crudo + '" no es un número válido.'); return; }
@@ -5970,7 +6011,7 @@ function importarCSVHorometros(input) {
       vistos[cod.toLowerCase() + '|' + zaf] = true;
       if (!m.horometroPorZafra) m.horometroPorZafra = {};
       m.horometroPorZafra[zaf] = v;
-      importados.push({ fila: nF, nombre: cod + ' → ' + v.toLocaleString() + ' h (zafra ' + zaf + ')' });
+      importados.push({ fila: nF, nombre: cod + ' → ' + v.toLocaleString() + ' h (zafra ' + zaf + ')' + (notas.length ? ', ' + notas.join(', ') : '') });
     });
     renderModelosCosech(); autoSave();
     mostrarModalCSV(importados, advertencias, errores);
@@ -6476,6 +6517,7 @@ function abrirEditCosech(id) {
   document.getElementById('eq-cosech-id').value    = id;
   document.getElementById('eq-cosech-codigo').value = m.codigo   || '';
   document.getElementById('eq-cosech-nombre').value = m.nombre   || '';
+  document.getElementById('eq-cosech-serie').value  = m.numSerie || '';
   document.getElementById('eq-cosech-vel').value    = m.vel      || '';
   document.getElementById('eq-cosech-ancho').value  = m.ancho    || '';
   document.getElementById('eq-cosech-costo').value  = m.costoHora|| '';
@@ -6487,6 +6529,10 @@ function guardarEditCosech() {
   var id = parseInt(document.getElementById('eq-cosech-id').value);
   var idx = modelosCosech.findIndex(function(x){ return x.id === id; });
   if (idx === -1) return;
+  var serieEd = normalizarSerieCosech(document.getElementById('eq-cosech-serie').value);
+  var errSerieEd = errorSerieCosech(serieEd, id);
+  if (errSerieEd) { alert(errSerieEd); return; }
+  modelosCosech[idx].numSerie  = serieEd;
   modelosCosech[idx].codigo    = document.getElementById('eq-cosech-codigo').value.trim();
   modelosCosech[idx].nombre    = document.getElementById('eq-cosech-nombre').value.trim();
   modelosCosech[idx].vel       = parseFloat(document.getElementById('eq-cosech-vel').value)   || 8;
