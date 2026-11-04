@@ -17,6 +17,7 @@
 <script src="https://cdn.jsdelivr.net/npm/shpjs@4.0.2/dist/shp.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- Firebase (SDK "compat" — funciona con <script> normal, sin necesitar npm/webpack) -->
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -336,10 +337,11 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
 
 <div class="layout">
   <nav class="sidebar">
-    <div class="nav-label">Configuración</div>
+    <div class="nav-label">Datos maestros</div>
     <button class="nav-item active" onclick="showPage('campos')" data-page="campos"><i class="ti ti-map-2"></i> Campos</button>
     <button class="nav-item" onclick="showPage('equipos')" data-page="equipos"><i class="ti ti-settings-2"></i> Equipos</button>
     <button class="nav-item" onclick="showPage('fabrica')" data-page="fabrica"><i class="ti ti-building-factory-2"></i> Fábrica</button>
+    <button class="nav-item" onclick="showPage('labores')" data-page="labores"><i class="ti ti-flame"></i> Quema y madurador</button>
     <hr class="nav-divider">
     <div class="nav-label">Operación</div>
     <button class="nav-item" onclick="showPage('planificacion')" data-page="planificacion"><i class="ti ti-calendar-stats"></i> Planificación</button>
@@ -1575,6 +1577,17 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
       </div>
     </div>
 
+        <!-- Vista previa de la carga de plan de quema / madurador -->
+    <div id="lab-preview-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0">
+      <div style="background:var(--bg);border-radius:var(--radius-lg);padding:24px;max-width:900px;width:94%;margin:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:16px;font-weight:600"><i class="ti ti-file-upload" style="margin-right:8px;color:var(--green)"></i>Cargar plan — vista previa</div>
+          <button class="btn btn-sm" onclick="labCancelarCarga()"><i class="ti ti-x"></i> Cerrar</button>
+        </div>
+        <div id="lab-preview-body"></div>
+      </div>
+    </div>
+
     <!-- Gestión de usuarios y roles (solo administradores) -->
     <div id="gestion-usuarios-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0">
       <div style="background:var(--bg);border-radius:var(--radius-lg);padding:24px;max-width:640px;width:94%;margin:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
@@ -2226,6 +2239,25 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
       </div>
     </div>
 
+    <!-- QUEMA Y MADURADOR -->
+    <div id="page-labores" class="page">
+      <div class="page-title">Plan de quema y plan de madurador</div>
+      <div class="alert alert-info"><i class="ti ti-info-circle"></i><span>Estos dos planes son la base del seguimiento y la ejecución de la cosecha. <strong>El encargado del planificador debe cargar aquí la última versión</strong> de cada uno cada vez que se actualicen (la carga reemplaza el plan completo de la zafra y deja registro de qué cambió). Con el <strong>Plan de Quema</strong> cargado, un lote que está en el plan va a corte <strong>quemado</strong>; el que no está va a corte en <strong>verde</strong>. El <strong>Plan de Madurador</strong> aporta la fecha de aplicación y los días a corte para cada lote.</span></div>
+      <div class="card">
+        <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px">
+          <div style="min-width:180px"><label>Zafra</label><select id="lab-zafra" onchange="renderLabores()" style="margin:0"></select></div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);margin:0 0 6px;cursor:pointer"><input type="checkbox" id="lab-usar-quema" onchange="labToggleUsarQuema(this)" style="width:auto;margin:0"> Usar el Plan de Quema para definir Verde/Quemada de cada lote en la zafra (si hay plan cargado)</label>
+        </div>
+        <div id="lab-resumen"></div>
+        <input type="file" id="lab-file-Q" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="labImportarArchivo('Q', this)">
+        <input type="file" id="lab-file-M" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="labImportarArchivo('M', this)">
+      </div>
+      <div class="card">
+        <div id="lab-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"></div>
+        <div id="lab-contenido"></div>
+      </div>
+    </div>
+
     <!-- AJUSTES -->
     <div id="page-mantenimiento" class="page">
 <div class="page-title">Mantenimiento preventivo</div>
@@ -2454,7 +2486,7 @@ const firebaseConfig = {
 
 // Colección raíz — todos los documentos del plan compartido viven aquí
 const FB_COLECCION = 'planificador_compartido';
-const FB_DOCS = ['campos','plan','molienda','equipos','ejecucion','geodata','vialidad'];
+const FB_DOCS = ['campos','plan','molienda','equipos','ejecucion','geodata','vialidad','labores'];
 
 let fbApp = null, fbAuth = null, fbDb = null;
 let fbListeners = [];          // listeners onSnapshot activos, para poder desconectar al salir
@@ -2722,6 +2754,7 @@ function construirDataCompleta() {
     ingenioCoord: ingenioCoord, viaDistCache: viaDistCache, viaIngenioCache: viaIngenioCache, viaPuenteCache: viaPuenteCache,
     planesReferencia: planesReferencia, lowboysDisponibles: lowboysDisponibles, usarRealEnPlan: usarRealEnPlan,
     zafraPorDefecto: zafraPorDefecto,
+    planMadurador: planMadurador, planQuema: planQuema, laboresMeta: laboresMeta,
     cosechIdSeq: cosechIdSeq, avIdSeq: avIdSeq, frenteIdSeq: frenteIdSeq, tandemIdSeq: tandemIdSeq, realIdSeq: realIdSeq, paroIdSeq: paroIdSeq, balanceIdSeq: balanceIdSeq,
     planIdSeq: planIdSeq, campoIdSeq: campoIdSeq, mtIdSeq: mtIdSeq,
     velVPV: [0,1,2,3].map(function(i) { return fv('vpv-' + i); }),
@@ -2766,7 +2799,10 @@ function construirDataCompleta() {
    de tamaño (ya implementado) sigue protegiendo al usuario. ══════════ */
 const FB_MAX_PARTES = 50; // hasta 50 documentos físicos por categoría (~35 MB de margen) — el shapefile con miles de polígonos necesita más partes que los datos tabulares
 // Categoría → nombre del campo array grande que se debe repartir en partes
-const FB_ARRAY_GRANDE = { campos: 'campos', plan: 'planItems', molienda: 'planMolienda', geodata: 'geoFeatures' };
+const FB_ARRAY_GRANDE = { campos: 'campos', plan: 'planItems', molienda: 'planMolienda', geodata: 'geoFeatures', labores: 'laboresPlan' };
+// Máximo de documentos físicos por categoría. "labores" (plan de quema + madurador, ~0.4 MB) necesita pocos: así no se agregan 50 escuchas más.
+const FB_MAX_PARTES_CAT = { labores: 8 };
+function fbMaxPartes(cat) { return FB_MAX_PARTES_CAT[cat] || FB_MAX_PARTES; }
 /* Límite real de Firestore: 1 MiB (1,048,576 bytes) por documento. Se
    usa un margen conservador (~700 KB) por PARTE, ya que Firestore cuenta
    el tamaño de forma distinta a un simple JSON.stringify (nombres de
@@ -2831,6 +2867,8 @@ function categoriasDeData(d) {
       realIdSeq: d.realIdSeq, paroIdSeq: d.paroIdSeq, balanceIdSeq: d.balanceIdSeq
     },
     geodata: { geoFeatures: d.geoFeatures },
+    // Plan de quema + plan de madurador: un solo arreglo grande (cada fila lleva tipo 'Q' o 'M'); la ficha de versiones va en la parte 0.
+    labores: { laboresPlan: (d.planMadurador || []).map(function(r) { return Object.assign({ tipo: 'M' }, r); }).concat((d.planQuema || []).map(function(r) { return Object.assign({ tipo: 'Q' }, r); })), laboresMeta: d.laboresMeta || {} },
     vialidad: { viaNodos: d.viaNodos, viaAristas: d.viaAristas, ingenioCoord: d.ingenioCoord, viaDistCache: d.viaDistCache, viaIngenioCache: d.viaIngenioCache, viaPuenteCache: d.viaPuenteCache }
   };
 }
@@ -2963,6 +3001,7 @@ function guardarEnFirestore(dataOpc) {
   // ── 1) ¿Qué categorías cambiaron desde lo último que está en la nube? ──
   var firmas = {}, cambiadas = [];
   FB_DOCS.forEach(function(nombreCat) {
+    if (nombreCat === 'labores' && !labHayDatos()) return;   // hasta que se cargue el primer plan no se crea nada en la nube
     firmas[nombreCat] = firmaTexto(JSON.stringify(categorias[nombreCat]));
     if (fbFirmaCat[nombreCat] !== firmas[nombreCat]) cambiadas.push(nombreCat);
   });
@@ -2978,10 +3017,10 @@ function guardarEnFirestore(dataOpc) {
   var categoriasExcedidas = [];
   cambiadas.forEach(function(nombreCat) {
     var partes = partesPorCategoria[nombreCat];
-    if (partes.length > FB_MAX_PARTES) categoriasExcedidas.push({ cat: nombreCat, partes: partes.length });
+    if (partes.length > fbMaxPartes(nombreCat)) categoriasExcedidas.push({ cat: nombreCat, partes: partes.length });
   });
   if (categoriasExcedidas.length) {
-    var detalle = categoriasExcedidas.map(function(c){ return '"' + c.cat + '" necesitaría ' + c.partes + ' documentos (máximo soportado: ' + FB_MAX_PARTES + ')'; }).join('; ');
+    var detalle = categoriasExcedidas.map(function(c){ return '"' + c.cat + '" necesitaría ' + c.partes + ' documentos (máximo soportado: ' + fbMaxPartes(c.cat) + ')'; }).join('; ');
     mostrarAlertaSyncFirestore('No se pudo guardar en la nube: ' + detalle + '. Los datos SÍ quedaron guardados localmente, pero NO se compartieron con los demás usuarios.');
     if (badge) badge.textContent = '⚠ Muy grande para la nube — guardado local';
     return;
@@ -3013,6 +3052,7 @@ function guardarEnFirestore(dataOpc) {
           })
           .catch(function(err) {
             console.warn('Error guardando en Firestore (' + docId + ')', err);
+            if (nombreCat === 'labores' && err && err.code === 'permission-denied') labAvisoPermisos(err);
             huboError = true;
             delete fbFirmaCat[nombreCat]; delete fbFirmaParte[docId];   // se reintentará en el próximo guardado
             var esTamano = err && err.code === 'invalid-argument';
@@ -3037,7 +3077,7 @@ function guardarEnFirestore(dataOpc) {
     var vistas = fbUltimoChunk[nombreCat] || [], conocidas = 0;
     for (var j = 0; j < vistas.length; j++) if (vistas[j]) conocidas = j + 1;
     var hasta = Math.max(previas, conocidas);
-    if (!hasta && !vistas.length && !fbBarridoHecho[nombreCat]) { hasta = FB_MAX_PARTES; fbBarridoHecho[nombreCat] = true; }
+    if (!hasta && !vistas.length && !fbBarridoHecho[nombreCat]) { hasta = fbMaxPartes(nombreCat); fbBarridoHecho[nombreCat] = true; }
     for (var k = partes.length; k < hasta; k++) {
       fbDb.collection(FB_COLECCION).doc(nombreCat + '_' + k).delete().catch(function(){});
       delete fbFirmaParte[nombreCat + '_' + k];
@@ -3116,7 +3156,7 @@ function conectarSincronizacionFirestore() {
   desconectarListenersFirestore();
   FB_DOCS.forEach(function(nombreCat) {
     fbUltimoChunk[nombreCat] = [];
-    for (var i = 0; i < FB_MAX_PARTES; i++) {
+    for (var i = 0; i < fbMaxPartes(nombreCat); i++) {
       (function(nombreCat, i) {
         var unsub = fbDb.collection(FB_COLECCION).doc(nombreCat + '_' + i)
           .onSnapshot(function(snap) {
@@ -3128,6 +3168,7 @@ function conectarSincronizacionFirestore() {
             aplicarChunksRemotosDebounced();
           }, function(err) {
             console.warn('Error escuchando Firestore (' + nombreCat + '_' + i + ')', err);
+            if (nombreCat === 'labores') { labAvisoPermisos(err); return; }   // sin permiso en esta categoría: avisa, pero no marca todo el planificador como desconectado
             var badge = document.getElementById('save-badge');
             if (badge) badge.textContent = 'Sin conexión';
           });
@@ -3197,6 +3238,14 @@ function aplicarChunksRemotos() {
   });
   if (!hayAlgo) { renderPaginaActual(); return; }
 
+  // La categoría "labores" guarda quema y madurador en un solo arreglo (con tipo Q/M): se separa de vuelta en dos listas.
+  if (reconstruido.laboresPlan !== undefined || reconstruido.laboresMeta !== undefined) {
+    var lp = reconstruido.laboresPlan || [];
+    var sinTipo = function(r) { var o = Object.assign({}, r); delete o.tipo; return o; };
+    reconstruido.planMadurador = lp.filter(function(r) { return r.tipo === 'M'; }).map(sinTipo);
+    reconstruido.planQuema = lp.filter(function(r) { return r.tipo === 'Q'; }).map(sinTipo);
+    delete reconstruido.laboresPlan;
+  }
   fbAplicandoRemoto = true;
   try {
     _aplicarDatos(reconstruido);
@@ -3846,6 +3895,7 @@ function showPage(id) {
   if (btn) btn.classList.add('active');
   if (id === 'equipos') { syncSelectorZafraCostos(); onCambioZafraCostos(); updateCiclos(); actualizarEjemploLowboy(); renderAVTransitoResumen(); }
   if (id === 'planificacion') { syncPlanSelects(); syncMtFrenteSelect(); renderPlan(); renderCumplimientoPlan(); syncAnalFrenteSelect(); }
+  if (id === 'labores')   { labPoblarZafras(); renderLabores(); }
   if (id === 'diadia')    { syncDiadiaFechas(); }
   if (id === 'logistica') { syncLogisticaSelects(); renderLogistica(); }
   if (id === 'fabrica')   { renderZafraRangos(); }
@@ -3864,6 +3914,608 @@ function showPage(id) {
   if (id === 'ajustes')   { syncAjustesPage(); renderAvisosTopesHoras(); }
   if (id === 'mantenimiento') { syncMtSelects(); renderResumenSemanalMt(); renderMantenimientosLista(); syncProyeccionHorometros(); }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   PLAN DE QUEMA Y PLAN DE MADURADOR  (v285)
+   Datos (viven en la categoría "labores" de Firestore y en el JSON exportado):
+     planQuema      [{zafra, codigo, area, estado, fecha 'YYYY-MM-DD', hora 'HH:MM'}]      (varias filas por código si el lote se quema en bloques)
+     planMadurador  [{zafra, codigo, haLote, haAerea, haBomba, haTotal, estatus, fecha, obs, diasCorte,
+                      agrupador, producto, unidades, dosis, cantidad, equipo}]
+     laboresMeta    {vigente:{'Q||zafra'|'M||zafra': ficha de la última carga}, historial:[...], usarPlanQuemaTipoCana}
+   Llave de cruce: Código del plan == campo.nombre (misma regla que el shapefile; sin ceros a la izquierda).
+   REGLA DE NEGOCIO: si la zafra tiene Plan de Quema cargado, un lote que está en el plan va a corte QUEMADO y el que NO está va a
+   corte en VERDE (tipoCana por zafra, vía datosCampoParaZafra). Sin plan cargado para esa zafra no se toca el tipo del campo.
+   ══════════════════════════════════════════════════════════════════ */
+var planMadurador = [];
+var planQuema = [];
+var laboresMeta = { vigente: {}, historial: [] };
+var LAB_QUEMA_MAX_DIAS = 2;      // espera máxima razonable entre quema y corte (días); más = caña quemada esperando (deterioro)
+var LAB_TOL_MAD_DIAS = 7;        // tolerancia entre la fecha objetivo de corte del madurador y el inicio de cosecha planificado
+var LAB_MAX_FILAS_TABLA = 400;
+var _labIdxQ = {}, _labIdxM = {}, _labIdxC = null, _labIdxCRef = null;
+var _labTab = 'cruce';
+var _labPend = null;
+
+function labEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function labKey(n) { return String(n == null ? '' : n).trim().replace(/^0+/, ''); }
+function labFmt(n, d) { return (n == null || isNaN(n)) ? '–' : Number(n).toLocaleString('es', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
+function labUsarPlanQuema() { return !laboresMeta || laboresMeta.usarPlanQuemaTipoCana !== false; }
+function labHayDatos() { return planMadurador.length > 0 || planQuema.length > 0 || !!(laboresMeta && laboresMeta.historial && laboresMeta.historial.length); }
+function labPuedeEditar() { return !(typeof fbRolActual !== 'undefined' && fbRolActual === 'visor'); }
+function labInvalidar() { _labIdxQ = {}; _labIdxM = {}; _labIdxC = null; _labIdxCRef = null; }
+function labAsegurarMeta() {
+  if (!laboresMeta || typeof laboresMeta !== 'object') laboresMeta = {};
+  if (!laboresMeta.vigente || typeof laboresMeta.vigente !== 'object') laboresMeta.vigente = {};
+  if (!Array.isArray(laboresMeta.historial)) laboresMeta.historial = [];
+}
+function labDias(a, b) {   // días entre dos fechas ISO (b − a)
+  if (!a || !b) return null;
+  var x = Date.parse(a + 'T00:00:00Z'), y = Date.parse(b + 'T00:00:00Z');
+  return (isNaN(x) || isNaN(y)) ? null : Math.round((y - x) / 86400000);
+}
+function labSumaDias(iso, n) {
+  if (!iso || n == null || isNaN(n)) return null;
+  var t = Date.parse(iso + 'T00:00:00Z'); if (isNaN(t)) return null;
+  return new Date(t + n * 86400000).toISOString().slice(0, 10);
+}
+function labAvisoPermisos(err) {
+  if (window._labAvisoMostrado) return; window._labAvisoMostrado = true;
+  var msg = 'No hay permiso en Firestore para la categoría «labores» (documentos labores_0 … labores_7). El plan de quema/madurador quedó guardado SOLO en este navegador hasta que el administrador agregue esa ruta a las reglas de seguridad de la colección planificador_compartido.';
+  if (typeof mostrarAlertaSyncFirestore === 'function') mostrarAlertaSyncFirestore(msg); else console.error(msg, err);
+}
+
+/* ── Índices por zafra (se invalidan al cambiar los planes o los campos) ── */
+function labIdxCampos() {
+  if (_labIdxC && _labIdxCRef === campos && _labIdxC.n === campos.length) return _labIdxC.m;
+  var m = {};
+  campos.forEach(function (c) { var k = labKey(c.nombre); if (k && !m[k]) m[k] = c; });
+  _labIdxC = { m: m, n: campos.length }; _labIdxCRef = campos;
+  return m;
+}
+function labIdxQuema(z) {
+  if (!z) return null;
+  if (_labIdxQ[z] !== undefined) return _labIdxQ[z];
+  var map = {}, n = 0, ha = 0;
+  planQuema.forEach(function (r) {
+    if (r.zafra !== z) return;
+    var k = labKey(r.codigo); if (!k) return;
+    var o = map[k] || (map[k] = { codigo: r.codigo, ha: 0, n: 0, fMin: null, hMin: '', fMax: null });
+    var a = +r.area || 0; o.ha += a; o.n++; n++; ha += a;
+    if (r.fecha) {
+      var h = r.hora || '';
+      if (o.fMin === null || r.fecha < o.fMin || (r.fecha === o.fMin && h < o.hMin)) { o.fMin = r.fecha; o.hMin = h; }
+      if (o.fMax === null || r.fecha > o.fMax) o.fMax = r.fecha;
+    }
+  });
+  var res = n ? { map: map, n: n, ha: ha, codigos: Object.keys(map).length } : null;
+  _labIdxQ[z] = res; return res;
+}
+function labIdxMad(z) {
+  if (!z) return null;
+  if (_labIdxM[z] !== undefined) return _labIdxM[z];
+  var map = {}, n = 0, ha = 0;
+  planMadurador.forEach(function (r) {
+    if (r.zafra !== z) return;
+    var k = labKey(r.codigo); if (!k) return;
+    var o = map[k] || (map[k] = { codigo: r.codigo, ha: 0, n: 0, fPri: null, fUlt: null, dias: null, producto: '', fObjetivo: null, haLote: r.haLote });
+    o.ha += +r.haTotal || 0; o.n++; n++; ha += +r.haTotal || 0;
+    if (r.fecha && (o.fPri === null || r.fecha < o.fPri)) o.fPri = r.fecha;
+    if (r.fecha && (o.fUlt === null || r.fecha >= o.fUlt)) { o.fUlt = r.fecha; o.dias = r.diasCorte; o.producto = r.producto || ''; o.fObjetivo = labSumaDias(r.fecha, r.diasCorte); }
+  });
+  var res = n ? { map: map, n: n, ha: ha, codigos: Object.keys(map).length } : null;
+  _labIdxM[z] = res; return res;
+}
+
+/* Tipo de caña de un campo en una zafra según el Plan de Quema: 'Quemada' | 'Verde' | null (no hay plan → no se toca) */
+function tipoCanaPorPlanQuema(c, z) {
+  if (!c || !z || !labUsarPlanQuema()) return null;
+  var ix = labIdxQuema(z); if (!ix) return null;
+  return ix.map[labKey(c.nombre)] ? 'Quemada' : 'Verde';
+}
+/* Insignias para la tabla de Planificación (🔥/🌿 por plan de quema, 🧪 madurador) */
+function labBadgesPlanItem(p) {
+  if (!p || !p.zafra) return '';
+  var k = labKey(p.campoNombre), h = '';
+  var qi = labIdxQuema(p.zafra), mi = labIdxMad(p.zafra);
+  if (qi) {
+    var q = qi.map[k];
+    h += q ? ' <span class="badge badge-red" style="font-size:9px;padding:1px 5px" title="En el Plan de Quema ' + labEsc(p.zafra) + ': quema ' + labEsc(q.fMin || '') + (q.n > 1 ? ' (' + q.n + ' bloques)' : '') + '">🔥 ' + labEsc((q.fMin || '').slice(5)) + '</span>'
+            : ' <span class="badge badge-green" style="font-size:9px;padding:1px 5px" title="No está en el Plan de Quema ' + labEsc(p.zafra) + ': corte en verde">🌿</span>';
+  }
+  if (mi) {
+    var m = mi.map[k];
+    if (m) h += ' <span class="badge badge-purple" style="font-size:9px;padding:1px 5px" title="Madurador ' + labEsc(m.producto) + ' aplicado ' + labEsc(m.fUlt || '') + ' · ' + labEsc(m.dias) + ' días a corte (plan) → corte objetivo ' + labEsc(m.fObjetivo || '–') + '">🧪 ' + labEsc(m.dias) + 'd</span>';
+  }
+  return h;
+}
+
+/* ── Lectura de archivos ── */
+function labNormHdr(h) { return String(h == null ? '' : h).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ''); }
+function labCol(enc, exact, cont) {
+  var i, j;
+  for (i = 0; i < exact.length; i++) { j = enc.indexOf(exact[i]); if (j >= 0) return j; }
+  if (cont) for (j = 0; j < enc.length; j++) { if (cont.every(function (f) { return enc[j].indexOf(f) >= 0; })) return j; }
+  return -1;
+}
+function labNum(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  var s = String(v).trim().replace(/\s/g, '').replace(',', '.'), m = s.match(/-?\d+(\.\d+)?/);
+  return m ? parseFloat(m[0]) : null;
+}
+function labR3(x) { return x == null ? null : Math.round(x * 1000) / 1000; }
+function labFecha(v) {
+  if (v == null || v === '') return null;
+  if (v instanceof Date) { return isNaN(v) ? null : v.getFullYear() + '-' + ('0' + (v.getMonth() + 1)).slice(-2) + '-' + ('0' + v.getDate()).slice(-2); }
+  if (typeof v === 'number') { if (v < 20000 || v > 80000) return null; return new Date(Math.round((Math.floor(v) - 25569) * 86400000)).toISOString().slice(0, 10); }
+  var s = String(v).trim(), m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+  if (m) { var a = +m[1], b = +m[2], d = a, mo = b; if (b > 12 && a <= 12) { d = b; mo = a; } return m[3] + '-' + ('0' + mo).slice(-2) + '-' + ('0' + d).slice(-2); }
+  return null;
+}
+function labHora(v) {
+  if (v == null || v === '') return '';
+  if (v instanceof Date) { return isNaN(v) ? '' : ('0' + v.getHours()).slice(-2) + ':' + ('0' + v.getMinutes()).slice(-2); }
+  if (typeof v === 'number') { var fr = v - Math.floor(v), mins = Math.round(fr * 1440) % 1440; return ('0' + Math.floor(mins / 60)).slice(-2) + ':' + ('0' + (mins % 60)).slice(-2); }
+  var m = String(v).trim().match(/^(\d{1,2}):(\d{2})/);
+  return m ? ('0' + m[1]).slice(-2) + ':' + m[2] : '';
+}
+function labNormZafra(v) {
+  var m = String(v == null ? '' : v).match(/(\d{2,4})\s*[-\/_]\s*(\d{2,4})/); if (!m) return '';
+  var a = m[1], b = m[2]; if (a.length === 2) a = '20' + a; if (b.length === 2) b = '20' + b;
+  return (+b === +a + 1) ? a + '-' + b : '';
+}
+function labZafraDeFecha(iso) { if (!iso) return ''; var y = +iso.slice(0, 4), mo = +iso.slice(5, 7), ini = mo >= 6 ? y : y - 1; return ini + '-' + (ini + 1); }
+function labCodigo(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return isFinite(v) ? Math.round(v) : null;
+  var s = String(v).trim(); if (!s) return null;
+  return /^[1-9]\d*$/.test(s) ? parseInt(s, 10) : s;
+}
+function labNormEquipo(v) {
+  var s = String(v == null ? '' : v).trim(); if (!s) return '';
+  var n = labNormHdr(s);
+  if (/^avion\d*$/.test(n)) { var d = n.replace('avion', ''); return 'Avión' + (d ? ' ' + d : ''); }
+  if (/^helicoptero\d*$/.test(n)) { var d2 = n.replace('helicoptero', ''); return 'Helicóptero' + (d2 ? ' ' + d2 : ''); }
+  if (n.indexOf('bomba') >= 0 || n.indexOf('canon') >= 0) return 'Bomba cañón';
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/* Convierte una matriz (filas × columnas) en registros. Devuelve {ok, error, filas, errores, avisos, zafrasCol, ...} */
+function labParsearMatriz(tipo, matriz) {
+  var esQ = (tipo === 'Q'), enc, hdrRow = -1, C = null, i;
+  function mapear(e) {
+    if (esQ) return { zafra: labCol(e, ['zafra']), codigo: labCol(e, ['codigo', 'cod', 'lote']), area: labCol(e, ['areaquema', 'area'], ['area']), estado: labCol(e, ['estado', 'estatus']),
+                      fecha: labCol(e, ['fechaquema', 'fecha'], ['fecha']), hora: labCol(e, ['horaquema', 'hora'], ['hora']) };
+    return { zafra: labCol(e, ['zafra']), codigo: labCol(e, ['codigo', 'cod', 'lote']), haLote: labCol(e, ['halote']), haAerea: labCol(e, [], ['aerea']), haBomba: labCol(e, [], ['bomba']),
+             haTotal: labCol(e, ['totaha', 'totalha', 'totalhas', 'haaplicadas'], ['tota']), estatus: labCol(e, ['estatus', 'estado']), fecha: labCol(e, ['fechadeaplicacion', 'fechaaplicacion'], ['fecha']),
+             obs: labCol(e, [], ['observ']), dias: labCol(e, [], ['dias']), agrupador: labCol(e, ['agrupador']), producto: labCol(e, ['producto']), unidades: labCol(e, ['unidades', 'unidad']),
+             dosis: labCol(e, [], ['dosis']), cantidad: labCol(e, [], ['cantidad']), equipo: labCol(e, ['equipo']) };
+  }
+  for (i = 0; i < Math.min(matriz.length, 15); i++) {
+    var e = (matriz[i] || []).map(labNormHdr), c = mapear(e);
+    var ok = esQ ? (c.codigo >= 0 && c.area >= 0 && c.fecha >= 0) : (c.codigo >= 0 && c.fecha >= 0 && (c.haTotal >= 0 || c.haAerea >= 0));
+    if (ok) { hdrRow = i; C = c; enc = e; break; }
+  }
+  if (hdrRow < 0) {
+    var e0 = (matriz[0] || []).map(labNormHdr);
+    var otro = esQ ? (labCol(e0, [], ['aerea']) >= 0 || labCol(e0, [], ['dosis']) >= 0) : (labCol(e0, ['areaquema']) >= 0 || labCol(e0, ['horaquema']) >= 0);
+    return { ok: false, error: otro ? 'Este archivo parece ser el plan de ' + (esQ ? 'MADURADOR' : 'QUEMA') + ', no el de ' + (esQ ? 'quema' : 'madurador') + '. Cárgalo en el botón correspondiente.'
+                                    : 'No encontré el encabezado esperado. ' + (esQ ? 'Columnas requeridas: Código, Área Quema, Fecha quema (opcionales: Estado, Hora quema).' : 'Columnas requeridas: Código, Fecha de Aplicación y TotaHa (o Area Aplicada Aerea).') };
+  }
+  var filas = [], errores = [], avisos = [], vistos = {}, dup = 0, vacias = 0, zc = {};
+  function g(row, ix) { return ix >= 0 ? row[ix] : null; }
+  for (i = hdrRow + 1; i < matriz.length; i++) {
+    var row = matriz[i] || [], fila = i + 1;
+    if (!row.some(function (x) { return x != null && String(x).trim() !== ''; })) { vacias++; continue; }
+    var cod = labCodigo(g(row, C.codigo));
+    if (cod === null) { errores.push('Fila ' + fila + ': sin Código.'); continue; }
+    var fch = labFecha(g(row, C.fecha));
+    if (!fch) { errores.push('Fila ' + fila + ' (código ' + cod + '): fecha inválida («' + g(row, C.fecha) + '»).'); continue; }
+    var zraw = C.zafra >= 0 ? labNormZafra(g(row, C.zafra)) : ''; if (zraw) zc[zraw] = (zc[zraw] || 0) + 1;
+    var r, kdup;
+    if (esQ) {
+      var ar = labNum(g(row, C.area));
+      if (!(ar > 0)) { errores.push('Fila ' + fila + ' (código ' + cod + '): área de quema inválida.'); continue; }
+      r = { codigo: cod, area: labR3(ar), estado: String(g(row, C.estado) == null ? '' : g(row, C.estado)).trim(), fecha: fch, hora: labHora(g(row, C.hora)) };
+      kdup = [cod, r.fecha, r.hora, r.area].join('|');
+    } else {
+      var aer = labNum(g(row, C.haAerea)), bom = labNum(g(row, C.haBomba)), tot = labNum(g(row, C.haTotal));
+      if (tot == null) tot = (aer || 0) + (bom || 0);
+      if (!(tot > 0)) { errores.push('Fila ' + fila + ' (código ' + cod + '): hectáreas aplicadas inválidas.'); continue; }
+      var dc = labNum(g(row, C.dias));
+      if (dc == null) avisos.push('Fila ' + fila + ' (código ' + cod + '): sin «Días Madurador a Corte (Plan)».');
+      var cant = g(row, C.cantidad); if (typeof cant === 'string') cant = cant.trim();
+      r = { codigo: cod, haLote: labR3(labNum(g(row, C.haLote))), haAerea: labR3(aer), haBomba: labR3(bom), haTotal: labR3(tot), estatus: String(g(row, C.estatus) == null ? '' : g(row, C.estatus)).trim(),
+            fecha: fch, obs: g(row, C.obs) == null ? '' : String(g(row, C.obs)).trim(), diasCorte: dc == null ? null : Math.round(dc),
+            agrupador: String(g(row, C.agrupador) == null ? '' : g(row, C.agrupador)).trim(), producto: String(g(row, C.producto) == null ? '' : g(row, C.producto)).trim(),
+            unidades: String(g(row, C.unidades) == null ? '' : g(row, C.unidades)).trim(), dosis: labR3(labNum(g(row, C.dosis))), cantidad: cant == null ? '' : cant, equipo: labNormEquipo(g(row, C.equipo)) };
+      kdup = [cod, r.fecha, r.producto, r.haTotal].join('|');
+    }
+    if (vistos[kdup]) { dup++; continue; } vistos[kdup] = 1;
+    filas.push(r);
+  }
+  if (dup) avisos.push(dup + ' fila(s) idénticas repetidas se descartaron.');
+  if (!filas.length) return { ok: false, error: 'El archivo no tiene filas válidas.' + (errores.length ? ' Primer error: ' + errores[0] : '') };
+  var zk = Object.keys(zc);
+  return { ok: true, filas: filas, errores: errores, avisos: avisos, zafrasCol: zk, zafraCol: zk.length === 1 ? zk[0] : '', vacias: vacias };
+}
+
+/* Resumen de un conjunto de filas */
+function labResumenFilas(tipo, filas) {
+  var cods = {}, ha = 0, fMin = null, fMax = null, dSum = 0, dHa = 0;
+  filas.forEach(function (r) {
+    cods[labKey(r.codigo)] = 1;
+    var h = tipo === 'Q' ? (+r.area || 0) : (+r.haTotal || 0); ha += h;
+    if (r.fecha) { if (!fMin || r.fecha < fMin) fMin = r.fecha; if (!fMax || r.fecha > fMax) fMax = r.fecha; }
+    if (tipo === 'M' && r.diasCorte != null) { dSum += r.diasCorte * h; dHa += h; }
+  });
+  return { filas: filas.length, codigos: Object.keys(cods).length, ha: ha, fMin: fMin, fMax: fMax, diasProm: dHa ? dSum / dHa : null };
+}
+/* Diferencias entre el plan vigente y el que se va a cargar */
+function labDiff(tipo, viejas, nuevas) {
+  function agr(rows) {
+    var m = {};
+    rows.forEach(function (r) {
+      var k = labKey(r.codigo), o = m[k] || (m[k] = { ha: 0, fMin: null }); o.ha += tipo === 'Q' ? (+r.area || 0) : (+r.haTotal || 0);
+      if (r.fecha && (!o.fMin || r.fecha < o.fMin)) o.fMin = r.fecha;
+    });
+    return m;
+  }
+  var a = agr(viejas), b = agr(nuevas), nuevos = [], retirados = [], reprog = [], haCamb = [];
+  Object.keys(b).forEach(function (k) {
+    if (!a[k]) nuevos.push(k);
+    else {
+      if (a[k].fMin !== b[k].fMin) reprog.push({ k: k, de: a[k].fMin, a: b[k].fMin });
+      if (Math.abs(a[k].ha - b[k].ha) > 0.5) haCamb.push({ k: k, de: a[k].ha, a: b[k].ha });
+    }
+  });
+  Object.keys(a).forEach(function (k) { if (!b[k]) retirados.push(k); });
+  return { hay: viejas.length > 0, nuevos: nuevos, retirados: retirados, reprog: reprog, haCamb: haCamb };
+}
+
+/* ── Carga de archivos ── */
+function labImportarElegir(tipo) {
+  if (!labPuedeEditar()) { alert('Tu rol es de solo lectura: no puedes cargar planes.'); return; }
+  var el = document.getElementById('lab-file-' + tipo); if (el) el.click();
+}
+function labImportarArchivo(tipo, input) {
+  var file = input.files && input.files[0]; if (!file) return; input.value = '';
+  if (!labPuedeEditar()) { alert('Tu rol es de solo lectura: no puedes cargar planes.'); return; }
+  var esCsv = /\.(csv|txt)$/i.test(file.name), rd = new FileReader();
+  function finMatriz(matriz) {
+    var res = labParsearMatriz(tipo, matriz);
+    if (!res.ok) { alert(res.error); return; }
+    var zn = labNormZafra(file.name);
+    var zDet = res.zafraCol || zn || '';
+    if (!zDet) { var cnt = {}; res.filas.forEach(function (r) { var z = labZafraDeFecha(r.fecha); cnt[z] = (cnt[z] || 0) + 1; }); zDet = Object.keys(cnt).sort(function (x, y) { return cnt[y] - cnt[x]; })[0] || ''; }
+    _labPend = { tipo: tipo, archivo: file.name, res: res, zafraDet: zDet, zafraFuente: res.zafraCol ? 'columna Zafra del archivo' : (zn ? 'nombre del archivo' : 'fechas del archivo') };
+    labMostrarPrevia();
+  }
+  if (esCsv) {
+    rd.onload = function (e) {
+      var txt = e.target.result;
+      if (txt.indexOf('\uFFFD') >= 0) { var r2 = new FileReader(); r2.onload = function (e2) { finMatriz(labMatrizDeCSV(e2.target.result)); }; r2.readAsText(file, 'ISO-8859-1'); return; }
+      finMatriz(labMatrizDeCSV(txt));
+    };
+    rd.readAsText(file, 'UTF-8');
+  } else {
+    if (typeof XLSX === 'undefined') { alert('No se pudo cargar la librería de lectura de Excel (revisa la conexión a internet) — mientras tanto guarda el plan como CSV y cárgalo de nuevo.'); return; }
+    rd.onload = function (e) {
+      try {
+        var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' }), matriz = null, ultimoErr = '';
+        for (var s = 0; s < wb.SheetNames.length; s++) {
+          var m = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[s]], { header: 1, raw: true, defval: null, blankrows: false });
+          var pr = labParsearMatriz(tipo, m);
+          if (pr.ok) { matriz = m; break; } else ultimoErr = pr.error;
+        }
+        if (!matriz) { alert(ultimoErr || 'No se encontró una hoja con el formato esperado.'); return; }
+        finMatriz(matriz);
+      } catch (err) { console.error(err); alert('No se pudo leer el archivo: ' + (err && err.message ? err.message : err)); }
+    };
+    rd.readAsArrayBuffer(file);
+  }
+}
+function labMatrizDeCSV(texto) {
+  var lineas = texto.replace(/\r/g, '').split('\n').filter(function (l) { return l.trim(); });
+  if (!lineas.length) return [];
+  var sep = detectarSeparador(lineas[0]);
+  return lineas.map(function (l) { return parsearCSVLinea(l, sep); });
+}
+
+function labZafrasLista() {
+  var z = {};
+  try { getZafrasDisponibles().forEach(function (x) { z[x] = 1; }); } catch (e) {}
+  planQuema.concat(planMadurador).forEach(function (r) { if (r.zafra) z[r.zafra] = 1; });
+  if (typeof zafraPorDefecto === 'string' && zafraPorDefecto) z[zafraPorDefecto] = 1;
+  var ks = Object.keys(z).sort();
+  var sig = ks.length ? zafraSiguienteA(ks[ks.length - 1]) : ''; if (sig) z[sig] = 1;
+  return Object.keys(z).sort();
+}
+function labMostrarPrevia() {
+  var P = _labPend; if (!P) return;
+  var m = document.getElementById('lab-preview-modal'), zs = labZafrasLista();
+  if (P.zafraDet && zs.indexOf(P.zafraDet) < 0) zs.push(P.zafraDet);
+  zs.sort();
+  var cur = document.getElementById('lab-prev-zafra') ? document.getElementById('lab-prev-zafra').value : '';
+  var elegida = (cur && zs.indexOf(cur) >= 0 && P.zafraElegida) ? cur : (P.zafraDet || zs[zs.length - 1]);
+  P.zafraElegida = elegida;
+  var esQ = P.tipo === 'Q', res = P.res, nuevas = res.filas;
+  var viejas = (esQ ? planQuema : planMadurador).filter(function (r) { return r.zafra === elegida; });
+  var S = labResumenFilas(P.tipo, nuevas), D = labDiff(P.tipo, viejas, nuevas), SV = labResumenFilas(P.tipo, viejas);
+  var cidx = labIdxCampos(), sinCampo = [];
+  var seen = {}; nuevas.forEach(function (r) { var k = labKey(r.codigo); if (!seen[k]) { seen[k] = 1; if (!cidx[k]) sinCampo.push(r.codigo); } });
+  var h = '<div class="alert alert-info"><i class="ti ti-file-spreadsheet"></i><span><strong>' + labEsc(P.archivo) + '</strong> · Plan de <strong>' + (esQ ? 'quema' : 'madurador') + '</strong>. Revisa el resumen y confirma: <strong>reemplaza por completo</strong> el plan vigente de la zafra elegida.</span></div>';
+  h += '<div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:10px"><div style="min-width:200px"><label>Zafra a la que pertenece</label><select id="lab-prev-zafra" onchange="_labPend.zafraElegida=this.value;labMostrarPrevia()" style="margin:0">' +
+       zs.map(function (z) { return '<option value="' + z + '"' + (z === elegida ? ' selected' : '') + '>' + z + '</option>'; }).join('') + '</select></div><div style="font-size:11px;color:var(--text2)">Detectada por ' + labEsc(P.zafraFuente) + ': <strong>' + labEsc(P.zafraDet || '—') + '</strong></div></div>';
+  if (res.zafrasCol.length > 1) h += '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>El archivo trae varias zafras en la columna Zafra (' + res.zafrasCol.join(', ') + '). Se cargará todo en la zafra elegida; sepáralo si no es lo que quieres.</span></div>';
+  var fz = labZafraDeFecha(S.fMin); if (S.fMin && fz !== elegida) h += '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>Las fechas del archivo (' + S.fMin + ' → ' + S.fMax + ') corresponden normalmente a la zafra ' + fz + ', pero la elegida es ' + elegida + '. Confirma que es correcto.</span></div>';
+  h += '<div class="preview-grid" style="grid-template-columns:repeat(5,1fr)">' +
+    labKpi('Filas válidas', labFmt(S.filas), res.errores.length ? res.errores.length + ' con error (se omiten)' : 'sin errores') +
+    labKpi('Lotes (códigos)', labFmt(S.codigos), viejas.length ? 'vigente: ' + labFmt(SV.codigos) : 'no había plan') +
+    labKpi(esQ ? 'Ha a quemar' : 'Ha aplicadas', labFmt(S.ha, 1), viejas.length ? 'vigente: ' + labFmt(SV.ha, 1) : '') +
+    labKpi('Primera fecha', S.fMin || '–', '') + labKpi('Última fecha', S.fMax || '–', esQ ? '' : (S.diasProm != null ? 'días a corte prom.: ' + labFmt(S.diasProm, 1) : '')) + '</div>';
+  if (D.hay) {
+    h += '<div class="card" style="background:var(--bg2);margin-bottom:12px"><div class="card-title">Cambios contra el plan vigente (v' + ((laboresMeta.vigente[P.tipo + '||' + elegida] || {}).version || 1) + ')</div><div style="font-size:12px;line-height:1.7">' +
+      '<span class="badge badge-green">+ ' + D.nuevos.length + ' lotes nuevos</span> <span class="badge badge-red">− ' + D.retirados.length + ' lotes retirados</span> ' +
+      '<span class="badge badge-amber">' + D.reprog.length + ' ' + (esQ ? 'reprogramados' : 'con otra fecha de aplicación') + '</span> <span class="badge badge-blue">' + D.haCamb.length + ' con otra área (±0.5 ha)</span>';
+    if (D.nuevos.length) h += '<div style="margin-top:6px"><strong>Nuevos:</strong> ' + D.nuevos.slice(0, 40).join(', ') + (D.nuevos.length > 40 ? ' …' : '') + '</div>';
+    if (D.retirados.length) h += '<div><strong>Retirados:</strong> ' + D.retirados.slice(0, 40).join(', ') + (D.retirados.length > 40 ? ' …' : '') + '</div>';
+    if (D.reprog.length) h += '<div><strong>Reprogramados:</strong> ' + D.reprog.slice(0, 12).map(function (x) { return x.k + ' (' + (x.de || '–') + ' → ' + (x.a || '–') + ')'; }).join('; ') + (D.reprog.length > 12 ? ' …' : '') + '</div>';
+    h += '</div></div>';
+  }
+  if (sinCampo.length) h += '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span><strong>' + sinCampo.length + ' código(s) no existen en Campos</strong> (no se podrán cruzar con el plan de cosecha): ' + sinCampo.slice(0, 30).join(', ') + (sinCampo.length > 30 ? ' …' : '') + '</span></div>';
+  if (res.errores.length) h += '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span><strong>Filas omitidas:</strong><br>' + res.errores.slice(0, 8).map(labEsc).join('<br>') + (res.errores.length > 8 ? '<br>… y ' + (res.errores.length - 8) + ' más' : '') + '</span></div>';
+  if (res.avisos.length) h += '<div class="alert alert-info"><i class="ti ti-info-circle"></i><span>' + res.avisos.slice(0, 5).map(labEsc).join('<br>') + (res.avisos.length > 5 ? '<br>… y ' + (res.avisos.length - 5) + ' avisos más' : '') + '</span></div>';
+  if (esQ && labUsarPlanQuema()) h += '<div class="alert alert-info"><i class="ti ti-flame"></i><span>Al confirmar, en la zafra ' + elegida + ' los lotes que están en este plan se calcularán como <strong>Quemada</strong> y los que no, como <strong>Verde</strong> (velocidades de cosecha, costos y tiempos).</span></div>';
+  h += '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px"><button class="btn" onclick="labCancelarCarga()">Cancelar</button><button class="btn btn-primary" onclick="labConfirmarCarga()"><i class="ti ti-check"></i> Reemplazar plan vigente de ' + elegida + '</button></div>';
+  document.getElementById('lab-preview-body').innerHTML = h;
+  m.style.display = 'flex';
+}
+function labKpi(l, v, s) { return '<div class="preview-item"><div class="preview-item-label">' + l + '</div><div class="preview-item-value">' + v + '</div><div class="preview-item-sub">' + (s || '&nbsp;') + '</div></div>'; }
+function labCancelarCarga() { _labPend = null; document.getElementById('lab-preview-modal').style.display = 'none'; }
+function labRefrescarMotor() {
+  labInvalidar();
+  try { if (typeof invalidarSimCache === 'function') invalidarSimCache(); } catch (e) {}
+  try { if (typeof recalcularCacheProd === 'function') recalcularCacheProd(); } catch (e2) { console.warn(e2); }
+}
+function labConfirmarCarga() {
+  var P = _labPend; if (!P || !labPuedeEditar()) return;
+  var z = P.zafraElegida, tipo = P.tipo, esQ = tipo === 'Q';
+  if (!z) { alert('Elige la zafra.'); return; }
+  labAsegurarMeta();
+  var viejas = (esQ ? planQuema : planMadurador).filter(function (r) { return r.zafra === z; });
+  var filas = P.res.filas.map(function (r) { var o = { zafra: z }; Object.keys(r).forEach(function (k) { o[k] = r[k]; }); return o; });
+  var S = labResumenFilas(tipo, filas), D = labDiff(tipo, viejas, filas), key = tipo + '||' + z, prev = laboresMeta.vigente[key];
+  if (esQ) planQuema = planQuema.filter(function (r) { return r.zafra !== z; }).concat(filas);
+  else planMadurador = planMadurador.filter(function (r) { return r.zafra !== z; }).concat(filas);
+  var ficha = { tipo: tipo, zafra: z, version: (prev ? prev.version || 1 : 0) + 1, archivo: P.archivo, usuario: (typeof fbUsuarioActual !== 'undefined' && fbUsuarioActual && fbUsuarioActual.email) || 'local',
+    fecha: new Date().toISOString(), filas: S.filas, codigos: S.codigos, ha: Math.round(S.ha * 10) / 10, fMin: S.fMin, fMax: S.fMax,
+    nuevos: D.hay ? D.nuevos.length : null, retirados: D.hay ? D.retirados.length : null, reprogramados: D.hay ? D.reprog.length : null };
+  laboresMeta.vigente[key] = ficha;
+  laboresMeta.historial.unshift(ficha); if (laboresMeta.historial.length > 60) laboresMeta.historial.length = 60;
+  _labPend = null; document.getElementById('lab-preview-modal').style.display = 'none';
+  labRefrescarMotor(); autoSave();
+  var sel = document.getElementById('lab-zafra'); if (sel) { labPoblarZafras(); sel.value = z; }
+  renderLabores();
+  showToast('Plan de ' + (esQ ? 'quema' : 'madurador') + ' ' + z + ' v' + ficha.version + ' cargado: ' + S.filas + ' filas, ' + S.codigos + ' lotes');
+}
+function labEliminarPlan(tipo, z) {
+  if (!labPuedeEditar()) return;
+  if (!confirm('¿Eliminar el plan de ' + (tipo === 'Q' ? 'quema' : 'madurador') + ' de la zafra ' + z + '? ' + (tipo === 'Q' ? 'Los lotes de esa zafra volverán a usar el tipo de caña (Verde/Quemada) registrado en Campos.' : '') )) return;
+  labAsegurarMeta();
+  if (tipo === 'Q') planQuema = planQuema.filter(function (r) { return r.zafra !== z; }); else planMadurador = planMadurador.filter(function (r) { return r.zafra !== z; });
+  var prev = laboresMeta.vigente[tipo + '||' + z]; delete laboresMeta.vigente[tipo + '||' + z];
+  laboresMeta.historial.unshift({ tipo: tipo, zafra: z, accion: 'eliminado', version: prev ? prev.version : null, archivo: prev ? prev.archivo : '', usuario: (typeof fbUsuarioActual !== 'undefined' && fbUsuarioActual && fbUsuarioActual.email) || 'local', fecha: new Date().toISOString() });
+  if (laboresMeta.historial.length > 60) laboresMeta.historial.length = 60;
+  labRefrescarMotor(); autoSave(); renderLabores(); showToast('Plan eliminado');
+}
+function labToggleUsarQuema(chk) {
+  if (!labPuedeEditar()) { chk.checked = !chk.checked; return; }
+  labAsegurarMeta(); laboresMeta.usarPlanQuemaTipoCana = !!chk.checked;
+  labRefrescarMotor(); autoSave(); renderLabores();
+  showToast(chk.checked ? 'El Plan de Quema define Verde/Quemada por zafra' : 'Se usa el tipo de caña de Campos');
+}
+
+/* ── Cruce con el plan de cosecha ── */
+function labCruceZafra(z) {
+  var qi = labIdxQuema(z), mi = labIdxMad(z), cidx = labIdxCampos(), usados = {}, musados = {};
+  var items = planItems.filter(function (p) { return p.zafra === z; });
+  var rows = items.map(function (p) {
+    var k = labKey(p.campoNombre), c = cidx[k] || campos.find(function (x) { return x.id === p.campoId; }) || null;
+    usados[k] = 1; musados[k] = 1;
+    var tCampos = (c && c.tipoCana) || 'Verde', q = qi ? qi.map[k] : null, m = mi ? mi.map[k] : null;
+    var tPlan = qi ? (q ? 'Quemada' : 'Verde') : null;
+    var esp = (q && q.fMin && p.fechaInicio) ? labDias(q.fMin, p.fechaInicio) : null;
+    var dObj = (m && m.fObjetivo && p.fechaInicio) ? labDias(m.fObjetivo, p.fechaInicio) : null;
+    var al = [];
+    if (tPlan && tPlan !== tCampos) al.push('cambia');
+    if (esp !== null && esp < 0) al.push('corteAntesQuema');
+    if (esp !== null && esp > LAB_QUEMA_MAX_DIAS) al.push('espera');
+    if (dObj !== null && dObj < -LAB_TOL_MAD_DIAS) al.push('madAntes');
+    if (dObj !== null && dObj > LAB_TOL_MAD_DIAS) al.push('madDespues');
+    return { p: p, k: k, c: c, area: parseFloat(p.area) || (c ? c.area : 0) || 0, tCampos: tCampos, tPlan: tPlan, q: q, m: m, esp: esp, dObj: dObj, al: al };
+  });
+  var qSin = [], mSin = [], ids = {}; rows.forEach(function (r) { ids[r.k] = 1; });
+  if (qi) Object.keys(qi.map).forEach(function (k) { if (!ids[k]) qSin.push(qi.map[k]); });
+  if (mi) Object.keys(mi.map).forEach(function (k) { if (!ids[k]) mSin.push(mi.map[k]); });
+  var R = { qi: qi, mi: mi, rows: rows, qSin: qSin, mSin: mSin, nPlan: rows.length, haPlan: 0, haQuemar: 0, nQuemar: 0, nVerde: 0, cambian: 0, corteAntes: 0, esperan: 0, madAntes: 0, madDespues: 0, conMad: 0 };
+  rows.forEach(function (r) {
+    R.haPlan += r.area; if (r.tPlan === 'Quemada') { R.haQuemar += r.area; R.nQuemar++; } else if (r.tPlan === 'Verde') R.nVerde++;
+    if (r.al.indexOf('cambia') >= 0) R.cambian++; if (r.al.indexOf('corteAntesQuema') >= 0) R.corteAntes++; if (r.al.indexOf('espera') >= 0) R.esperan++;
+    if (r.al.indexOf('madAntes') >= 0) R.madAntes++; if (r.al.indexOf('madDespues') >= 0) R.madDespues++; if (r.m) R.conMad++;
+  });
+  return R;
+}
+
+/* ── Pantalla ── */
+function labPoblarZafras() {
+  var sel = document.getElementById('lab-zafra'); if (!sel) return;
+  var cur = sel.value, zs = labZafrasLista();
+  if (!zs.length) zs = ['2025-2026', '2026-2027'];
+  sel.innerHTML = zs.map(function (z) { return '<option value="' + z + '">' + z + '</option>'; }).join('');
+  var pick = '';
+  if (cur && zs.indexOf(cur) >= 0) pick = cur;
+  else { var hoy = labZafraDeFecha(new Date().toISOString().slice(0, 10)); pick = zs.indexOf(hoy) >= 0 ? hoy : ((typeof zafraPorDefecto === 'string' && zs.indexOf(zafraPorDefecto) >= 0) ? zafraPorDefecto : zs[zs.length - 1]); }
+  sel.value = pick;
+}
+function labTab(t) { _labTab = t; renderLabores(); }
+function renderLabores() {
+  if (!document.getElementById('lab-zafra')) return;
+  labAsegurarMeta();
+  if (!document.getElementById('lab-zafra').options.length) labPoblarZafras();
+  var z = document.getElementById('lab-zafra').value, puede = labPuedeEditar();
+  var chk = document.getElementById('lab-usar-quema'); if (chk) { chk.checked = labUsarPlanQuema(); chk.disabled = !puede; }
+  var ixQ = labIdxQuema(z), ixM = labIdxMad(z), fQ = laboresMeta.vigente['Q||' + z], fM = laboresMeta.vigente['M||' + z];
+  function tarjeta(tipo, ix, ficha, kpis) {
+    var esQ = tipo === 'Q', t = esQ ? 'Plan de quema' : 'Plan de madurador';
+    var h = '<div class="card" style="margin:0"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div class="card-title" style="margin:0">' + (esQ ? '🔥 ' : '🧪 ') + t + ' · ' + z + '</div>' +
+      (ix ? '<span class="badge badge-green">Vigente' + (ficha ? ' · v' + (ficha.version || 1) : '') + '</span>' : '<span class="badge badge-red">Sin plan cargado</span>') + '</div>';
+    if (ix) {
+      h += '<div class="preview-grid" style="grid-template-columns:repeat(4,1fr)">' + kpis + '</div>';
+      if (ficha) h += '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Archivo <strong>' + labEsc(ficha.archivo || '–') + '</strong> · cargado por ' + labEsc(ficha.usuario || '–') + ' · ' + (ficha.fecha ? new Date(ficha.fecha).toLocaleString() : '–') + '</div>';
+      else h += '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Sin ficha de carga (datos importados desde un JSON anterior).</div>';
+    } else h += '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">' + (esQ ? 'Sin este plan, el tipo de caña (Verde/Quemada) de la zafra sale del registro de cada campo.' : 'Aún no se cargó el plan de madurador de esta zafra.') + '</p>';
+    h += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+    if (puede) h += '<button class="btn btn-sm btn-primary" onclick="labImportarElegir(\'' + tipo + '\')"><i class="ti ti-file-upload"></i> ' + (ix ? 'Actualizar' : 'Cargar') + ' (.xlsx / .csv)</button>';
+    if (ix) h += '<button class="btn btn-sm" onclick="labExportarCSV(\'' + tipo + '\')"><i class="ti ti-download"></i> CSV</button>';
+    if (ix && puede) h += '<button class="btn btn-sm btn-danger" onclick="labEliminarPlan(\'' + tipo + '\',\'' + z + '\')"><i class="ti ti-trash"></i></button>';
+    return h + '</div></div>';
+  }
+  var sQ = ixQ ? labResumenFilas('Q', planQuema.filter(function (r) { return r.zafra === z; })) : null;
+  var sM = ixM ? labResumenFilas('M', planMadurador.filter(function (r) { return r.zafra === z; })) : null;
+  var kQ = ixQ ? labKpi('Lotes', labFmt(sQ.codigos), labFmt(sQ.filas) + ' registros') + labKpi('Ha a quemar', labFmt(sQ.ha, 1), '') + labKpi('Primera quema', sQ.fMin, '') + labKpi('Última quema', sQ.fMax, '') : '';
+  var kM = ixM ? labKpi('Lotes', labFmt(sM.codigos), labFmt(sM.filas) + ' aplicaciones') + labKpi('Ha aplicadas', labFmt(sM.ha, 1), '') + labKpi('Días a corte', sM.diasProm != null ? labFmt(sM.diasProm, 1) : '–', 'promedio ponderado') + labKpi('Aplicaciones', sM.fMin ? sM.fMin.slice(5) + ' → ' + sM.fMax.slice(5) : '–', '') : '';
+  document.getElementById('lab-resumen').innerHTML = '<div class="grid2">' + tarjeta('Q', ixQ, fQ, kQ) + tarjeta('M', ixM, fM, kM) + '</div>';
+  var tabs = [['cruce', 'Cruce con la cosecha'], ['quema', 'Detalle quema'], ['madurador', 'Detalle madurador'], ['historial', 'Historial de cargas']];
+  document.getElementById('lab-tabs').innerHTML = tabs.map(function (t) { return '<button class="btn btn-sm' + (_labTab === t[0] ? ' btn-primary' : '') + '" onclick="labTab(\'' + t[0] + '\')">' + t[1] + '</button>'; }).join(' ');
+  var h = '';
+  if (_labTab === 'cruce') h = labHtmlCruce(z); else if (_labTab === 'quema') h = labHtmlDetalle('Q', z); else if (_labTab === 'madurador') h = labHtmlDetalle('M', z); else h = labHtmlHistorial();
+  document.getElementById('lab-contenido').innerHTML = h;
+}
+function labFiltroVal(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+function labTabla(heads, filas, alinea) {
+  return '<div style="overflow-x:auto;max-height:560px;overflow-y:auto"><table class="thead-fijo"><thead><tr>' + heads.map(function (x) { return '<th>' + x + '</th>'; }).join('') + '</tr></thead><tbody>' + filas.join('') + '</tbody></table></div>';
+}
+function labBadgeAl(a) {
+  var m = { cambia: ['badge-purple', 'Cambia Verde/Quemada'], corteAntesQuema: ['badge-red', 'Cosecha antes de la quema'], espera: ['badge-amber', 'Espera > ' + LAB_QUEMA_MAX_DIAS + ' d'], madAntes: ['badge-amber', 'Corte antes de maduración'], madDespues: ['badge-amber', 'Corte tardío vs madurador'] };
+  return '<span class="badge ' + m[a][0] + '" style="font-size:10px;margin-right:3px">' + m[a][1] + '</span>';
+}
+function labHtmlCruce(z) {
+  var R = labCruceZafra(z), h = '';
+  if (!R.nPlan) return '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>No hay lotes en el plan de cosecha de la zafra ' + z + ' (Planificación). El cruce se muestra cuando exista ese plan.</span></div>';
+  if (!R.qi) h += '<div class="alert alert-warn"><i class="ti ti-flame"></i><span>No hay Plan de Quema cargado para ' + z + ': el tipo de caña sale del registro de cada campo.</span></div>';
+  h += '<div class="preview-grid" style="grid-template-columns:repeat(6,1fr)">' +
+    labKpi('Lotes en plan de cosecha', labFmt(R.nPlan), labFmt(R.haPlan, 1) + ' ha') +
+    labKpi('A corte QUEMADO', R.qi ? labFmt(R.nQuemar) : '–', R.qi ? labFmt(R.haQuemar, 1) + ' ha · ' + (R.haPlan ? labFmt(100 * R.haQuemar / R.haPlan, 1) : '0') + '%' : 'sin plan de quema') +
+    labKpi('A corte VERDE', R.qi ? labFmt(R.nVerde) : '–', R.qi ? labFmt(R.haPlan - R.haQuemar, 1) + ' ha' : '') +
+    labKpi('Cambian de tipo vs Campos', R.qi ? labFmt(R.cambian) : '–', R.qi && labUsarPlanQuema() ? 'se calculan con el tipo del plan' : (R.qi ? 'regla desactivada' : '')) +
+    labKpi('Cosecha antes de quema', R.qi ? labFmt(R.corteAntes) : '–', R.qi ? 'espera > ' + LAB_QUEMA_MAX_DIAS + ' d: ' + R.esperan : '') +
+    labKpi('Con madurador', R.mi ? labFmt(R.conMad) : '–', R.mi ? 'corte fuera de ±' + LAB_TOL_MAD_DIAS + ' d: ' + (R.madAntes + R.madDespues) : 'sin plan') + '</div>';
+  if (R.qi) h += '<div style="font-size:11px;color:var(--text2);margin:-4px 0 10px">Plan de quema: ' + labFmt(R.qi.ha, 1) + ' ha en ' + labFmt(R.qi.codigos) + ' lotes · ' + (R.qSin.length ? '<strong style="color:var(--amber-text)">' + R.qSin.length + ' lote(s) del plan de quema no están en el plan de cosecha</strong>' : 'todos están en el plan de cosecha') + '.</div>';
+  h += '<div style="display:grid;grid-template-columns:1.2fr 1fr auto;gap:8px;margin-bottom:10px"><div><label style="font-size:11px">Buscar lote</label><input type="text" id="lab-f-buscar" placeholder="Código…" oninput="labRefiltrar()" value="' + labEsc(labFiltroVal('lab-f-buscar')) + '" style="margin:0"></div>' +
+    '<div><label style="font-size:11px">Mostrar</label><select id="lab-f-cruce" onchange="labRefiltrar()" style="margin:0">' +
+    [['', 'Todos'], ['alertas', 'Solo con alertas'], ['Quemada', 'A corte quemado'], ['Verde', 'A corte verde'], ['cambia', 'Cambian de tipo'], ['mad', 'Con madurador']].map(function (o) { return '<option value="' + o[0] + '"' + (labFiltroVal('lab-f-cruce') === o[0] ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select></div><div style="align-self:end"><button class="btn btn-sm" onclick="labExportarCruceCSV()"><i class="ti ti-download"></i> CSV</button></div></div>';
+  h += '<div id="lab-cruce-tabla"></div>';
+  if (R.qSin.length) h += '<div class="card-title" style="margin-top:16px">Lotes del plan de quema SIN cosecha planificada en ' + z + '</div><div style="font-size:12px;color:var(--text2);line-height:1.6">' + R.qSin.slice(0, 120).map(function (o) { return '<span class="badge badge-gray" title="' + labFmt(o.ha, 1) + ' ha · ' + o.fMin + '">' + o.codigo + '</span>'; }).join(' ') + (R.qSin.length > 120 ? ' …' : '') + '</div>';
+  if (R.mSin.length) h += '<div class="card-title" style="margin-top:16px">Lotes con madurador SIN cosecha planificada en ' + z + '</div><div style="font-size:12px;color:var(--text2);line-height:1.6">' + R.mSin.slice(0, 120).map(function (o) { return '<span class="badge badge-gray" title="' + labFmt(o.ha, 1) + ' ha · ' + o.fUlt + '">' + o.codigo + '</span>'; }).join(' ') + (R.mSin.length > 120 ? ' …' : '') + '</div>';
+  setTimeout(labRefiltrar, 0);
+  window._labCruceActual = R;
+  return h;
+}
+function labCruceFiltrado() {
+  var R = window._labCruceActual; if (!R) return [];
+  var b = labFiltroVal('lab-f-buscar').trim().toLowerCase(), f = labFiltroVal('lab-f-cruce');
+  return R.rows.filter(function (r) {
+    if (b && String(r.p.campoNombre).toLowerCase().indexOf(b) < 0) return false;
+    if (f === 'alertas') return r.al.length > 0;
+    if (f === 'Quemada' || f === 'Verde') return r.tPlan === f;
+    if (f === 'cambia') return r.al.indexOf('cambia') >= 0;
+    if (f === 'mad') return !!r.m;
+    return true;
+  }).sort(function (a, c) { return (a.p.fechaInicio || '').localeCompare(c.p.fechaInicio || ''); });
+}
+function labRefiltrar() {
+  var el = document.getElementById('lab-cruce-tabla'); if (!el) return;
+  var rows = labCruceFiltrado(), mostrar = rows.slice(0, LAB_MAX_FILAS_TABLA);
+  var filas = mostrar.map(function (r) {
+    var tp = r.tPlan ? (r.tPlan === 'Quemada' ? '<span class="badge badge-red">🔥 Quemada</span>' : '<span class="badge badge-green">🌿 Verde</span>') : '<span style="color:var(--text3)">–</span>';
+    var tc = r.tCampos === 'Quemada' ? '🔥' : '🌿';
+    return '<tr><td><strong>' + labEsc(r.p.campoNombre) + '</strong></td><td><span class="badge badge-teal">' + labEsc(r.p.frenteNombre) + '</span></td><td style="text-align:right">' + labFmt(r.area, 1) + '</td><td style="text-align:center">' + tc + '</td><td>' + tp + '</td>' +
+      '<td>' + (r.q ? r.q.fMin + (r.q.hMin ? ' ' + r.q.hMin : '') + (r.q.n > 1 ? ' <span style="color:var(--text3)">(+' + (r.q.n - 1) + ')</span>' : '') : '–') + '</td><td>' + labEsc(r.p.fechaInicio || '–') + '</td>' +
+      '<td style="text-align:right;' + (r.esp !== null && (r.esp < 0 || r.esp > LAB_QUEMA_MAX_DIAS) ? 'color:var(--red-text);font-weight:600' : '') + '">' + (r.esp !== null ? r.esp : '–') + '</td>' +
+      '<td>' + (r.m ? r.m.fUlt + (r.m.n > 1 ? ' <span style="color:var(--text3)">(' + r.m.n + ' aplic.)</span>' : '') : '–') + '</td><td style="text-align:right">' + (r.m && r.m.dias != null ? r.m.dias : '–') + '</td><td>' + (r.m && r.m.fObjetivo ? r.m.fObjetivo : '–') + '</td>' +
+      '<td style="text-align:right;' + (r.dObj !== null && Math.abs(r.dObj) > LAB_TOL_MAD_DIAS ? 'color:var(--amber-text);font-weight:600' : '') + '">' + (r.dObj !== null ? (r.dObj > 0 ? '+' : '') + r.dObj : '–') + '</td><td style="white-space:normal">' + r.al.map(labBadgeAl).join('') + '</td></tr>';
+  });
+  el.innerHTML = '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">' + labFmt(rows.length) + ' lote(s)' + (rows.length > mostrar.length ? ' — se muestran los primeros ' + mostrar.length + ' (usa los filtros o el CSV)' : '') + '. «Espera» = días entre la quema y el inicio de cosecha planificado; «Δ madurador» = inicio de cosecha − (aplicación + días a corte del plan).</div>' +
+    labTabla(['Lote', 'Frente', 'Área plan (ha)', 'Tipo Campos', 'Tipo por plan', 'Quema', 'Inicio cosecha', 'Espera (d)', 'Madurador', 'Días a corte', 'Corte objetivo', 'Δ madur. (d)', 'Alertas'], filas);
+}
+function labHtmlDetalle(tipo, z) {
+  var esQ = tipo === 'Q', rows = (esQ ? planQuema : planMadurador).filter(function (r) { return r.zafra === z; });
+  if (!rows.length) return '<div class="alert alert-warn"><i class="ti ti-info-circle"></i><span>No hay plan de ' + (esQ ? 'quema' : 'madurador') + ' cargado para ' + z + '.</span></div>';
+  var meses = {}; rows.forEach(function (r) { var m = (r.fecha || '').slice(0, 7); meses[m] = (meses[m] || 0) + (esQ ? (+r.area || 0) : (+r.haTotal || 0)); });
+  var mk = Object.keys(meses).sort(), mx = Math.max.apply(null, mk.map(function (k) { return meses[k]; }));
+  var h = '<div class="card-title">Hectáreas ' + (esQ ? 'a quemar' : 'aplicadas') + ' por mes</div><div style="margin-bottom:14px">' + mk.map(function (k) {
+    return '<div style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:3px"><span style="width:62px;color:var(--text2)">' + k + '</span><div style="flex:1;background:var(--bg2);border-radius:4px;height:16px"><div style="width:' + (100 * meses[k] / mx).toFixed(1) + '%;height:100%;background:' + (esQ ? 'var(--red-text)' : 'var(--purple-text)') + ';opacity:.75;border-radius:4px"></div></div><span style="width:80px;text-align:right"><strong>' + labFmt(meses[k], 1) + '</strong> ha</span></div>';
+  }).join('') + '</div>';
+  var opcMes = '<option value="">Todos los meses</option>' + mk.map(function (k) { return '<option value="' + k + '"' + (labFiltroVal('lab-d-mes') === k ? ' selected' : '') + '>' + k + '</option>'; }).join('');
+  var extra = '';
+  if (!esQ) { var prods = {}; rows.forEach(function (r) { prods[r.producto || '(sin producto)'] = 1; }); extra = '<div><label style="font-size:11px">Producto</label><select id="lab-d-prod" onchange="labRefiltrarDetalle(\'M\')" style="margin:0"><option value="">Todos</option>' + Object.keys(prods).sort().map(function (p) { return '<option' + (labFiltroVal('lab-d-prod') === p ? ' selected' : '') + '>' + labEsc(p) + '</option>'; }).join('') + '</select></div>'; }
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr ' + (esQ ? '' : '1fr ') + 'auto;gap:8px;margin-bottom:10px"><div><label style="font-size:11px">Buscar código</label><input type="text" id="lab-d-buscar" value="' + labEsc(labFiltroVal('lab-d-buscar')) + '" oninput="labRefiltrarDetalle(\'' + tipo + '\')" style="margin:0"></div><div><label style="font-size:11px">Mes</label><select id="lab-d-mes" onchange="labRefiltrarDetalle(\'' + tipo + '\')" style="margin:0">' + opcMes + '</select></div>' + extra + '<div style="align-self:end"><button class="btn btn-sm" onclick="labExportarCSV(\'' + tipo + '\')"><i class="ti ti-download"></i> CSV</button></div></div><div id="lab-detalle-tabla"></div>';
+  setTimeout(function () { labRefiltrarDetalle(tipo); }, 0);
+  return h;
+}
+function labRefiltrarDetalle(tipo) {
+  var el = document.getElementById('lab-detalle-tabla'); if (!el) return;
+  var z = labFiltroVal('lab-zafra'), esQ = tipo === 'Q', cidx = labIdxCampos();
+  var b = labFiltroVal('lab-d-buscar').trim().toLowerCase(), mes = labFiltroVal('lab-d-mes'), pr = labFiltroVal('lab-d-prod');
+  var rows = (esQ ? planQuema : planMadurador).filter(function (r) {
+    if (r.zafra !== z) return false;
+    if (b && String(r.codigo).toLowerCase().indexOf(b) < 0) return false;
+    if (mes && (r.fecha || '').slice(0, 7) !== mes) return false;
+    if (!esQ && pr && (r.producto || '(sin producto)') !== pr) return false;
+    return true;
+  }).sort(function (a, c) { return (a.fecha || '').localeCompare(c.fecha || '') || (a.hora || '').localeCompare(c.hora || ''); });
+  var mostrar = rows.slice(0, LAB_MAX_FILAS_TABLA), tot = 0; rows.forEach(function (r) { tot += esQ ? (+r.area || 0) : (+r.haTotal || 0); });
+  var filas = mostrar.map(function (r) {
+    var c = cidx[labKey(r.codigo)], nom = c ? '<span style="color:var(--text3);font-size:10px">' + labEsc(c.finca || '') + '</span>' : '<span class="badge badge-amber" title="No existe en Campos" style="font-size:10px">sin campo</span>';
+    if (esQ) return '<tr><td><strong>' + labEsc(r.codigo) + '</strong></td><td>' + nom + '</td><td style="text-align:right">' + labFmt(r.area, 2) + '</td><td>' + labEsc(r.estado) + '</td><td>' + r.fecha + '</td><td>' + labEsc(r.hora) + '</td></tr>';
+    return '<tr><td><strong>' + labEsc(r.codigo) + '</strong></td><td>' + nom + '</td><td style="text-align:right">' + labFmt(r.haLote, 1) + '</td><td style="text-align:right">' + labFmt(r.haAerea, 1) + '</td><td style="text-align:right">' + labFmt(r.haBomba, 1) + '</td><td style="text-align:right"><strong>' + labFmt(r.haTotal, 1) + '</strong></td><td>' + labEsc(r.estatus) + '</td><td>' + r.fecha + '</td><td style="text-align:right">' + (r.diasCorte != null ? r.diasCorte : '–') + '</td><td>' + (labSumaDias(r.fecha, r.diasCorte) || '–') + '</td><td>' + labEsc(r.producto) + '</td><td style="text-align:right">' + (r.dosis != null ? r.dosis : '–') + ' <span style="color:var(--text3)">' + labEsc(r.unidades) + '</span></td><td>' + labEsc(r.equipo) + '</td><td>' + labEsc(r.agrupador) + '</td></tr>';
+  });
+  el.innerHTML = '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">' + labFmt(rows.length) + ' registro(s) · ' + labFmt(tot, 1) + ' ha' + (rows.length > mostrar.length ? ' — se muestran los primeros ' + mostrar.length : '') + '</div>' +
+    labTabla(esQ ? ['Código', 'Finca', 'Área quema (ha)', 'Estado', 'Fecha', 'Hora'] : ['Código', 'Finca', 'Ha lote', 'Ha aérea', 'Ha bomba', 'Ha total', 'Estatus', 'Fecha aplic.', 'Días a corte', 'Corte objetivo', 'Producto', 'Dosis', 'Equipo', 'Agrupador'], filas);
+}
+function labHtmlHistorial() {
+  var H = laboresMeta.historial || [];
+  if (!H.length) return '<div class="alert alert-info"><i class="ti ti-info-circle"></i><span>Todavía no se ha cargado ningún plan desde esta versión del planificador.</span></div>';
+  return '<p style="font-size:12px;color:var(--text2);margin-bottom:8px">Últimas ' + H.length + ' cargas (la más reciente primero). Cada carga reemplaza el plan completo de esa zafra; aquí queda quién lo hizo y qué cambió.</p>' +
+    labTabla(['Fecha', 'Usuario', 'Plan', 'Zafra', 'Versión', 'Archivo', 'Filas', 'Lotes', 'Ha', 'Nuevos', 'Retirados', 'Reprogr.'], H.map(function (f) {
+      return '<tr><td>' + (f.fecha ? new Date(f.fecha).toLocaleString() : '–') + '</td><td>' + labEsc(f.usuario) + '</td><td>' + (f.tipo === 'Q' ? '🔥 Quema' : '🧪 Madurador') + (f.accion ? ' <span class="badge badge-red">' + labEsc(f.accion) + '</span>' : '') + '</td><td>' + labEsc(f.zafra) + '</td><td>v' + (f.version || '–') + '</td><td>' + labEsc(f.archivo) + '</td><td style="text-align:right">' + (f.filas != null ? labFmt(f.filas) : '–') + '</td><td style="text-align:right">' + (f.codigos != null ? labFmt(f.codigos) : '–') + '</td><td style="text-align:right">' + (f.ha != null ? labFmt(f.ha, 1) : '–') + '</td><td style="text-align:right">' + (f.nuevos != null ? f.nuevos : '–') + '</td><td style="text-align:right">' + (f.retirados != null ? f.retirados : '–') + '</td><td style="text-align:right">' + (f.reprogramados != null ? f.reprogramados : '–') + '</td></tr>';
+    }));
+}
+
+/* ── CSV ── */
+function labCsvCelda(v) { var s = v == null ? '' : String(v); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+function labDescargarCSV(nombre, filas) {
+  var txt = '\uFEFF' + filas.map(function (f) { return f.map(labCsvCelda).join(','); }).join('\r\n');
+  var a = document.createElement('a'), url = URL.createObjectURL(new Blob([txt], { type: 'text/csv;charset=utf-8' }));
+  a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+}
+function labExportarCSV(tipo) {
+  var z = labFiltroVal('lab-zafra'), esQ = tipo === 'Q', rows = (esQ ? planQuema : planMadurador).filter(function (r) { return r.zafra === z; });
+  if (!rows.length) { showToast('No hay datos para exportar'); return; }
+  var out = [esQ ? ['Zafra', 'Código', 'Área Quema', 'Estado', 'Fecha quema', 'Hora quema'] : ['Zafra', 'Código', 'Ha lote', 'Ha aérea', 'Ha bomba cañón', 'Total Ha', 'Estatus', 'Fecha de aplicación', 'Observaciones', 'Días madurador a corte (plan)', 'Fecha corte objetivo', 'Agrupador', 'Producto', 'Unidades', 'Dosis', 'Cantidad', 'Equipo']];
+  rows.forEach(function (r) { out.push(esQ ? [r.zafra, r.codigo, r.area, r.estado, r.fecha, r.hora] : [r.zafra, r.codigo, r.haLote, r.haAerea, r.haBomba, r.haTotal, r.estatus, r.fecha, r.obs, r.diasCorte, labSumaDias(r.fecha, r.diasCorte) || '', r.agrupador, r.producto, r.unidades, r.dosis, r.cantidad, r.equipo]); });
+  labDescargarCSV((esQ ? 'plan_quema_' : 'plan_madurador_') + z + '.csv', out);
+}
+function labExportarCruceCSV() {
+  var z = labFiltroVal('lab-zafra'), rows = labCruceFiltrado();
+  var out = [['Zafra', 'Lote', 'Frente', 'Área plan (ha)', 'Tipo en Campos', 'Tipo por plan de quema', 'Fecha quema', 'Hora quema', 'Inicio cosecha', 'Espera quema→corte (d)', 'Fecha aplicación madurador', 'Días a corte (plan)', 'Corte objetivo', 'Δ vs inicio cosecha (d)', 'Alertas']];
+  rows.forEach(function (r) { out.push([z, r.p.campoNombre, r.p.frenteNombre, r.area, r.tCampos, r.tPlan || '', r.q ? r.q.fMin : '', r.q ? r.q.hMin : '', r.p.fechaInicio, r.esp === null ? '' : r.esp, r.m ? r.m.fUlt : '', r.m && r.m.dias != null ? r.m.dias : '', r.m ? r.m.fObjetivo || '' : '', r.dObj === null ? '' : r.dObj, r.al.join(' | ')]); });
+  labDescargarCSV('cruce_quema_madurador_cosecha_' + z + '.csv', out);
+}
+
 
 /* ── Persistencia ── */
 var saveTimer = null;
@@ -3969,6 +4621,13 @@ function _aplicarDatos(d) {
   try {
     var d = d;
     campos = d.campos || [];
+    // Plan de quema / madurador: solo se reemplaza si el dato vino en el objeto (un JSON viejo o un guardado aún no devuelto por la nube no lo borran)
+    if (d.planMadurador !== undefined || d.planQuema !== undefined || d.laboresMeta !== undefined) {
+      planMadurador = Array.isArray(d.planMadurador) ? d.planMadurador : [];
+      planQuema = Array.isArray(d.planQuema) ? d.planQuema : [];
+      laboresMeta = (d.laboresMeta && typeof d.laboresMeta === 'object') ? d.laboresMeta : {};
+      labAsegurarMeta(); labInvalidar();
+    }
     modelosCosech = d.modelosCosech || [];
     modelosAV = d.modelosAV || [];
     frentes = d.frentes || [];
@@ -4537,7 +5196,11 @@ function disenoVigenteZafra(c, zafra) {
   return mejor !== null ? d[mejor] : null;
 }
 function datosCampoParaZafra(c, zafra) {
-  if (!c || !zafra || (!c.disenoPorZafra && !c.velPorZafra)) return c;
+  if (!c || !zafra) return c;
+  // Tipo de caña de ESA zafra según el Plan de Quema (en el plan = Quemada; fuera del plan = Verde). Sin plan cargado no se toca.
+  var tipoZ = tipoCanaPorPlanQuema(c, zafra);
+  if (tipoZ && tipoZ !== (c.tipoCana || 'Verde')) c = Object.assign({}, c, { tipoCana: tipoZ, tipoCanaPlan: true });
+  if (!c.disenoPorZafra && !c.velPorZafra) return c;
   var dz = disenoVigenteZafra(c, zafra), za = zafraAnteriorA(zafra);
   var vz = (c.velPorZafra && za && c.velPorZafra[za] > 0) ? c.velPorZafra[za] : null;
   if (!dz && vz === null) return c;
@@ -9800,7 +10463,7 @@ function renderPlan() {
     h += '<button class="btn btn-xs btn-danger" onclick="removePlan(' + p.id + ')" title="Eliminar"><i class="ti ti-trash"></i></button>';
     h += '</td>';
     h += '<td><span class="badge badge-purple">' + (p.zafra||'–') + '</span></td>';
-    h += '<td><strong>' + p.campoNombre + '</strong> <span class="badge ' + (p.tenencia === 'Propio' ? 'badge-green' : 'badge-amber') + '" style="margin-left:4px">' + p.tenencia + '</span></td>';
+    h += '<td><strong>' + p.campoNombre + '</strong> <span class="badge ' + (p.tenencia === 'Propio' ? 'badge-green' : 'badge-amber') + '" style="margin-left:4px">' + p.tenencia + '</span>' + labBadgesPlanItem(p) + '</td>';
     h += '<td><span class="badge badge-teal">' + p.frenteNombre + '</span></td>';
     h += '<td style="text-align:center"><strong>' + p.tch + '</strong>' + (p.tchOverride ? ' <span title="TCH ajustado manualmente para esta zafra (varía por rebrote)" style="font-size:9px;color:var(--amber-text)">✎</span>' : '') + '</td>';
     h += '<td style="text-align:right">' + (p.area ? p.area.toFixed(2) : '–') + (p.area && campos.some(function(cc){ return (cc.id === p.campoId || cc.nombre === p.campoNombre) && Math.abs((cc.area || 0) - p.area) > 0.005; }) ? ' <span title="Distinta al área registrada en Campos: dato de esta zafra" style="font-size:9px;color:var(--amber-text)">✎</span>' : '') + '</td>';
@@ -13898,7 +14561,7 @@ function calcular() {
     var avNecesarios = avInfo.necesarios;
 
     return Object.assign({}, c, tFresh, {
-      tch: tchUsado, nCosechadoras: nMaq, nAutovolteos: nAVUsado,
+      tipoCana: campoEfectivo.tipoCana || c.tipoCana, tch: tchUsado, nCosechadoras: nMaq, nAutovolteos: nAVUsado,
       costC: costC, costAV: costAV, costoTransporte: costoTransporte,
       costoTotal: costC + costAV + costoTransporte, av: av,
       productividad: prodFresh,
@@ -20190,7 +20853,7 @@ function calcCostoLote(campo, overrideTch, overrideNCosech, overrideTipoCamion, 
   var costoTon   = t.tonCampo > 0 ? costoTotal / t.tonCampo : 0;
 
   // Calcular costo si se usara la velocidad de la TABLA (no anterior/manual)
-  var velTabla = getVelTablaTrabajo(Object.assign({}, campoEfectivo, { tenencia: campo.tenencia, tipoCana: campo.tipoCana })).vel;
+  var velTabla = getVelTablaTrabajo(Object.assign({}, campoEfectivo, { tenencia: campo.tenencia, tipoCana: campoEfectivo.tipoCana || campo.tipoCana })).vel;
   var velAnterior = campo.velAnterior || velTabla;
   var velManual = parseFloat(campo.velManual) || 0;
   // BUG CORREGIDO: no reconocía velFuente==='manual' (velocidad fijada al
@@ -20603,6 +21266,7 @@ function calcFilasAjusteVelTCH(datos, zafra, fuenteTch, topeTabla) {
   var filas = [];
   (datos || []).forEach(function(d) {
     var cp = d.campo; if (!cp) return;
+    var tipoZ = tipoCanaPorPlanQuema(cp, zafra) || cp.tipoCana || 'Verde';   // tipo de caña de esta zafra (plan de quema)
     var p = planItems.find(function(x) { return x.campoNombre === cp.nombre && x.zafra === zafra; });
     var frente = p ? p.frenteNombre : (cp.frente ? cp.frente.nombre : '');
     if (frente && frenteEsManual(getFrenteEfectivo(zafra, frente))) return;   // frentes manuales: no hay velocidad
@@ -20611,8 +21275,8 @@ function calcFilasAjusteVelTCH(datos, zafra, fuenteTch, topeTabla) {
     if (fuenteTch === 'plan' && pAnt && pAnt.tch > 0) { tchAnt = pAnt.tch; fuente = 'Plan ' + zAnt; }
     else if (parseFloat(cp.tchAnterior) > 0) { tchAnt = parseFloat(cp.tchAnterior); fuente = 'Campos'; }
     var tchAct = d.tch, velAnt = parseFloat(cp.velAnterior) || 0;
-    var seg = segmentoVelTCH(cp), co = COEF_VEL_TCH[seg];
-    var f = { campoId: cp.id, lote: cp.nombre, finca: cp.finca || '', frente: frente, tenencia: cp.tenencia || '', tipoCana: cp.tipoCana || 'Verde',
+    var seg = segmentoVelTCH(Object.assign({}, cp, { tipoCana: tipoZ })), co = COEF_VEL_TCH[seg];
+    var f = { campoId: cp.id, lote: cp.nombre, finca: cp.finca || '', frente: frente, tenencia: cp.tenencia || '', tipoCana: tipoZ,
               rango: rangoTablaVel(tchAct), tchAnt: tchAnt, fuente: fuente, tchAct: tchAct, velAnt: velAnt, velActual: (d.t && d.t.velEf) || d.velUsada, fuenteActual: cp.velFuente || 'tabla' };
     f.segmento = co.nombre; f.b = co.b; f.v100 = co.v100;
     if (!(tchAct > 0)) { f.estado = 'sin datos'; f.motivo = 'sin TCH estimado'; filas.push(f); return; }

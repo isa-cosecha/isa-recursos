@@ -152,9 +152,23 @@ function restaura(v){
   if(v.__na===true&&typeof v.v==='string'){try{return JSON.parse(v.v);}catch(e){return [];}}
   var o={};Object.keys(v).forEach(function(k){o[k]=restaura(v[k]);});return o;
 }
+function labKey(n){return String(n==null?'':n).trim().replace(/^0+/,'');}
+function labSep(d){ /* quema y madurador: del JSON (planQuema/planMadurador) o de la categoría 'labores' de Firestore (laboresPlan con tipo Q/M) */
+  var lp=Array.isArray(d.laboresPlan)?d.laboresPlan:[],q=Array.isArray(d.planQuema)?d.planQuema:lp.filter(function(r){return r.tipo==='Q';}),m=Array.isArray(d.planMadurador)?d.planMadurador:lp.filter(function(r){return r.tipo==='M';});
+  var Q={},M={};
+  q.forEach(function(r){var k=r.zafra+'|'+labKey(r.codigo),o=Q[k]||(Q[k]={ha:0,n:0,f:null});o.ha+=+r.area||0;o.n++;if(r.fecha&&(!o.f||r.fecha<o.f))o.f=r.fecha;});
+  m.forEach(function(r){var k=r.zafra+'|'+labKey(r.codigo),o=M[k]||(M[k]={ha:0,f:null,dias:null,obj:null});o.ha+=+r.haTotal||0;if(r.fecha&&(!o.f||r.fecha>=o.f)){o.f=r.fecha;o.dias=r.diasCorte;o.obj=(r.diasCorte!=null)?new Date(Date.parse(r.fecha+'T00:00:00Z')+r.diasCorte*864e5).toISOString().slice(0,10):null;}});
+  return {Q:Q,M:M,hayQ:q.length>0,hayM:m.length>0,nQ:q.length,nM:m.length,zQ:q.reduce(function(a,r){a[r.zafra]=1;return a;},{})};
+}
+function laborTag(p){ /* quema/madurador del lote en su zafra: 🔥 en plan de quema, 🌿 fuera (si la zafra tiene plan), 🧪 madurador */
+  if(!DB||!DB.labores||!p)return '';var k=p.zafra+'|'+labKey(p.campoNombre),L=DB.labores,t='';
+  if(L.zQ[p.zafra]){var q=L.Q[k];t+=q?'<span title="Plan de quema: '+q.f+(q.n>1?' ('+q.n+' bloques)':'')+'" style="margin-left:4px">🔥'+q.f.slice(5)+'</span>':'<span title="Fuera del plan de quema: corte en verde" style="margin-left:4px">🌿</span>';}
+  var m=L.M[k];if(m)t+='<span title="Madurador aplicado '+m.f+' · '+m.dias+' d a corte → objetivo '+(m.obj||'—')+'" style="margin-left:4px">🧪'+(m.dias!=null?m.dias+'d':'')+'</span>';
+  return t;
+}
 function normalizarDB(d,fuente){
   var o=function(x){return (x&&typeof x==='object'&&!Array.isArray(x))?x:{};};
-  return {planItems:Array.isArray(d.planItems)?d.planItems:[],campos:Array.isArray(d.campos)?d.campos:[],realRecords:Array.isArray(d.realRecords)?d.realRecords:[],
+  return {labores:labSep(d),planItems:Array.isArray(d.planItems)?d.planItems:[],campos:Array.isArray(d.campos)?d.campos:[],realRecords:Array.isArray(d.realRecords)?d.realRecords:[],
     usarRealEnPlan:d.usarRealEnPlan,zafraPorDefecto:d.zafraPorDefecto||'',frentes:Array.isArray(d.frentes)?d.frentes:[],
     mantenimientos:Array.isArray(d.mantenimientos)?d.mantenimientos:[],
     horasMetaDiaria:o(d.horasMetaDiaria),horasMetaDiariaOrigen:o(d.horasMetaDiariaOrigen),horasMetaSemanal:o(d.horasMetaSemanal),horasMetaSemanalOrigen:o(d.horasMetaSemanalOrigen),
@@ -175,11 +189,11 @@ async function leerCategoria(cat,campoArray){
 async function leerDesdeFirestore(){
   S.srcMsg='Leyendo la base del planificador…';S.srcOk=true;render();
   try{
-    var r=await Promise.all([leerCategoria('plan','planItems'),leerCategoria('campos','campos'),leerCategoria('ejecucion',null),leerCategoria('equipos',null)]);
+    var r=await Promise.all([leerCategoria('plan','planItems'),leerCategoria('campos','campos'),leerCategoria('ejecucion',null),leerCategoria('equipos',null),leerCategoria('labores','laboresPlan')]);
     if(!r[0]){throw new Error('No encontré el documento plan_0 en la colección "'+COL+'". ¿Tu usuario tiene permiso de lectura?');}
-    var d=Object.assign({},r[3]||{},r[2]||{},r[1]||{},r[0]);
+    var d=Object.assign({},r[4]||{},r[3]||{},r[2]||{},r[1]||{},r[0]);
     DB=normalizarDB(d,'Firestore ('+COL+')');
-    S.srcMsg='Base leída: '+DB.planItems.length+' lotes, '+DB.campos.length+' campos, '+DB.realRecords.length+' registros reales.';S.srcOk=true;
+    S.srcMsg='Base leída ('+DB.labores.nQ+' reg. quema, '+DB.labores.nM+' aplic. madurador): '+DB.planItems.length+' lotes, '+DB.campos.length+' campos, '+DB.realRecords.length+' registros reales.';S.srcOk=true;
   }catch(e){S.srcMsg='No se pudo leer la base: '+(e&&e.message?e.message:e);S.srcOk=false;}
   S.zafra='';render();
 }
@@ -379,7 +393,7 @@ function fromBase(zafra){
       var it={codigo:p.id,nombre:p.campoNombre,variedad:c?c.variedad:null,corte:c?c.cortes:null,finca:p.finca||null,tenencia:p.tenencia||null,
         exist:p.area!=null?p.area:null,tch:p.tch!=null?p.tch:null,tonPlan:ton,tonReal:real,tonRest:rest,
         fechaProg:ser(p.fechaInicio),finProg:ser(p.fechaFin),inicioExt:null,finExt:null,estado:est,edad:p.edadDias!=null?p.edadDias:null,
-        dist:(c&&c.surcoAncho>0)?c.surcoAncho:null,fechaUlt:ser(p.fechaCorte||(c&&c.fechaCorte)||''),fechaReal:R.f0[i]?ser(R.f0[i]):null};
+        dist:(c&&c.surcoAncho>0)?c.surcoAncho:null,fechaUlt:ser(p.fechaCorte||(c&&c.fechaCorte)||''),fechaReal:R.f0[i]?ser(R.f0[i]):null,lab:laborTag(p)};
       if(est==='Completo'){it.inicioExt=R.f0[i]?ser(R.f0[i]):null;it.finExt=R.f1[i]?ser(R.f1[i])+1:null;}
       else{if(pu==null)diagD.sinProd.push(fn+' · '+p.campoNombre);cola.push({p:p,it:it,rest:rest,pu:pu,ini0:(est==='En cosecha'&&R.f0[i])?ser(R.f0[i]):null});}
       its.push(it);
@@ -623,7 +637,7 @@ function card(f,idx){
   var head='<div class="fhead"><span class="flabel">Frente</span><span class="fid">'+esc(fn)+'</span><span class="fcap">Productividad del plan <b>'+(f.cap?fN(f.cap)+' t/día':'sin dato')+'</b></span></div>';
   var body='';
   if(f.items.length){
-    var tb=f.items.map(function(i,n){return '<tr><td class="l">'+(n+1)+'</td><td class="l nm" title="'+esc(i.nombre)+'">'+esc(i.nombre)+'</td><td class="l nm" title="'+esc(i.finca||'')+'">'+esc(i.finca||'—')+'</td><td class="l">'+esc(i.variedad||'')+'</td><td>'+fN(i.corte)+'</td><td>'+fN(i.exist,2)+'</td><td>'+fN(i.tch,1)+'</td><td>'+fN(i.tonPlan)+'</td><td>'+fN(i.tonReal)+'</td><td>'+fN(i.ton)+'</td><td class="l">'+stHtml(i.estado)+'</td><td><b>'+fDW(i.inicio)+'</b> <span style="color:var(--muted)">'+(i.inicio!=null?fHM(i.inicio):'')+'</span></td><td>'+fDW(i.fin)+'</td><td>'+fD(i.fechaProg)+'</td><td>'+bdHtml(i)+'</td></tr>';}).join('');
+    var tb=f.items.map(function(i,n){return '<tr><td class="l">'+(n+1)+'</td><td class="l nm" title="'+esc(i.nombre)+'">'+esc(i.nombre)+(i.lab||'')+'</td><td class="l nm" title="'+esc(i.finca||'')+'">'+esc(i.finca||'—')+'</td><td class="l">'+esc(i.variedad||'')+'</td><td>'+fN(i.corte)+'</td><td>'+fN(i.exist,2)+'</td><td>'+fN(i.tch,1)+'</td><td>'+fN(i.tonPlan)+'</td><td>'+fN(i.tonReal)+'</td><td>'+fN(i.ton)+'</td><td class="l">'+stHtml(i.estado)+'</td><td><b>'+fDW(i.inicio)+'</b> <span style="color:var(--muted)">'+(i.inicio!=null?fHM(i.inicio):'')+'</span></td><td>'+fDW(i.fin)+'</td><td>'+fD(i.fechaProg)+'</td><td>'+bdHtml(i)+'</td></tr>';}).join('');
     var mid='<div class="scroll"><table class="t"><thead><tr><th class="l">#</th><th class="l">Lote</th><th class="l">Finca</th><th class="l">Var.</th><th>Corte</th><th>Ha</th><th>TCH</th><th>Ton plan</th><th>Ton real</th><th>Ton pend.</th><th class="l">Estado</th><th title="Fecha posible de llegada del frente al lote: primer evento de cosecha de la simulación (real hasta el corte)">Llegada</th><th title="Último evento de cosecha del lote">Fin</th><th title="Fecha de inicio del lote en el plan">Programado</th><th title="Llegada − programado, en días. (+) tarde, (−) antes">Desv. d</th></tr></thead><tbody>'+tb+'</tbody><tfoot><tr><td class="l" colspan="5">Total frente</td><td>'+fN(f.haTotal,2)+'</td><td></td><td>'+fN(f.tonPlan)+'</td><td>'+fN(f.tonReal)+'</td><td>'+fN(f.tonTotal)+'</td><td></td><td></td><td>'+(f.tonTotal>0?fDW(f.fin):'')+'</td><td></td><td>'+(f.desvPond!=null?fS(f.desvPond,1):'')+'</td></tr></tfoot></table></div>';
     body=mid;
   }else body='<div class="no-data">Este frente no tiene lotes en el plan de la zafra seleccionada.</div>';
@@ -694,7 +708,7 @@ function viewPrograma(cs,P){
   var body='';
   grupos.forEach(function(gr){
     gr.filas.forEach(function(x,k){var i=x.i;
-      body+='<tr><td class="l">'+(k===0?(gr.sem!=null?gr.sem:'—'):'')+'</td><td class="l">'+(k+1)+'</td><td class="l nm" title="'+esc(i.nombre+' | '+(i.finca||''))+'">'+esc(i.nombre+(i.finca?' | '+i.finca:''))+'</td><td class="l">'+esc(i.variedad||'')+'</td><td>'+fN(i.corte)+'</td>'
+      body+='<tr><td class="l">'+(k===0?(gr.sem!=null?gr.sem:'—'):'')+'</td><td class="l">'+(k+1)+'</td><td class="l nm" title="'+esc(i.nombre+' | '+(i.finca||''))+'">'+esc(i.nombre+(i.finca?' | '+i.finca:''))+(i.lab||'')+'</td><td class="l">'+esc(i.variedad||'')+'</td><td>'+fN(i.corte)+'</td>'
         +cn(i.exist,2)+cn(i.tonPlan)+cn(i.tonReal)+cn(i.exist>0?i.tonPlan/i.exist:null,1)+cn(i.exist>0?i.tonReal/i.exist:null,1)
         +'<td>'+(i.fechaProg!=null?fD(i.fechaProg)+'/'+String(dOf(i.fechaProg).getUTCFullYear()).slice(2):'—')+'</td>'
         +'<td>'+(i.fechaUlt!=null?fD(i.fechaUlt)+'/'+String(dOf(i.fechaUlt).getUTCFullYear()).slice(2):'—')+'</td><td>'+(x.edadCorte!=null?fN(x.edadCorte):'—')+'</td><td>'+(x.edad!=null?fN(x.edad):'—')+'</td>'
