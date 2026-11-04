@@ -11,6 +11,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="author" content="Carlos Rafael Colindres M.">
 <title>Planificador de Cosecha de Caña</title>
+<!-- v292: red vial con geometría persistida (simplificada), validación del grafo al restaurar, salidas ordenadas por cercanía, mapa base con respaldo -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -2114,6 +2115,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
         <p style="font-size:12px;color:var(--text2);margin:10px 0 14px">
           Reemplaza la línea recta (y la distancia escrita a mano al ingenio) por la ruta real siguiendo tus caminos internos. El tramo final hasta el ingenio — que no viene en tu archivo — se completa con el enrutador público (OSRM) desde el punto donde tu red termina.
         </p>
+        <div id="via-aviso" class="alert alert-warn" style="display:none;margin-bottom:10px"><i class="ti ti-alert-triangle"></i><span></span></div>
         <div id="via-kpis" style="display:none;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
           <div class="metric-card"><div class="metric-label">Segmentos cargados</div><div class="metric-value" id="via-kpi-seg">–</div></div>
           <div class="metric-card"><div class="metric-label">Nodos (cruces/extremos)</div><div class="metric-value" id="via-kpi-nodos">–</div></div>
@@ -2759,7 +2761,7 @@ function construirDataCompleta() {
     // persiste — con ~18,000 vértices pesa demasiado cerca del límite de 1MB por documento de Firestore.
     // Solo se guarda el GRAFO ya construido (nodos + aristas), que es lo que realmente usan los cálculos
     // y pesa una fracción de eso. El dibujo del mapa usa ese mismo grafo si no hay geometría cruda en memoria.
-    viaNodos: viaNodos, viaAristas: viaAristas,
+    viaNodos: viaNodos, viaAristas: viaAristas, viaSegs: viaSegs, viaVersion: VIA_VERSION,
     ingenioCoord: ingenioCoord, viaDistCache: viaDistCache, viaIngenioCache: viaIngenioCache, viaPuenteCache: viaPuenteCache,
     planesReferencia: planesReferencia, lowboysDisponibles: lowboysDisponibles, usarRealEnPlan: usarRealEnPlan,
     zafraPorDefecto: zafraPorDefecto,
@@ -2808,9 +2810,9 @@ function construirDataCompleta() {
    de tamaño (ya implementado) sigue protegiendo al usuario. ══════════ */
 const FB_MAX_PARTES = 50; // hasta 50 documentos físicos por categoría (~35 MB de margen) — el shapefile con miles de polígonos necesita más partes que los datos tabulares
 // Categoría → nombre del campo array grande que se debe repartir en partes
-const FB_ARRAY_GRANDE = { campos: 'campos', plan: 'planItems', molienda: 'planMolienda', geodata: 'geoFeatures', labores: 'laboresPlan' };
+const FB_ARRAY_GRANDE = { campos: 'campos', plan: 'planItems', molienda: 'planMolienda', geodata: 'geoFeatures', labores: 'laboresPlan', vialidad: 'viaSegs' };
 // Máximo de documentos físicos por categoría. "labores" (plan de quema + madurador, ~0.4 MB) necesita pocos: así no se agregan 50 escuchas más.
-const FB_MAX_PARTES_CAT = { labores: 8 };
+const FB_MAX_PARTES_CAT = { labores: 8, vialidad: 4 };
 function fbMaxPartes(cat) { return FB_MAX_PARTES_CAT[cat] || FB_MAX_PARTES; }
 /* Límite real de Firestore: 1 MiB (1,048,576 bytes) por documento. Se
    usa un margen conservador (~700 KB) por PARTE, ya que Firestore cuenta
@@ -2878,7 +2880,7 @@ function categoriasDeData(d) {
     geodata: { geoFeatures: d.geoFeatures },
     // Plan de quema + plan de madurador: un solo arreglo grande (cada fila lleva tipo 'Q' o 'M'); la ficha de versiones va en la parte 0.
     labores: { laboresPlan: (d.planMadurador || []).map(function(r) { return Object.assign({ tipo: 'M' }, r); }).concat((d.planQuema || []).map(function(r) { return Object.assign({ tipo: 'Q' }, r); })), laboresMeta: d.laboresMeta || {} },
-    vialidad: { viaNodos: d.viaNodos, viaAristas: d.viaAristas, ingenioCoord: d.ingenioCoord, viaDistCache: d.viaDistCache, viaIngenioCache: d.viaIngenioCache, viaPuenteCache: d.viaPuenteCache }
+    vialidad: { viaNodos: d.viaNodos, viaAristas: d.viaAristas, viaSegs: d.viaSegs, viaVersion: d.viaVersion, ingenioCoord: d.ingenioCoord, viaDistCache: d.viaDistCache, viaIngenioCache: d.viaIngenioCache, viaPuenteCache: d.viaPuenteCache }
   };
 }
 // Reparte UNA categoría en sus documentos físicos
@@ -4773,16 +4775,31 @@ function _aplicarDatos(d) {
     }
     // Red vial real: igual criterio que geoFeatures arriba — no pisar un grafo recién cargado en esta
     // sesión con uno vacío que llega de una actualización remota de OTRA categoría.
+    var viaDescartado = false;
     if (d.viaNodos !== undefined && (d.viaNodos.length || !viaNodos.length)) {
       viaNodos = d.viaNodos || [];
       viaAristas = d.viaAristas || [];
+      viaSegs = d.viaSegs || [];
       viaDijkstraCache = {};
+      // v292: se valida el grafo guardado. Un grafo con índices rotos o con un nodo-hub (cientos de aristas en un
+      // punto, patrón de "estrella") hace que Dijkstra atraviese atajos rectos inexistentes y subestima los km.
+      var errVia = viaValidarGrafo();
+      if (errVia.length) {
+        console.warn('Red vial almacenada descartada:', errVia);
+        viaNodos = []; viaAristas = []; viaSegs = []; viaDescartado = true;
+        viaAviso = 'La red vial guardada es inconsistente (' + errVia.join('; ') + ') y se descartó junto con sus distancias calculadas. Vuelve a cargar el shapefile de la red vial y presiona \"Calcular distancias por red vial\".';
+        if (typeof showToast === 'function') showToast('Red vial guardada inconsistente: se descartó. Vuelve a cargar el shapefile.');
+      } else if (viaNodos.length && d.viaVersion !== VIA_VERSION) {
+        viaAviso = 'El algoritmo de red vial cambió (v292: salidas ordenadas por cercanía). Las distancias guardadas se invalidaron; presiona \"Calcular distancias por red vial\" (los puentes OSRM ya consultados se reutilizan).';
+      } else { viaAviso = ''; }
       reconstruirIndiceVial();
     }
     ingenioCoord = d.ingenioCoord || ingenioCoord || null;
     viaDistCache = d.viaDistCache || {};
     viaIngenioCache = d.viaIngenioCache || {};
     viaPuenteCache = d.viaPuenteCache || {};
+    if (viaDescartado || (viaNodos.length && d.viaNodos !== undefined && d.viaVersion !== VIA_VERSION)) { viaDistCache = {}; viaIngenioCache = {}; }
+    if (typeof renderViaAviso === 'function') renderViaAviso();
     cosechIdSeq = d.cosechIdSeq || 1;
     avIdSeq = d.avIdSeq || 1;
     frenteIdSeq = d.frenteIdSeq || 1;
@@ -23196,6 +23213,11 @@ var viaDistCache    = {};
 var viaIngenioCache = {};
 var viaPuenteCache  = {};
 var viaDijkstraCache = {}; // en memoria solo, se invalida al reconstruir el grafo
+var VIA_VERSION = 2;       // v292: cambia cuando cambia el algoritmo/estructura; si no coincide al restaurar, se invalidan las distancias en caché
+var VIA_GRADO_MAX = 12;    // un cruce real de caminos rurales rara vez pasa de 6-8 conexiones; más de 12 indica un hub artificial
+var viaSegs = [];          // geometría simplificada persistida: [{k:'p'|'t'|'a', p:[lon,lat,lon,lat,...]}] (arreglos planos: Firestore no admite arrays anidados)
+var viaAviso = '';         // mensaje visible en el panel de red vial (grafo descartado / distancias invalidadas)
+var VIA_SEG_TOL_M = 15;    // tolerancia Douglas-Peucker al persistir la geometría
 var geoTabActual = 'mapa';
 
 function showGeoTab(tab) {
@@ -23241,20 +23263,32 @@ function initMapaPage() {
   renderViaKPIs();
 }
 
+var MAPA_BASES = [
+  { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', opts: { attribution: 'Tiles © Esri', maxZoom: 19 } },
+  { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', opts: { attribution: '© OpenStreetMap contributors', maxZoom: 19 } },
+  { url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', opts: { attribution: '© OpenStreetMap contributors © CARTO', maxZoom: 19, subdomains: 'abcd' } }
+];
+var mapaBaseLayer = null;
+function mapaCargarBase(idx) {
+  if (!leafletMap) return;
+  if (mapaBaseLayer) { leafletMap.removeLayer(mapaBaseLayer); mapaBaseLayer = null; }
+  var b = MAPA_BASES[idx], errores = 0, ok = 0, cambiado = false;
+  var capa = L.tileLayer(b.url, b.opts).addTo(leafletMap);
+  mapaBaseLayer = capa;
+  capa.on('tileload', function() { ok++; });
+  capa.on('tileerror', function() {
+    errores++;
+    if (!cambiado && errores >= 6 && ok === 0 && idx + 1 < MAPA_BASES.length) { cambiado = true; mapaCargarBase(idx + 1); }
+  });
+}
 function initLeaflet() {
   var el = document.getElementById('mapa-leaflet');
   if (!el || typeof L === 'undefined') return;
   leafletMap = L.map('mapa-leaflet').setView([14.5, -90.5], 10);
-  // Los tiles directos de tile.openstreetmap.org están pensados solo para
-  // uso ligero/pruebas — su política de uso bloquea apps con tráfico
-  // sostenido (como este mapa, con miles de polígonos y usuarios
-  // recargando el mapa seguido), devolviendo un error 403 "Access
-  // blocked". CARTO ofrece el mismo estilo base (calles, nombres de
-  // lugares) pero sí está pensado para uso en aplicaciones, sin
-  // necesitar API key ni registro.
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-    attribution: '© OpenStreetMap contributors © CARTO', maxZoom: 19, subdomains: 'abcd'
-  }).addTo(leafletMap);
+  // v292: la URL de CARTO "rastertiles/voyager" ahora exige API key (devuelve tiles con la marca "API KEY REQUIRED").
+  // Se prueba una lista de proveedores sin clave y, si el actual falla en cargar (6 errores y ningún tile),
+  // se pasa automáticamente al siguiente. Para fijar uno propio (p. ej. MapTiler/Stadia con clave), edita MAPA_BASES.
+  mapaCargarBase(0);
 }
 
 /* ── Cargar shapefile ── */
@@ -23696,10 +23730,17 @@ function renderCapaVial() {
     viaFeaturesRaw.forEach(function(seg) {
       lineas.push(L.polyline(seg.coords.map(function(c){ return [c[1], c[0]]; }), { color: colorPorCategoria(seg.categoria), weight: 2, opacity: 0.7 }));
     });
+  } else if (viaSegs.length) {
+    // v292: geometría simplificada (Douglas-Peucker 15 m) persistida junto al grafo — trazado real tras recargar.
+    var catDeCodigo = { p: 'principal', t: 'terciario', a: 'alterna' };
+    viaSegs.forEach(function(sg) {
+      var ll = [];
+      for (var q = 0; q + 1 < sg.p.length; q += 2) ll.push([sg.p[q + 1], sg.p[q]]);
+      if (ll.length >= 2) lineas.push(L.polyline(ll, { color: colorPorCategoria(catDeCodigo[sg.k]), weight: 2, opacity: 0.7 }));
+    });
   } else if (viaNodos.length) {
-    // Sin la geometría cruda (no se persiste, ver construirDataCompleta) — se dibuja el grafo ya
-    // restaurado como segmentos rectos nodo-a-nodo; menos fiel al trazado real, pero basta para
-    // verificar que la red cargó bien tras recargar la página.
+    // Grafo guardado por una versión anterior (sin geometría) — se dibuja como segmentos rectos
+    // nodo-a-nodo (aproximado). Al volver a cargar el shapefile de la red vial se persiste la geometría real.
     var vistos = {};
     viaAristas.forEach(function(lista, i) {
       (lista || []).forEach(function(e) {
@@ -24187,10 +24228,14 @@ function procesarGeoJSONVial(geojson, prjText) {
   if (!features.length) { setGeoStatus('error','El archivo de red vial no tiene líneas.'); return; }
 
   var needsConv = viaDetectaUTM(prjText || '', features);
-  var raw = [];
+  var raw = [], sinGeom = 0, kmSinGeom = 0;
   features.forEach(function(f) {
     var parts = getLineParts(f.geometry);
-    if (!parts.length) return;
+    if (!parts.length) {
+      sinGeom++; var pp = f.properties || {};
+      kmSinGeom += parseFloat(pp['long (km)'] || pp['Dist (Km)'] || pp.long_km || pp.LONG_KM) || 0;
+      return;
+    }
     var p = f.properties || {};
     // "categoria" es el único campo de clasificación completo en el archivo de referencia (principal /
     // terciario / alterna); se usa para colorear en el mapa. Normaliza un par de errores de tipeo vistos.
@@ -24212,7 +24257,10 @@ function procesarGeoJSONVial(geojson, prjText) {
   renderViaKPIs();
   if (typeof renderCapaMapa === 'function' && geoFeatures.length) renderCapaMapa();
   setGeoStatus('ok', viaNumSegmentos + ' segmentos de camino cargados · ' + viaNodos.length + ' nodos · ' +
-    contarComponentesVial() + ' tramo(s) independiente(s) de red. Guarda la ubicación del ingenio y presiona "Calcular distancias por red vial".');
+    contarComponentesVial() + ' tramo(s) independiente(s) de red.' +
+    (sinGeom ? ' ⚠ ' + sinGeom + ' registro(s) sin geometría en el archivo' + (kmSinGeom ? ' (~' + Math.round(kmSinGeom) + ' km según el campo de longitud)' : '') + ' NO se cargaron: repáralos en el SIG o la red quedará fragmentada.' : '') +
+    ' Guarda la ubicación del ingenio y presiona "Calcular distancias por red vial".');
+  renderViaAviso();
 }
 
 var VIA_SNAP_TOL_KM = 0.02; // 20 m — tolerancia para considerar dos extremos de segmentos distintos como el mismo cruce
@@ -24265,7 +24313,84 @@ function construirGrafoVial() {
   });
   viaNumSegmentos = segInfo.length;
   viaDijkstraCache = {};
+  viaSegs = viaConstruirSegs(viaFeaturesRaw);
+  viaAviso = '';
   reconstruirIndiceVial();
+}
+
+
+/* ── v292: simplificación Douglas-Peucker (en metros, proyección equirectangular local) y empaquetado plano
+   para persistir la geometría real de la red sin superar el límite de documento de Firestore ── */
+function viaSimplificarDP(c, tolM) {
+  var n = c.length; if (n <= 2) return c.slice();
+  var kx = 111320 * Math.cos(c[0][1] * Math.PI / 180), ky = 110540;
+  var xs = new Array(n), ys = new Array(n);
+  for (var i = 0; i < n; i++) { xs[i] = (c[i][0] - c[0][0]) * kx; ys[i] = (c[i][1] - c[0][1]) * ky; }
+  var keep = new Uint8Array(n); keep[0] = 1; keep[n - 1] = 1;
+  var stack = [[0, n - 1]];
+  while (stack.length) {
+    var s = stack.pop(), a = s[0], b = s[1];
+    if (b <= a + 1) continue;
+    var dx = xs[b] - xs[a], dy = ys[b] - ys[a], L2 = dx * dx + dy * dy, dmax = -1, idx = -1;
+    for (var k = a + 1; k < b; k++) {
+      var d;
+      if (L2 === 0) d = Math.sqrt(Math.pow(xs[k] - xs[a], 2) + Math.pow(ys[k] - ys[a], 2));
+      else {
+        var t = ((xs[k] - xs[a]) * dx + (ys[k] - ys[a]) * dy) / L2; t = t < 0 ? 0 : (t > 1 ? 1 : t);
+        d = Math.sqrt(Math.pow(xs[k] - (xs[a] + t * dx), 2) + Math.pow(ys[k] - (ys[a] + t * dy), 2));
+      }
+      if (d > dmax) { dmax = d; idx = k; }
+    }
+    if (dmax > tolM) { keep[idx] = 1; stack.push([a, idx], [idx, b]); }
+  }
+  var out = []; for (var j = 0; j < n; j++) if (keep[j]) out.push(c[j]);
+  return out;
+}
+function viaConstruirSegs(raw) {
+  return (raw || []).map(function(seg) {
+    var p = [];
+    viaSimplificarDP(seg.coords, VIA_SEG_TOL_M).forEach(function(q) { p.push(Math.round(q[0] * 1e5) / 1e5, Math.round(q[1] * 1e5) / 1e5); });
+    return { k: seg.categoria === 'principal' ? 'p' : (seg.categoria === 'terciario' ? 't' : 'a'), p: p };
+  });
+}
+
+/* ── v292: validación estructural del grafo restaurado. Devuelve la lista de problemas (vacía = grafo sano).
+   Invariantes de lo que produce construirGrafoVial(): |aristas| = |nodos|; cada arista existe en ambos sentidos;
+   índices y coordenadas válidos; km ≥ cuerda (la longitud de un camino no puede ser menor que la recta);
+   y ningún nodo con grado > VIA_GRADO_MAX (hub artificial). ── */
+function viaValidarGrafo() {
+  var n = viaNodos.length;
+  if (!n) return [];
+  if (!Array.isArray(viaAristas) || viaAristas.length !== n) return ['nodos y aristas no coinciden (' + (viaAristas ? viaAristas.length : 0) + ' vs ' + n + ')'];
+  var maxG = 0, hub = -1, malas = 0, asim = 0, incoh = 0, total = 0;
+  for (var i = 0; i < n; i++) {
+    var nd = viaNodos[i];
+    if (!Array.isArray(nd) || typeof nd[0] !== 'number' || typeof nd[1] !== 'number' || !isFinite(nd[0]) || !isFinite(nd[1]) || Math.abs(nd[0]) > 180 || Math.abs(nd[1]) > 90) { malas++; continue; }
+    var l = viaAristas[i] || [];
+    if (l.length > maxG) { maxG = l.length; hub = i; }
+    for (var k = 0; k < l.length; k++) {
+      var e = l[k]; total++;
+      if (!e || !(e.a >= 0 && e.a < n) || !isFinite(e.km)) { malas++; continue; }
+      var m = viaNodos[e.a];
+      if (!Array.isArray(m) || typeof m[0] !== 'number' || typeof m[1] !== 'number' || !isFinite(m[0]) || !isFinite(m[1])) { malas++; continue; }
+      var rev = false, lr = viaAristas[e.a] || [];
+      for (var r = 0; r < lr.length; r++) if (lr[r].a === i) { rev = true; break; }
+      if (!rev) asim++;
+      if (e.km + 0.05 < haversine(nd, m)) incoh++;
+    }
+  }
+  var errs = [];
+  if (malas) errs.push(malas + ' índices/coordenadas inválidos');
+  if (asim) errs.push(asim + ' aristas sin sentido contrario');
+  if (total && incoh / total > 0.005) errs.push(incoh + ' aristas con longitud menor que su cuerda recta');
+  if (maxG > VIA_GRADO_MAX) errs.push('nodo con ' + maxG + ' conexiones' + (hub >= 0 && viaNodos[hub] ? ' en [' + viaNodos[hub][0].toFixed(5) + ', ' + viaNodos[hub][1].toFixed(5) + ']' : '') + ' (patrón de estrella/hub)');
+  return errs;
+}
+function renderViaAviso() {
+  var el = document.getElementById('via-aviso');
+  if (!el) return;
+  if (viaAviso) { el.style.display = 'flex'; var sp = el.querySelector('span'); if (sp) sp.textContent = viaAviso; }
+  else el.style.display = 'none';
 }
 
 /* ── Grado (n° de conexiones) y componente conectado de cada nodo — se recalcula tras cargar o restaurar el grafo ── */
@@ -24329,9 +24454,14 @@ function viaDijkstraDesde(origen) {
 }
 
 /* ── Puntos muertos (grado 1) de un tramo de red — candidatos a "salida" hacia la vía pública ── */
-function viaNodosSalidaDeComponente(compId, limite) {
+function viaNodosSalidaDeComponente(compId, limite, destinoLonLat) {
   var r = [];
   for (var i = 0; i < viaNodos.length; i++) if (viaComponente[i] === compId && viaGrado[i] <= 1) r.push(i);
+  // v292: antes se tomaban las primeras N por índice (orden arbitrario del shapefile). Ahora las N más cercanas al destino.
+  if (destinoLonLat && r.length > 1) {
+    var dd = {}; r.forEach(function(i) { dd[i] = haversine(viaNodos[i], destinoLonLat); });
+    r.sort(function(x, y) { return dd[x] - dd[y]; });
+  }
   return limite ? r.slice(0, limite) : r;
 }
 
@@ -24361,10 +24491,10 @@ async function viaDistanciaAIngenio(centroid) {
   if (!viaNodos.length || !ingenioCoord) return null;
   var snap = viaPuntoMasCercano(centroid);
   if (!snap || snap.km > 2) return null; // el lote está demasiado lejos de la red cargada para confiar en el enganche
-  var salidas = viaNodosSalidaDeComponente(snap.componente, 5);
+  var ingenioLonLat = [ingenioCoord.lon, ingenioCoord.lat];
+  var salidas = viaNodosSalidaDeComponente(snap.componente, 5, ingenioLonLat);
   if (!salidas.length) salidas = [snap.nodo];
   var dist = viaDijkstraDesde(snap.nodo);
-  var ingenioLonLat = [ingenioCoord.lon, ingenioCoord.lat];
   var mejor = null;
   for (var k = 0; k < salidas.length; k++) {
     var salida = salidas[k];
@@ -24388,8 +24518,8 @@ async function viaDistanciaEntreCentroides(cA, cB) {
     if (!isFinite(distA[snapB.nodo])) return null;
     return snapA.km + distA[snapB.nodo] + snapB.km;
   }
-  var salidasA = viaNodosSalidaDeComponente(snapA.componente, 3);
-  var salidasB = viaNodosSalidaDeComponente(snapB.componente, 3);
+  var salidasA = viaNodosSalidaDeComponente(snapA.componente, 3, cB);
+  var salidasB = viaNodosSalidaDeComponente(snapB.componente, 3, cA);
   if (!salidasA.length || !salidasB.length) return null;
   var dA = viaDijkstraDesde(snapA.nodo), dB = viaDijkstraDesde(snapB.nodo);
   var mejor = null;
