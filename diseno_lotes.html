@@ -133,6 +133,7 @@ tr.sub td { background: var(--surco); font-size: 14px; }
 .isa-sesion { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
 .isa-sesion input { width: 210px; margin: 0; }
 .isa-sesion button { padding: 8px 14px; }
+.isa-det { margin-top: 12px; } .isa-det summary { cursor: pointer; color: var(--tinta-2); font-size: 14px; }
 .isa-o { margin: 10px 0 4px; font-size: 14px; color: var(--tinta-2); }
 .paginas { display: flex; gap: 4px; margin: 0 0 22px; border-bottom: 1px solid var(--linea); flex-wrap: wrap; }
 .paginas button { background: transparent; color: var(--tinta-2); border: 0; border-bottom: 3px solid transparent; padding: 10px 16px; font: inherit; font-weight: 600; font-size: 16px; cursor: pointer; margin-bottom: -1px; }
@@ -194,26 +195,22 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
       </li>
       <li class="paso">
         <div>
-          <h3>Registro de cosechadoras (opcional)</h3>
-          <p>El CSV de la pestaña <b>registro_lotes</b> del Google Sheet (Archivo &gt; Descargar &gt; CSV). Aporta el tiempo real de giro y la velocidad de cada lote.</p>
-          <label class="archivo"><input type="file" id="f-registro" accept=".csv,.txt,text/csv">Elegir archivo .csv</label>
-          <span class="estado-archivo" id="e-registro">Sin archivo.</span>
-        </div>
-      </li>
-      <li class="paso">
-        <div>
-          <h3>Registro por cosechadora (opcional)</h3>
-          <p>El CSV de la pestaña <b>registro_lotes_maquina</b> del Sheet. Sirve para comparar la velocidad de cada cosechadora con la tabla del planificador.</p>
-          <label class="archivo"><input type="file" id="f-regmaq" accept=".csv,.txt,text/csv">Elegir archivo .csv</label>
-          <span class="estado-archivo" id="e-regmaq">Sin archivo.</span>
-        </div>
-      </li>
-      <li class="paso">
-        <div>
-          <h3>Horas por día de cada máquina (opcional)</h3>
-          <p>El CSV de la pestaña <b>registro_maquina_dia</b> del Sheet, o el <b>horas_maquina_dia.csv</b> del .zip de la herramienta.</p>
-          <label class="archivo"><input type="file" id="f-regdia" accept=".csv,.txt,text/csv">Elegir archivo .csv</label>
-          <span class="estado-archivo" id="e-regdia">Sin archivo.</span>
+          <h3>Registro de cosechadoras</h3>
+          <p>Se lee solo de la base, con los datos del planificador: tiempo real de giro y velocidad por lote y por cosechadora, horas por día, turnos y operadores. Se llena en «Resumen de cosechadoras».</p>
+          <button class="secundario" id="b-reg-leer" type="button">Leer el registro de la base</button>
+          <span class="estado-archivo" id="e-regbase">Aún no leído.</span>
+          <details class="isa-det">
+            <summary>Sin conexión: cargar los CSV del Google Sheet</summary>
+            <p class="isa-o">Pestaña <b>registro_lotes</b> (aporta el tiempo real de giro y la velocidad de cada lote):</p>
+            <label class="archivo"><input type="file" id="f-registro" accept=".csv,.txt,text/csv">Elegir archivo .csv</label>
+            <span class="estado-archivo" id="e-registro">Sin archivo.</span>
+            <p class="isa-o">Pestaña <b>registro_lotes_maquina</b> (velocidad de cada cosechadora contra la tabla):</p>
+            <label class="archivo"><input type="file" id="f-regmaq" accept=".csv,.txt,text/csv">Elegir archivo .csv</label>
+            <span class="estado-archivo" id="e-regmaq">Sin archivo.</span>
+            <p class="isa-o">Pestaña <b>registro_maquina_dia</b> (horas por día, turnos y operadores):</p>
+            <label class="archivo"><input type="file" id="f-regdia" accept=".csv,.txt,text/csv">Elegir archivo .csv</label>
+            <span class="estado-archivo" id="e-regdia">Sin archivo.</span>
+          </details>
         </div>
       </li>
       <li class="paso">
@@ -740,11 +737,40 @@ $('f-plan').addEventListener('change', function(ev) {
   lector.readAsText(f);
 });
 /* Lectura directa de la base del planificador (solo lectura): inicio de sesión con el usuario del planificador. */
+var leyendoReg = false;
+function csvDeFilas(filas) {   // convierte las filas de la base a texto CSV, para usar los mismos lectores que con los archivos
+  var cols = [], vistos = {};
+  filas.forEach(function(r) { Object.keys(r).forEach(function(k) { if (!vistos[k]) { vistos[k] = 1; cols.push(k); } }); });
+  var q = function(v) { if (v === null || v === undefined) return ''; var t = String(v); return /[;"\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  return [cols.join(';')].concat(filas.map(function(r) { return cols.map(function(k) { return q(r[k]); }).join(';'); })).join('\n');
+}
+async function leerRegistroDeBase() {
+  if (typeof ISA === 'undefined' || leyendoReg) return;
+  leyendoReg = true; $('b-reg-leer').disabled = true;
+  try {
+    var res = await ISA.registro.leerTodo(function(t) { mensaje('e-regbase', t); }), zs = Object.keys(res.zafras).sort();
+    if (!zs.length) { mensaje('e-regbase', 'La base todavía no tiene registro de cosechadoras. Se llena en «Resumen de cosechadoras».', 'error'); return; }
+    var nombres = await ISA.registro.operadores.leer(), lotes = [], maq = [], dias = [];   // nombres = null si no hay permiso para verlos
+    var conNombre = function(r) {
+      if (!r.operador_id) return r;
+      var o = Object.assign({}, r); o.operador = (nombres && nombres[r.operador_id]) ? nombres[r.operador_id] : 'Operador ' + String(r.operador_id).replace(/[^A-Za-z0-9]/g, '').slice(0, 4).toUpperCase(); return o;
+    };
+    zs.forEach(function(z) { var r = res.zafras[z]; lotes = lotes.concat(r.lotes); maq = maq.concat(r.maquinas.map(conNombre)); dias = dias.concat(r.dias.map(conNombre)); });
+    var i1 = cargarRegistroTexto(csvDeFilas(lotes)); mensaje('e-registro', 'Base: ' + i1.filas.toLocaleString('es') + ' lotes, zafras ' + i1.zafras.join(', ') + '.', 'ok');
+    var i2 = cargarRegMaqTexto(csvDeFilas(maq)); mensaje('e-regmaq', 'Base: ' + i2.filas.toLocaleString('es') + ' filas de ' + i2.maquinas.toLocaleString('es') + ' cosechadoras.', 'ok');
+    if (dias.length) { var i3 = cargarRegDiaTexto(csvDeFilas(dias)); mensaje('e-regdia', 'Base: ' + i3.filas.toLocaleString('es') + ' filas en ' + i3.dias.toLocaleString('es') + ' días.', 'ok'); }
+    mensaje('e-regbase', 'Registro leído de la base: zafra' + (zs.length > 1 ? 's ' : ' ') + zs.join(', ') + ' · ' + lotes.length.toLocaleString('es') + ' lotes' + (nombres === null ? ' · los operadores se ven solo con su código (tu usuario no tiene permiso para ver nombres)' : '') + '.', 'ok');
+    estado.regOrigen = 'base';
+    if (estado.resultado) { aplicarRegistro(); mostrarResultado(true); }
+    refrescarMaquinas(true);
+  } catch (e) { mensaje('e-regbase', 'No se pudo leer el registro de la base: ' + e.message + ' También puedes cargar los CSV del Sheet.', 'error'); }
+  finally { leyendoReg = false; $('b-reg-leer').disabled = false; }
+}
 var leyendoBase = false;
 async function leerDeBase() {
   if (typeof ISA === 'undefined' || leyendoBase) return;
   leyendoBase = true; $('b-isa-leer').disabled = true;
-  try { aceptarPlan(await ISA.leerPlan(function(t) { mensaje('e-plan', t); }), 'Base del planificador'); estado.planOrigen = 'base'; }
+  try { aceptarPlan(await ISA.leerPlan(function(t) { mensaje('e-plan', t); }), 'Base del planificador'); estado.planOrigen = 'base'; leerRegistroDeBase(); }
   catch (e) { mensaje('e-plan', 'No se pudo leer la base: ' + e.message + ' También puedes usar el archivo .json.', 'error'); }
   finally { leyendoBase = false; $('b-isa-leer').disabled = false; }
 }
@@ -754,7 +780,7 @@ function pintarSesion(s) {
   if (dentro) { $('isa-usuario').textContent = s.email; $('isa-rol').textContent = s.listo ? (s.rol ? '(' + s.rol + ')' : '(sin rol asignado)') : '(comprobando rol…)'; }
 }
 (function() {
-  if (typeof ISA === 'undefined' || !ISA.iniciar()) { $('isa-acceso').hidden = true; $('isa-o-txt') && ($('isa-o-txt').hidden = true); mensaje('e-plan', 'Sin conexión a la base: usa el archivo .json.'); return; }
+  if (typeof ISA === 'undefined' || !ISA.iniciar()) { $('b-reg-leer').hidden = true; $('e-regbase').textContent = 'Sin conexión a la base: carga los CSV del Sheet.'; $('isa-acceso').hidden = true; $('isa-o-txt') && ($('isa-o-txt').hidden = true); mensaje('e-plan', 'Sin conexión a la base: usa el archivo .json.'); return; }
   ISA.alCambiarSesion(function(s) {
     pintarSesion(s);
     if (s.user && s.listo && s.rol && !estado.plan && !leyendoBase) leerDeBase();   // sesión recordada: lee la base sola
@@ -768,6 +794,7 @@ function pintarSesion(s) {
   });
   $('isa-pass').addEventListener('keydown', function(ev) { if (ev.key === 'Enter') $('b-isa-entrar').click(); });
   $('b-isa-leer').addEventListener('click', leerDeBase);
+  $('b-reg-leer').addEventListener('click', leerRegistroDeBase);
   $('b-isa-salir').addEventListener('click', function() { ISA.logout(); estado.planOrigen = null; });
 })();
 $('f-lineas').addEventListener('change', async function(ev) {
