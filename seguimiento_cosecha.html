@@ -17,26 +17,26 @@
 <style>
 
 .sgp{
-  --navy:#1b3a5c; --orange:#e8743b; --green:#2d6a4f; --cyan:#48cae4; --red:#b3261e;
-  --ink:#22292f; --muted:#667085; --line:#d8dee5; --paper:#fff; --panel:#f6f7f9;
-  --real-bg:#e7e9ec; --plan-bg:#dbeadd; --accent:#2d6a4f;
+  --navy:#0D4934; --orange:#BA7517; --green:#1D9E75; --cyan:#378ADD; --red:#A32D2D;
+  --ink:#111111; --muted:#555555; --line:#d6dae1; --paper:#fff; --panel:#f4f5f7;
+  --real-bg:#F1EFE8; --plan-bg:#EAF3DE; --accent:#1D9E75;
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; color:var(--ink);
-  background:#eef1f3; padding:24px; font-size:14px;
+  background:#edf0f4; padding:24px; font-size:14px;
 }
 .sgp *{box-sizing:border-box}
 .sgp .app-wide{max-width:1900px;margin:0 auto}
-.sgp .panel{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:16px}
-.sgp .panel h3{margin:0 0 10px;font-size:13.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
-.sgp button{font-family:inherit;font-size:13px;font-weight:600;border:none;border-radius:6px;padding:8px 14px;cursor:pointer;transition:filter .15s}
+.sgp .panel{background:var(--paper);border:0.5px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:16px}
+.sgp .panel h3{margin:0 0 10px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#888}
+.sgp button{font-family:inherit;font-size:13px;font-weight:500;border:none;border-radius:8px;padding:8px 14px;cursor:pointer;transition:filter .15s}
 .sgp button:hover{filter:brightness(1.08)} .sgp button:active{filter:brightness(.95)}
 .sgp button:focus-visible,.sgp input:focus-visible,.sgp select:focus-visible{outline:2px solid var(--navy);outline-offset:2px}
 .sgp .btn-primary{background:var(--accent);color:#fff}
-.sgp .btn-secondary{background:var(--panel);color:var(--ink);border:1px solid var(--line)}
+.sgp .btn-secondary{background:#fff;color:var(--ink);border:0.5px solid #b8bec9}.sgp .btn-secondary:hover{background:var(--panel)}.sgp .btn-primary:hover{background:#0F6E56;filter:none}
 .sgp .btn-fill{background:var(--navy);color:#fff}
 .sgp select,.sgp input[type=number],.sgp input[type=date]{font-size:13.5px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-family:inherit;background:#fff;color:var(--ink)}
 .sgp label.lb{font-size:12px;color:var(--muted);display:block;margin-bottom:3px}
 .sgp .row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
-.sgp .upload{border:1px solid var(--accent);background:#eef6f1;border-radius:8px;padding:12px 14px}
+.sgp .upload{border:1px solid var(--accent);background:#EAF3DE;border-radius:8px;padding:12px 14px}
 .sgp .upload .title{font-weight:700;font-size:13px;display:block;margin-bottom:6px}
 .sgp .status{margin-top:6px;font-size:11.5px;color:var(--muted)} .sgp .status.ok{color:var(--green);font-weight:600} .sgp .status.err{color:var(--red);font-weight:600}
 .sgp .checks{display:flex;flex-wrap:wrap;gap:8px}
@@ -52,13 +52,13 @@
 .sgp .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .sgp .scroll{overflow-x:auto}
 .sgp table.t{width:100%;border-collapse:collapse;font-size:12px}
-.sgp table.t th{text-align:right;font-weight:700;color:var(--muted);padding:5px 8px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--panel);position:sticky;top:0}
+.sgp table.t th{text-align:right;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--panel);position:sticky;top:0}
 .sgp table.t td{text-align:right;padding:5px 8px;border-bottom:1px solid #f0f1f3;white-space:nowrap;font-variant-numeric:tabular-nums}
 .sgp table.t th.l,.sgp table.t td.l{text-align:left} .sgp table.t td.nm{max-width:210px;overflow:hidden;text-overflow:ellipsis}
-.sgp table.t tr.sel td{background:#eaf3ee} .sgp table.t tr[data-sel]{cursor:pointer} .sgp table.t tr[data-sel]:hover td{background:#f3f7f5}
+.sgp table.t tr.sel td{background:#EAF3DE} .sgp table.t tr[data-sel]{cursor:pointer} .sgp table.t tr[data-sel]:hover td{background:#f4f5f7}
 .sgp table.t tfoot td{font-weight:800;border-top:2px solid var(--ink);border-bottom:none}
 .sgp .bd{display:inline-block;min-width:38px;text-align:center;border-radius:5px;padding:1px 6px;font-weight:700;font-size:11.5px}
-.sgp .bd.adel{background:#d8f1f8;color:#0b5a70} .sgp .bd.vent{background:#dbeadd;color:#1d4d39} .sgp .bd.leve{background:#fde5d6;color:#9a3f10} .sgp .bd.crit{background:#fdecea;color:var(--red)} .sgp .bd.nd{background:#eceef1;color:var(--muted)}
+.sgp .bd.adel{background:#E6F1FB;color:#185FA5} .sgp .bd.vent{background:#EAF3DE;color:#3B6D11} .sgp .bd.leve{background:#FAEEDA;color:#854F0B} .sgp .bd.crit{background:#FCEBEB;color:var(--red)} .sgp .bd.nd{background:#F1EFE8;color:var(--muted)}
 .sgp .vista-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
 .sgp .fcard{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:18px 22px}
 .sgp .fhead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:2px solid var(--ink);padding-bottom:8px;margin-bottom:12px}
@@ -83,7 +83,7 @@
 .sgp .no-data{color:var(--muted);font-size:13px;padding:18px 0;text-align:center}
 .sgp .note{font-size:12px;color:var(--muted);line-height:1.5}
 .sgp .diag{display:flex;gap:10px;padding:9px 12px;border-radius:8px;margin-bottom:8px;font-size:13px;line-height:1.45}
-.sgp .diag.warn{background:#fdf3e7;border:1px solid #f1cfa6} .sgp .diag.info{background:var(--panel);border:1px solid var(--line)}
+.sgp .diag.warn{background:#FAEEDA;border:1px solid #FAC775} .sgp .diag.info{background:var(--panel);border:1px solid var(--line)}
 .sgp .diag b{flex:none}
 .sgp .gantt{width:100%;height:auto;display:block}
 .sgp .chip{display:inline-block;font-size:11.5px;font-weight:700;border-radius:12px;padding:3px 10px;background:var(--panel);border:1px solid var(--line);margin-right:6px}
@@ -93,8 +93,8 @@
 
 .sgp .tabs button.on{color:var(--navy)}
 .sgp .st{display:inline-block;font-size:11px;font-weight:700;border-radius:10px;padding:1px 8px}
-.sgp .st.c{background:#dbeadd;color:#1d4d39}.sgp .st.e{background:#d8f1f8;color:#0b5a70}.sgp .st.p{background:#eceef1;color:#667085}
-.sgp .bar{height:6px;background:#e7e9ec;border-radius:3px;min-width:60px;overflow:hidden}.sgp .bar i{display:block;height:100%;background:var(--green)}
+.sgp .st.c{background:#EAF3DE;color:#3B6D11}.sgp .st.e{background:#E6F1FB;color:#185FA5}.sgp .st.p{background:#F1EFE8;color:#555555}
+.sgp .bar{height:6px;background:#F1EFE8;border-radius:3px;min-width:60px;overflow:hidden}.sgp .bar i{display:block;height:100%;background:var(--green)}
 .sgp input[type=checkbox]{width:auto;margin:0;vertical-align:middle}
 .sgp select,.sgp input[type=number]{margin:0;width:auto}
 
@@ -103,13 +103,24 @@
 
 .sgp table.pf th.nd{color:#9aa3ad;font-style:italic;background:#f1f2f4}
 .sgp table.pf td.sd{color:#c3c8ce;text-align:center}
-.sgp table.pf tr.pf-sub td{background:#eef1f3;font-weight:800;border-top:1px solid var(--line)}
+.sgp table.pf tr.pf-sub td{background:#edf0f4;font-weight:800;border-top:1px solid var(--line)}
 .sgp table.pf td.nm{max-width:240px}
 
 </style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+.sgp-top{background:#0D4934;color:#fff;height:52px;padding:0 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.15);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+.sgp-top .sgp-title{font-size:15px;font-weight:600;flex:1}
+.sgp-btn{background:rgba(255,255,255,.15);color:#fff;border:0.5px solid rgba(255,255,255,.3);border-radius:8px;padding:5px 12px;font-size:12px;font-weight:500;display:inline-flex;align-items:center;gap:6px;cursor:pointer;text-decoration:none;font-family:inherit;line-height:1.4}
+.sgp-btn:hover{background:rgba(255,255,255,.25)}
+.sgp .vm{display:inline-block;font-size:11px;font-weight:600;border-radius:8px;padding:1px 8px;white-space:nowrap}
+.sgp .vm.ok{background:#EAF3DE;color:#3B6D11}.sgp .vm.early{background:#FAEEDA;color:#854F0B}.sgp .vm.late{background:#FCEBEB;color:#A32D2D}.sgp .vm.nd{background:#F1EFE8;color:#555}
+.sgp table.vmcfg input[type=number]{width:74px;text-align:right;padding:4px 6px;font-size:12px}
+.sgp table.vmcfg td,.sgp table.vmcfg th{text-align:left}.sgp table.vmcfg td.r,.sgp table.vmcfg th.r{text-align:right}
+</style>
 </head>
-<body style="margin:0">
-<div style="background:#1b3a5c;padding:8px 24px;font:600 13px -apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif"><a href="index.html" style="color:#fff;text-decoration:none">&#8592; Inicio</a></div>
+<body style="margin:0;background:#edf0f4">
+<header class="sgp-top"><a href="index.html" class="sgp-btn" title="Volver a la portada"><i class="ti ti-home"></i> Inicio</a><span class="sgp-title">Seguimiento de Cosecha</span><button type="button" class="sgp-btn" onclick="SGP.api.recargar()" title="Vuelve a leer la base del planificador"><i class="ti ti-refresh"></i> Actualizar</button></header>
 <div id="sgp-root" class="sgp"></div>
 <script>
 var SGP=(function(){
@@ -158,12 +169,11 @@ function labSep(d){ /* quema y madurador: del JSON (planQuema/planMadurador) o d
   var Q={},M={};
   q.forEach(function(r){var k=r.zafra+'|'+labKey(r.codigo),o=Q[k]||(Q[k]={ha:0,n:0,f:null});o.ha+=+r.area||0;o.n++;if(r.fecha&&(!o.f||r.fecha<o.f))o.f=r.fecha;});
   m.forEach(function(r){var k=r.zafra+'|'+labKey(r.codigo),o=M[k]||(M[k]={ha:0,f:null,dias:null,obj:null});o.ha+=+r.haTotal||0;if(r.fecha&&(!o.f||r.fecha>=o.f)){o.f=r.fecha;o.dias=r.diasCorte;o.obj=(r.diasCorte!=null)?new Date(Date.parse(r.fecha+'T00:00:00Z')+r.diasCorte*864e5).toISOString().slice(0,10):null;}});
-  return {Q:Q,M:M,hayQ:q.length>0,hayM:m.length>0,nQ:q.length,nM:m.length,zQ:q.reduce(function(a,r){a[r.zafra]=1;return a;},{})};
+  return {Q:Q,M:M,hayQ:q.length>0,hayM:m.length>0,nQ:q.length,nM:m.length,mRows:m,meta:(d.laboresMeta&&typeof d.laboresMeta==='object')?d.laboresMeta:{},zQ:q.reduce(function(a,r){a[r.zafra]=1;return a;},{})};
 }
 function laborTag(p){ /* quema/madurador del lote en su zafra: 🔥 en plan de quema, 🌿 fuera (si la zafra tiene plan), 🧪 madurador */
   if(!DB||!DB.labores||!p)return '';var k=p.zafra+'|'+labKey(p.campoNombre),L=DB.labores,t='';
   {var q=L.Q[k];t+=q?'<span title="Plan de quema: '+q.f+(q.n>1?' ('+q.n+' bloques)':'')+'" style="margin-left:4px">🔥'+q.f.slice(5)+'</span>':'<span title="Fuera del plan de quema (o sin plan cargado): corte en verde" style="margin-left:4px">🌿</span>';}
-  var m=L.M[k];if(m)t+='<span title="Madurador aplicado '+m.f+' · '+m.dias+' d a corte → objetivo '+(m.obj||'—')+'" style="margin-left:4px">🧪'+(m.dias!=null?m.dias+'d':'')+'</span>';
   return t;
 }
 function normalizarDB(d,fuente){
@@ -548,10 +558,10 @@ function donutArc(cx,cy,ro,ri,a0,a1){
 }
 function donutSvg(b,total){
   var cx=110,cy=100,a=-90,h='';
-  if(total<=0)h+='<path d="'+donutArc(cx,cy,86,62,0,360)+'" fill="#e7e9ec"/>';
+  if(total<=0)h+='<path d="'+donutArc(cx,cy,86,62,0,360)+'" fill="#F1EFE8"/>';
   else ORDEN_B.forEach(function(k){if(b[k]<=0)return;var sw=b[k]/total*360;h+='<path d="'+donutArc(cx,cy,86,62,a,a+sw)+'" fill="'+BANDAS[k].c+'"/>';a+=sw;});
   var at=total>0?(b.leve+b.crit)/total:null;
-  h+='<text x="'+cx+'" y="'+(cy+4)+'" font-size="24" font-weight="800" fill="#22292f" text-anchor="middle">'+(at!=null?Math.round(at*100)+'%':'—')+'</text>';
+  h+='<text x="'+cx+'" y="'+(cy+4)+'" font-size="24" font-weight="800" fill="#111111" text-anchor="middle">'+(at!=null?Math.round(at*100)+'%':'—')+'</text>';
   h+='<text x="'+cx+'" y="'+(cy+22)+'" font-size="10" fill="#8a929b" text-anchor="middle">llega tarde</text>';
   return h;
 }
@@ -563,23 +573,23 @@ function ganttSvg(P){
   if(P.win){var wsp=P.win.b-P.win.a,pad=Math.max(5,Math.ceil(wsp/2));d0=Math.floor(P.win.a)-pad;d1=Math.ceil(P.win.b)+pad;}
   var span=Math.max(2,d1-d0),W=1240,L=64,Rm=24,T=34,RH=30,H=T+rows.length*RH+8,px=(W-L-Rm)/span;
   var step=span<=21?1:span<=70?7:14,h='<defs><clipPath id="sgp-clip"><rect x="'+L+'" y="0" width="'+(W-L-Rm)+'" height="'+H+'"/></clipPath></defs>';
-  for(var d=d0;d<=d1;d+=step){var x=L+(d-d0)*px;h+='<line x1="'+x+'" y1="'+(T-6)+'" x2="'+x+'" y2="'+(H-6)+'" stroke="#e6e9ee"/><text x="'+x+'" y="'+(T-12)+'" font-size="10.5" fill="#667085" text-anchor="middle">'+fD(d)+'</text>';}
+  for(var d=d0;d<=d1;d+=step){var x=L+(d-d0)*px;h+='<line x1="'+x+'" y1="'+(T-6)+'" x2="'+x+'" y2="'+(H-6)+'" stroke="#e6e9ee"/><text x="'+x+'" y="'+(T-12)+'" font-size="10.5" fill="#555555" text-anchor="middle">'+fD(d)+'</text>';}
   rows.forEach(function(f,ri){
     var y=T+ri*RH;
-    h+='<text x="'+(L-10)+'" y="'+(y+RH/2+4)+'" font-size="13" font-weight="800" fill="#22292f" text-anchor="end">'+esc(f.frente)+'</text>';
+    h+='<text x="'+(L-10)+'" y="'+(y+RH/2+4)+'" font-size="13" font-weight="800" fill="#111111" text-anchor="end">'+esc(f.frente)+'</text>';
     function bar(i){
       if(i.inicio==null||i.fin==null)return;
       var x=L+(i.inicio-d0)*px,w=Math.max(2,(i.fin-i.inicio)*px-1.5),xa=Math.max(x,L),xb=Math.min(x+w,W-Rm),fill=BANDAS[i.banda].c,done=i.estado==='Completo';
       if(xb<=xa)return;
       h+='<g clip-path="url(#sgp-clip)" opacity="'+(done?'.45':'1')+'"><title>'+esc(f.frente+' · '+i.nombre+' ('+i.estado+')'+'\nLlegada '+fDW(i.inicio)+' '+fHM(i.inicio)+' → fin '+fDW(i.fin)+'\n'+fN(i.tonPlan)+' t plan · '+fN(i.tonReal)+' t real'+(i.desv!=null?'\nProgramado '+fD(i.fechaProg)+' · desviación '+fS(i.desv)+' d':''))+'</title>'
         +'<rect x="'+x+'" y="'+(y+4)+'" width="'+w+'" height="'+(RH-9)+'" rx="3" fill="'+fill+'"'+''+'/>'
-        +((xb-xa)>46?'<text x="'+((xa+xb)/2)+'" y="'+(y+RH/2+3.5)+'" font-size="9.5" font-weight="700" fill="'+(i.banda==='adel'?'#22292f':'#fff')+'" text-anchor="middle">'+esc(String(i.nombre).slice(0,Math.floor((xb-xa)/6.2)))+'</text>':'')+'</g>';
+        +((xb-xa)>46?'<text x="'+((xa+xb)/2)+'" y="'+(y+RH/2+3.5)+'" font-size="9.5" font-weight="700" fill="'+(i.banda==='adel'?'#111111':'#fff')+'" text-anchor="middle">'+esc(String(i.nombre).slice(0,Math.floor((xb-xa)/6.2)))+'</text>':'')+'</g>';
     }
     f.items.forEach(function(i){bar(i);});
   });
-  if(P.win){var wa=Math.max(P.win.a,d0),wb=Math.min(P.win.b,d1);if(wb>wa)h+='<rect x="'+(L+(wa-d0)*px)+'" y="'+(T-6)+'" width="'+((wb-wa)*px)+'" height="'+(H-T)+'" fill="#e8743b" opacity=".08"/>';}
+  if(P.win){var wa=Math.max(P.win.a,d0),wb=Math.min(P.win.b,d1);if(wb>wa)h+='<rect x="'+(L+(wa-d0)*px)+'" y="'+(T-6)+'" width="'+((wb-wa)*px)+'" height="'+(H-T)+'" fill="#BA7517" opacity=".08"/>';}
   if(base>=d0&&base<=d1){var bx=L+(base-d0)*px;
-  h+='<line x1="'+bx+'" y1="'+(T-6)+'" x2="'+bx+'" y2="'+(H-6)+'" stroke="#1b3a5c" stroke-width="2" stroke-dasharray="4 3"/>';}
+  h+='<line x1="'+bx+'" y1="'+(T-6)+'" x2="'+bx+'" y2="'+(H-6)+'" stroke="#0D4934" stroke-width="2" stroke-dasharray="4 3"/>';}
   return '<svg class="gantt" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Llegada de lotes por frente">'+h+'</svg>';
 }
 
@@ -675,9 +685,55 @@ function viewSeguimiento(cs){
 /* ═══ Programa por frente: réplica de la tabla dinámica de la hoja «Frente K1» del Excel Programa_Cosecha ═══
    Filas: Semana (zafra, miércoles a martes) → Sec → Plantío, con subtotal por semana y total del frente.
    Las columnas marcadas «sin dato» (gris) no existen en la base del planificador; el resto sale de planItems, campos y Ejecución. */
-var PF_SIN_DATO={'Conformación Carretas':'Número de carretas por plantío','Removido':'Plan de removido (SI/NO)','Autoguiado':'Autoguiado (SI/NO)','Autoguiado Total/Parcial':'Cobertura del autoguiado','Pasadiceo':'Pasadiceo (SI/NO)','Producto Madurador':'Producto madurador aplicado','Días Aplicación':'Fecha de aplicación del madurador','Ventana Madurador':'Ventana del madurador (tenencia, producto y tercio)','Observación de Cosecha':'Observación de cosecha por plantío','Evaluaciones':'Plantío en evaluación (SI/NO)'};
+/* Producto Madurador, Días Aplicación y Ventana Madurador ya salen del Plan de Madurador (v285 del planificador) */
+var PF_SIN_DATO={'Conformación Carretas':'Número de carretas por plantío','Removido':'Plan de removido (SI/NO)','Autoguiado':'Autoguiado (SI/NO)','Autoguiado Total/Parcial':'Cobertura del autoguiado','Pasadiceo':'Pasadiceo (SI/NO)','Observación de Cosecha':'Observación de cosecha por plantío','Evaluaciones':'Plantío en evaluación (SI/NO)'};
 var PF_COLS=['Semana','Sec','Plantío','Variedad','N. Cortes','Área (Ha)','TM Est','TM Real','TCH Est.','TCH Real','Fecha de Corte','Corte/Siembra','Edad Corte','Edad Actual','Dist siembra','Conformación Carretas','Removido','Autoguiado','Autoguiado Total/Parcial','Pasadiceo','Producto Madurador','Días Aplicación','Ventana Madurador','Estatus Plantío','Observación de Cosecha','Evaluaciones'];
 function pfEstatus(i){return i.estado==='Completo'?'Cosechado':i.estado==='En cosecha'?'Trabajando':'Pendiente';}
+/* ═══ Ventana de madurador ═══
+   Media ponderada (por Ha aplicadas) de «Días Madurador a Corte (Plan)», por producto y tenencia, de la zafra elegida.
+   El corte debe llegar al lote con (días desde la aplicación) = media ± tolerancia. Se puede fijar los días y la tolerancia a mano. */
+function vmTen(t){return /prov/i.test(t||'')?'Proveedor':'Propio';}
+function vmKey(z,p,t){return z+'|'+p+'|'+t;}
+function vmIdxLote(){
+  var z=S.zafra;if(S._vmI&&S._vmI.db===DB&&S._vmI.z===z)return S._vmI.m;
+  var m={};((DB&&DB.labores)?DB.labores.mRows:[]).forEach(function(r){if(r.zafra!==z||!r.fecha)return;var k=labKey(r.codigo);(m[k]||(m[k]=[])).push(r);});
+  Object.keys(m).forEach(function(k){m[k].sort(function(a,b){return a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0;});});
+  S._vmI={db:DB,z:z,m:m};return m;
+}
+function vmCfg(){var m=(DB&&DB.labores&&DB.labores.meta)||{},v=m.ventanaMad||{};return {tol:(v.tol>=0?+v.tol:5),ovr:(v.ovr&&typeof v.ovr==='object')?v.ovr:{}};}
+function vmGrupos(){
+  var CFG=vmCfg();
+  var z=S.zafra,ten={},g={},list=[],map={};if(!DB||!DB.labores)return {list:list,map:map};
+  DB.planItems.forEach(function(p){if(p.zafra===z)ten[labKey(p.campoNombre)]=vmTen(p.tenencia);});
+  DB.campos.forEach(function(c){var k=labKey(c.nombre);if(!ten[k])ten[k]=vmTen(c.tenencia);});
+  DB.labores.mRows.forEach(function(r){
+    if(r.zafra!==z||r.diasCorte==null)return;var t=ten[labKey(r.codigo)];if(!t)return;
+    var p=r.producto||'(sin producto)',k=p+'|'+t,o=g[k]||(g[k]={producto:p,tenencia:t,ha:0,hd:0,lotes:{}}),h=+r.haTotal||0;
+    o.ha+=h;o.hd+=h*r.diasCorte;o.lotes[labKey(r.codigo)]=1;});
+  Object.keys(g).forEach(function(k){var o=g[k],c=CFG.ovr[vmKey(z,o.producto,o.tenencia)]||{};
+    o.n=Object.keys(o.lotes).length;o.media=o.ha>0?o.hd/o.ha:null;
+    o.dias=(c.dias>0)?c.dias:o.media;o.tol=(c.tol!=null&&c.tol>=0)?c.tol:CFG.tol;o.manualD=c.dias>0;o.manualT=(c.tol!=null&&c.tol>=0);
+    o.lo=o.dias!=null?Math.round(o.dias-o.tol):null;o.hi=o.dias!=null?Math.round(o.dias+o.tol):null;list.push(o);map[k]=o;});
+  list.sort(function(a,b){return a.producto<b.producto?-1:a.producto>b.producto?1:(a.tenencia<b.tenencia?-1:1);});
+  return {list:list,map:map};
+}
+function vmCells(i,est,VG,hoy,idx){
+  var nd3='<td class="sd">—</td><td class="sd">—</td><td class="sd">—</td>',rs=idx[labKey(i.nombre)];if(!rs||!rs.length)return nd3;
+  var last=rs[rs.length-1],fa=ser(last.fecha),prods=[];if(fa==null)return nd3;
+  rs.forEach(function(r){var p=r.producto||'(sin producto)';if(prods.indexOf(p)<0)prods.push(p);});
+  var dHoy=Math.floor(hoy)-Math.floor(fa);
+  var tdP='<td class="l" title="'+esc(rs.map(function(r){return r.fecha+' · '+(r.producto||'')+' · '+fN(r.haTotal,1)+' ha · '+(r.diasCorte!=null?r.diasCorte+' d plan':'sin días plan');}).join('\n'))+'">'+esc(prods.join(' + '))+'</td>';
+  var tdD='<td title="Hoy − fecha de aplicación ('+esc(last.fecha)+')">'+fN(dHoy)+'</td>';
+  var g=VG.map[(last.producto||'(sin producto)')+'|'+vmTen(i.tenencia)],tdV='<td class="sd">—</td>';
+  if(g&&g.dias!=null){
+    var real=(est==='Cosechado'&&i.fechaReal!=null),fc=real?i.fechaReal:(i.inicio!=null?i.inicio:i.fechaProg);
+    var rango=g.lo+'–'+g.hi+' d',tip='Media ponderada '+fN(g.dias,1)+' d ± '+fN(g.tol,0)+' ('+g.producto+', '+(g.tenencia==='Proveedor'?'Proveedores':'Propio')+')';
+    if(fc==null)tdV='<td><span class="vm nd" title="'+esc(tip)+'">'+rango+'</span></td>';
+    else{var dC=Math.floor(fc)-Math.floor(fa),cls=dC<g.lo?'early':dC>g.hi?'late':'ok',txt=cls==='ok'?rango+' ✓':rango+(cls==='early'?' · temprano '+(g.lo-dC):' · tarde '+(dC-g.hi))+' d';
+      tdV='<td><span class="vm '+cls+'" title="'+esc(tip+'. Corte '+(real?'real':'previsto (llegada)')+' a los '+dC+' d de la aplicación')+'">'+txt+'</span></td>';}
+  }
+  return tdP+tdD+tdV;
+}
 function viewPrograma(cs,P){
   var frs=P.frentes.filter(function(f){return f.items.length;}).map(function(f){return f.frente;});
   if(!frs.length)return '<div class="panel no-data">No hay lotes en el plan'+(P.win?' dentro del filtro de fechas.':'.')+'</div>';
@@ -686,6 +742,7 @@ function viewPrograma(cs,P){
   /* zafra pasada = el plan completo ya terminó (última fecha de fin anterior a hoy) */
   var finZ=0;cs.frentes.forEach(function(f){f.items.forEach(function(i){var x=i.finProg!=null?i.finProg:i.fechaProg;if(x!=null&&x>finZ)finZ=x;});});
   var zPasada=finZ>0&&Math.floor(finZ)<hoy;
+  var VG=vmGrupos(),vmI=vmIdxLote();
   var filas=F.items.map(function(i){
     var est=pfEstatus(i),sem=(z0!=null&&i.fechaProg!=null)?semanaDe(i.fechaProg,z0):null;
     var edadCorte=(i.fechaUlt!=null&&i.fechaProg!=null)?Math.floor(i.fechaProg)-Math.floor(i.fechaUlt):null,edad=null;
@@ -713,7 +770,7 @@ function viewPrograma(cs,P){
         +'<td>'+(i.fechaProg!=null?fD(i.fechaProg)+'/'+String(dOf(i.fechaProg).getUTCFullYear()).slice(2):'—')+'</td>'
         +'<td>'+(i.fechaUlt!=null?fD(i.fechaUlt)+'/'+String(dOf(i.fechaUlt).getUTCFullYear()).slice(2):'—')+'</td><td>'+(x.edadCorte!=null?fN(x.edadCorte):'—')+'</td><td>'+(x.edad!=null?fN(x.edad):'—')+'</td>'
         +'<td class="l">'+(i.dist!=null?fN(i.dist,2)+' Metros':'—')+'</td>'
-        +nd+nd+nd+nd+nd+nd+nd+nd
+        +nd+nd+nd+nd+nd+vmCells(x.i,x.est,VG,hoy,vmI)
         +'<td class="l"><span class="st '+(x.est==='Cosechado'?'c':x.est==='Trabajando'?'e':'p')+'">'+x.est+'</span></td>'+nd+nd+'</tr>';});
     var s=sub(gr.filas);
     body+='<tr class="pf-sub"><td class="l" colspan="2">Total '+(gr.sem!=null?gr.sem:'—')+'</td><td colspan="3"></td>'+cn(s.ha,2)+cn(s.te)+cn(s.tr)+cn(s.tchE,1)+cn(s.tchR,1)+'<td colspan="16"></td></tr>';
@@ -725,7 +782,7 @@ function viewPrograma(cs,P){
   var opts=frs.map(function(f){return '<option'+(f===S.pfFrente?' selected':'')+'>'+esc(f)+'</option>';}).join('');
   return '<div class="panel"><h3>Programa por frente'+(P.win?' — '+esc(ventanaTxt(P.win)):'')+'</h3><div class="row" style="margin-bottom:10px"><div><label class="lb">Select Frente</label><select id="sgp-pf-frente">'+opts+'</select></div><div><label class="lb">Estatus Plantío</label><div class="checks">'+chips+'</div></div></div>'
     +'<div class="scroll" style="max-height:640px"><table class="t pf"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody><tfoot>'+foot+'</tfoot></table></div>'
-    +'<div class="note" style="margin-top:8px">Réplica de la tabla dinámica de la hoja «Frente K1» del Excel. Columnas en gris: no existen en la base del planificador. Corte/Siembra = fecha del corte anterior (o de la siembra) del plantío guardada en el plan de la zafra; Edad Corte = Fecha de Corte − Corte/Siembra; Edad Actual = fecha real de corte − Corte/Siembra; si el plantío no tiene dato real y la zafra ya terminó queda igual que la Edad Corte; en una zafra en curso, sin corte real, cuenta hasta hoy; Semana = semana de zafra (miércoles a martes) de la fecha de corte del plan; Sec = orden dentro de la semana según la secuencia del plan. TCH Est. del total = TM Est ÷ Ha; TCH Real de los totales = promedio simple del TCH Real de cada plantío, igual que la tabla del Excel (no es TM Real ÷ Ha).</div></div>';
+    +'<div class="note" style="margin-top:8px">Réplica de la tabla dinámica de la hoja «Frente K1» del Excel. Columnas en gris: no existen en la base del planificador. Producto Madurador / Días Aplicación (hoy − fecha de aplicación) / Ventana Madurador salen del Plan de Madurador: la ventana es la media ponderada de los días a corte del plan ± tolerancia (se configura en el planificador: Datos maestros → Quema y madurador → Ventana madurador) y se evalúa con la fecha de corte real o la llegada proyectada. Corte/Siembra = fecha del corte anterior (o de la siembra) del plantío guardada en el plan de la zafra; Edad Corte = Fecha de Corte − Corte/Siembra; Edad Actual = fecha real de corte − Corte/Siembra; si el plantío no tiene dato real y la zafra ya terminó queda igual que la Edad Corte; en una zafra en curso, sin corte real, cuenta hasta hoy; Semana = semana de zafra (miércoles a martes) de la fecha de corte del plan; Sec = orden dentro de la semana según la secuencia del plan. TCH Est. del total = TM Est ÷ Ha; TCH Real de los totales = promedio simple del TCH Real de cada plantío, igual que la tabla del Excel (no es TM Real ÷ Ha).</div></div>';
 }
 
 function viewControles(cs,names){
@@ -740,7 +797,7 @@ function viewControles(cs,names){
    +(S.fbListo?(S.user?'<div class="upload"><label class="title">Conectado como '+esc(S.user)+'</label><button type="button" class="btn-primary" data-act="leer">Actualizar desde la base</button> <button type="button" class="btn-secondary" data-act="salir">Salir</button></div>'
      :'<div class="upload"><label class="title">Conectar con tu usuario del planificador</label><input type="email" id="sgp-email" placeholder="correo" autocomplete="username" style="width:190px"> <input type="password" id="sgp-pass" placeholder="contraseña" autocomplete="current-password" style="width:150px"> <button type="button" class="btn-primary" data-act="login">Conectar</button></div>')
      :'<div class="upload"><label class="title">Sin conexión a Firebase</label><div class="note">No se cargó el SDK de Firebase. Usa el archivo JSON exportado del planificador.</div></div>')
-   +'<div class="upload" style="background:#f6f7f9;border-color:var(--line)"><label class="title" for="sgp-json">o carga el JSON de "Exportar JSON" del planificador</label><input type="file" id="sgp-json" accept=".json,application/json"></div>'
+   +'<div class="upload" style="background:#f4f5f7;border-color:var(--line)"><label class="title" for="sgp-json">o carga el JSON de "Exportar JSON" del planificador</label><input type="file" id="sgp-json" accept=".json,application/json"></div>'
    +'</div><div class="status'+(S.srcMsg?(S.srcOk?' ok':' err'):'')+'" style="margin-top:8px">'+esc(S.srcMsg||'Aún no hay datos cargados.')+'</div></div>';
   var filtros=(DB?'<div class="panel"><h3>Seguimiento</h3><div class="row">'
    +'<div><label class="lb">Zafra</label><select id="sgp-zafra">'+oz+'</select></div>'
@@ -756,15 +813,20 @@ function viewControles(cs,names){
    +(fr.length?'<div style="margin-top:12px"><label class="lb">Frentes a mostrar</label><div class="checks">'+fr.map(function(f){return '<label><input type="checkbox" data-fr="'+esc(f)+'"'+(S.frSel[f]?' checked':'')+'> '+esc(f)+'</label>';}).join('')+'</div></div>':'')
    +'</div>':'');
   /* barra compacta: la fuente de datos y los filtros quedan ocultos y se despliegan solo cuando se necesitan */
-  var abrirF=!DB||S.verFuente||!!(S.srcMsg&&!S.srcOk),abrirL=!!(DB&&S.verFiltros);
+  var abrirL=!!(DB&&S.verFiltros);
   var resF=DB?((S.user?'Conectado como '+S.user:'Sin sesión')+' · '+DB.planItems.length+' lotes, '+DB.campos.length+' campos, '+DB.realRecords.length+' registros reales · '+DB.fuente.split(' (')[0]):'';
   var w=DB&&S.fMode?ventana():null,nFr=Object.keys(S.frSel||{}).filter(function(k){return S.frSel[k];}).length;
   var resL=DB?('Zafra '+S.zafra+' · '+(S.cur==='live'?'En vivo':'Corte guardado')+(S.base?' vs corte base':'')+' · '+(w?w.label:'Todo el plan')+' · '+nFr+'/'+fr.length+' frentes'):'';
   var barra=DB?'<div class="panel" style="padding:8px 14px"><div class="row" style="align-items:center;gap:10px 14px">'
-    +'<button type="button" class="btn-secondary" data-act="tFuente" aria-expanded="'+abrirF+'">'+(abrirF?'▾':'▸')+' Fuente de datos</button><span class="note">'+esc(resF)+'</span>'
     +'<button type="button" class="btn-secondary" data-act="tFiltros" aria-expanded="'+abrirL+'">'+(abrirL?'▾':'▸')+' Filtros</button><span class="note">'+esc(resL)+'</span>'
     +'</div></div>':'';
-  return barra+(abrirF?fuente:'')+(abrirL?filtros:'');
+  return barra+(abrirL?filtros:'');
+}
+function viewSinDatos(){
+  var msg=(S.srcMsg&&!S.srcOk)?'<div class="status err" style="margin-top:8px">'+esc(S.srcMsg)+'</div>':'';
+  if(S.fbListo&&!S.user)return '<div class="panel" style="max-width:560px;margin:40px auto"><h3>Sesión del planificador</h3><div class="note" style="margin-bottom:10px">Entra con tu usuario del planificador para leer su base de datos.</div><div class="row"><input type="email" id="sgp-email" placeholder="correo" autocomplete="username" style="width:190px"> <input type="password" id="sgp-pass" placeholder="contraseña" autocomplete="current-password" style="width:150px"> <button type="button" class="btn-primary" data-act="login">Entrar</button></div>'+msg+'</div>';
+  if(!S.fbListo)return '<div class="panel no-data">No se pudo iniciar la conexión con la base del planificador (revisa tu conexión a internet y recarga).'+msg+'</div>';
+  return '<div class="panel no-data">Leyendo la base del planificador…'+msg+'</div>';
 }
 function viewCalidad(cs){
   var d=diagnose(cs);
@@ -774,13 +836,14 @@ function viewCalidad(cs){
 function render(){
   if(!root)return;
   var y=window.scrollY;
-  if(!DB){root.innerHTML='<div class="app-wide">'+viewControles(null,null)+'<div class="panel no-data">Conecta con la base del planificador o carga su JSON para empezar.</div></div>';return;}
+  if(!DB){root.innerHTML='<div class="app-wide">'+viewSinDatos()+'</div>';return;}
   if(!DB.planItems.length){root.innerHTML='<div class="app-wide">'+viewControles({fechaBase:0},null)+'<div class="panel no-data">La base no tiene lotes en el plan.</div></div>';return;}
   var zs=zafrasDisponibles();if(zs.indexOf(S.zafra)<0)S.zafra=zafraInicial();
+  if(S.tab==='frentes')S.tab='programa';
   var cs=curSnap(),P=project(cs,opts()),names=project(cs,optsBase()).frentes.filter(function(f){return f.items.length;}).map(function(f){return f.frente;});
   if(!S.frSel||S.frSelZ!==S.zafra+'|'+S.cur){S.frSel={};S.frSelZ=S.zafra+'|'+S.cur;names.forEach(function(f){S.frSel[f]=true;});}
-  var tabs=[['resumen','Resumen y mapa'],['frentes','Frentes y lotes'],['programa','Programa por frente'],['seguimiento','Seguimiento entre cortes'],['calidad','Calidad de datos']];
-  var v=S.tab==='resumen'?viewResumen(P):S.tab==='frentes'?viewFrentes(P):S.tab==='programa'?viewPrograma(cs,P):S.tab==='seguimiento'?viewSeguimiento(cs):viewCalidad(cs);
+  var tabs=[['resumen','Resumen y mapa'],['programa','Programa por frente'],['seguimiento','Seguimiento entre cortes'],['calidad','Calidad de datos']];
+  var v=S.tab==='resumen'?viewResumen(P):S.tab==='programa'?viewPrograma(cs,P):S.tab==='seguimiento'?viewSeguimiento(cs):viewCalidad(cs);
   root.innerHTML='<div class="app-wide">'+viewControles(cs,names)+'<div class="tabs" role="tablist">'+tabs.map(function(t){return '<button type="button" role="tab" data-tab="'+t[0]+'" class="'+(S.tab===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+'</div>'+v+'</div>';
   window.scrollTo(0,y);
 }
@@ -847,7 +910,7 @@ function bind(){
   root.addEventListener('keydown',function(e){if(e.key==='Enter'&&(e.target.id==='sgp-pass'||e.target.id==='sgp-email'))login();});
 }
 function mount(el){root=el;cargarLocal();bind();iniciarFirebase();render();}
-return {mount:mount,api:{puLote:puLote,nMaqAlCrear:nMaqAlCrear,fromBase:fromBase,project:project,compare:compare,diagnose:diagnose,state:S,render:render,setDB:function(d){DB=normalizarDB(d,'API');S.zafra='';render();}}};
+return {mount:mount,api:{recargar:function(){if(fbDb&&S.user)leerDesdeFirestore();else render();},puLote:puLote,nMaqAlCrear:nMaqAlCrear,fromBase:fromBase,project:project,compare:compare,diagnose:diagnose,state:S,render:render,setDB:function(d){DB=normalizarDB(d,'API');S.zafra='';render();}}};
 })();
 SGP.mount(document.getElementById('sgp-root'));
 

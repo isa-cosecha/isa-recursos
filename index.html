@@ -3932,6 +3932,8 @@ var LAB_TOL_MAD_DIAS = 7;        // tolerancia entre la fecha objetivo de corte 
 var LAB_MAX_FILAS_TABLA = 400;
 var _labIdxQ = {}, _labIdxM = {}, _labIdxC = null, _labIdxCRef = null;
 var _labTab = 'cruce';
+function labVentRead() { var v = (laboresMeta && laboresMeta.ventanaMad) || {}; return { tol: (v.tol >= 0 ? +v.tol : 5), ovr: (v.ovr && typeof v.ovr === 'object') ? v.ovr : {} }; }
+function labVentWrite() { labAsegurarMeta(); var v = laboresMeta.ventanaMad; if (!v || typeof v !== 'object') v = laboresMeta.ventanaMad = { tol: 5, ovr: {} }; if (!(v.tol >= 0)) v.tol = 5; if (!v.ovr || typeof v.ovr !== 'object') v.ovr = {}; return v; }
 var _labPend = null;
 
 function labEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -4296,6 +4298,7 @@ function labConfirmarCarga() {
   _labPend = null; document.getElementById('lab-preview-modal').style.display = 'none';
   labRefrescarMotor(); autoSave();
   var sel = document.getElementById('lab-zafra'); if (sel) { labPoblarZafras(); sel.value = z; }
+  if (!esQ) _labTab = 'ventana';   // al subir una versión del madurador se abre la ventana para revisarla
   renderLabores();
   showToast('Plan de ' + (esQ ? 'quema' : 'madurador') + ' ' + z + ' v' + ficha.version + ' cargado: ' + S.filas + ' filas, ' + S.codigos + ' lotes');
 }
@@ -4316,6 +4319,61 @@ function labToggleUsarQuema(chk) {
   showToast(chk.checked ? 'El Plan de Quema define Verde/Quemada por zafra' : 'Se usa el tipo de caña de Campos');
 }
 
+/* ── Ventana del madurador ──
+   Media ponderada (por Ha aplicadas) de «Días Madurador a Corte (Plan)» por producto y tenencia (Propio / Proveedor) de la zafra.
+   El corte debe llegar al lote con (fecha de corte − fecha de aplicación) = media ± tolerancia. Los ajustes manuales se guardan en
+   laboresMeta.ventanaMad (clave zafra|producto|tenencia) y sobreviven a cada nueva versión del plan. El seguimiento los lee de aquí. */
+function labTen(t) { return /prov/i.test(t || '') ? 'Proveedor' : 'Propio'; }
+function labVentKey(z, p, t) { return z + '|' + p + '|' + t; }
+function labVentGrupos(z) {
+  var ten = {}, g = {}, cfg = labVentRead(), list = [];
+  planItems.forEach(function (p) { if (p.zafra === z) ten[labKey(p.campoNombre)] = labTen(p.tenencia); });
+  campos.forEach(function (c) { var k = labKey(c.nombre); if (!ten[k]) ten[k] = labTen(c.tenencia); });
+  var sinTen = 0, sinDias = 0;
+  planMadurador.forEach(function (r) {
+    if (r.zafra !== z) return;
+    if (r.diasCorte == null) { sinDias++; return; }
+    var t = ten[labKey(r.codigo)]; if (!t) { sinTen++; return; }
+    var p = r.producto || '(sin producto)', k = p + '|' + t, o = g[k] || (g[k] = { producto: p, tenencia: t, ha: 0, hd: 0, lotes: {} }), h = +r.haTotal || 0;
+    o.ha += h; o.hd += h * r.diasCorte; o.lotes[labKey(r.codigo)] = 1;
+  });
+  Object.keys(g).forEach(function (k) {
+    var o = g[k], c = cfg.ovr[labVentKey(z, o.producto, o.tenencia)] || {};
+    o.n = Object.keys(o.lotes).length; o.media = o.ha > 0 ? o.hd / o.ha : null;
+    o.manualD = c.dias > 0; o.manualT = (c.tol != null && c.tol >= 0);
+    o.dias = o.manualD ? c.dias : o.media; o.tol = o.manualT ? c.tol : cfg.tol;
+    o.lo = o.dias != null ? Math.round(o.dias - o.tol) : null; o.hi = o.dias != null ? Math.round(o.dias + o.tol) : null; list.push(o);
+  });
+  list.sort(function (a, b) { return a.producto < b.producto ? -1 : a.producto > b.producto ? 1 : (a.tenencia < b.tenencia ? -1 : 1); });
+  return { list: list, sinTen: sinTen, sinDias: sinDias };
+}
+function labVentSet(key, campo, el) {
+  if (!labPuedeEditar()) return;
+  var v = labVentWrite(), o = v.ovr[key] || (v.ovr[key] = {}), n = parseFloat(el.value);
+  if (campo === 'dias') o.dias = n > 0 ? n : null; else o.tol = (el.value !== '' && n >= 0) ? n : null;
+  if (o.dias == null && o.tol == null) delete v.ovr[key];
+  autoSave(); renderLabores();
+}
+function labVentTol(el) { if (!labPuedeEditar()) return; var v = labVentWrite(), n = parseFloat(el.value); v.tol = (n >= 0 && n <= 30) ? n : 5; autoSave(); renderLabores(); }
+function labVentReset() { if (!labPuedeEditar() || !confirm('¿Restablecer la ventana del madurador (días y tolerancias manuales) a los valores del plan?')) return; labAsegurarMeta(); delete laboresMeta.ventanaMad; autoSave(); renderLabores(); }
+function labHtmlVentana(z) {
+  var G = labVentGrupos(z), cfg = labVentRead(), puede = labPuedeEditar(), dis = puede ? '' : ' disabled';
+  var v = laboresMeta.vigente['M||' + z];
+  if (!G.list.length) return '<div class="alert alert-warn"><i class="ti ti-info-circle"></i><span>No hay Plan de Madurador con días a corte para ' + z + '. Cárgalo y aquí podrás revisar la ventana.</span></div>';
+  var h = '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">Ventana en la que el corte debe llegar al lote, contada desde la aplicación del madurador: <strong>media ponderada por hectáreas aplicadas</strong> de los «Días Madurador a Corte (Plan)» de cada producto, separada por tenencia, <strong>± tolerancia</strong>. ' +
+    (v ? 'Calculada con el plan vigente v' + (v.version || 1) + ' (' + labEsc(v.archivo || '') + '). ' : '') + 'El seguimiento de cosecha usa esta configuración. Los ajustes manuales se conservan al subir una nueva versión del plan.</p>';
+  h += '<div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:10px"><div style="width:180px"><label style="font-size:11px">Tolerancia general (± días)</label><input type="number" min="0" max="30" step="1" value="' + cfg.tol + '" onchange="labVentTol(this)"' + dis + ' style="margin:0"></div>' +
+    (puede ? '<button class="btn btn-sm" onclick="labVentReset()">Restablecer a los valores del plan</button>' : '') + '</div>';
+  h += labTabla(['Producto', 'Tenencia', 'Lotes', 'Ha aplicadas', 'Días plan (media ponderada)', 'Días a usar', 'Tolerancia ±', 'Ventana (días)'], G.list.map(function (g) {
+    var k = labEsc(labVentKey(z, g.producto, g.tenencia));
+    return '<tr><td>' + labEsc(g.producto) + '</td><td>' + (g.tenencia === 'Proveedor' ? 'Proveedores' : 'Propio') + '</td><td style="text-align:right">' + labFmt(g.n) + '</td><td style="text-align:right">' + labFmt(g.ha, 1) + '</td><td style="text-align:right">' + labFmt(g.media, 1) + '</td>' +
+      '<td style="text-align:right"><input type="number" min="1" step="1" style="width:84px;margin:0;text-align:right" placeholder="' + labFmt(g.media, 1) + '" value="' + (g.manualD ? g.dias : '') + '" onchange="labVentSet(\'' + k + '\',\'dias\',this)"' + dis + '></td>' +
+      '<td style="text-align:right"><input type="number" min="0" max="30" step="1" style="width:84px;margin:0;text-align:right" placeholder="' + cfg.tol + '" value="' + (g.manualT ? g.tol : '') + '" onchange="labVentSet(\'' + k + '\',\'tol\',this)"' + dis + '></td>' +
+      '<td><strong>' + g.lo + '–' + g.hi + ' d</strong>' + (g.manualD || g.manualT ? ' <span class="badge badge-amber" style="font-size:10px">manual</span>' : '') + '</td></tr>';
+  }));
+  h += '<div style="font-size:11px;color:var(--text2);margin-top:8px">Deja «Días a usar» o «Tolerancia» vacíos para usar la media del plan y la tolerancia general.' + (G.sinTen ? ' ' + G.sinTen + ' fila(s) del plan se omitieron por no encontrar el lote en Campos/Planificación (sin tenencia).' : '') + (G.sinDias ? ' ' + G.sinDias + ' fila(s) sin «Días a corte» no entran en la media.' : '') + '</div>';
+  return h;
+}
 /* ── Cruce con el plan de cosecha ── */
 function labCruceZafra(z) {
   var qi = labIdxQuema(z), mi = labIdxMad(z), cidx = labIdxCampos(), usados = {}, musados = {};
@@ -4386,10 +4444,10 @@ function renderLabores() {
   var kQ = ixQ ? labKpi('Lotes', labFmt(sQ.codigos), labFmt(sQ.filas) + ' registros') + labKpi('Ha a quemar', labFmt(sQ.ha, 1), '') + labKpi('Primera quema', sQ.fMin, '') + labKpi('Última quema', sQ.fMax, '') : '';
   var kM = ixM ? labKpi('Lotes', labFmt(sM.codigos), labFmt(sM.filas) + ' aplicaciones') + labKpi('Ha aplicadas', labFmt(sM.ha, 1), '') + labKpi('Días a corte', sM.diasProm != null ? labFmt(sM.diasProm, 1) : '–', 'promedio ponderado') + labKpi('Aplicaciones', sM.fMin ? sM.fMin.slice(5) + ' → ' + sM.fMax.slice(5) : '–', '') : '';
   document.getElementById('lab-resumen').innerHTML = '<div class="grid2">' + tarjeta('Q', ixQ, fQ, kQ) + tarjeta('M', ixM, fM, kM) + '</div>';
-  var tabs = [['cruce', 'Cruce con la cosecha'], ['quema', 'Detalle quema'], ['madurador', 'Detalle madurador'], ['historial', 'Historial de cargas']];
+  var tabs = [['cruce', 'Cruce con la cosecha'], ['quema', 'Detalle quema'], ['madurador', 'Detalle madurador'], ['ventana', 'Ventana madurador'], ['historial', 'Historial de cargas']];
   document.getElementById('lab-tabs').innerHTML = tabs.map(function (t) { return '<button class="btn btn-sm' + (_labTab === t[0] ? ' btn-primary' : '') + '" onclick="labTab(\'' + t[0] + '\')">' + t[1] + '</button>'; }).join(' ');
   var h = '';
-  if (_labTab === 'cruce') h = labHtmlCruce(z); else if (_labTab === 'quema') h = labHtmlDetalle('Q', z); else if (_labTab === 'madurador') h = labHtmlDetalle('M', z); else h = labHtmlHistorial();
+  if (_labTab === 'cruce') h = labHtmlCruce(z); else if (_labTab === 'quema') h = labHtmlDetalle('Q', z); else if (_labTab === 'madurador') h = labHtmlDetalle('M', z); else if (_labTab === 'ventana') h = labHtmlVentana(z); else h = labHtmlHistorial();
   document.getElementById('lab-contenido').innerHTML = h;
 }
 function labFiltroVal(id) { var el = document.getElementById(id); return el ? el.value : ''; }
