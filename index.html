@@ -1588,6 +1588,17 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
       </div>
     </div>
 
+    <!-- Formulario: ventana del madurador -->
+    <div id="lab-vent-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0">
+      <div style="background:var(--bg);border-radius:var(--radius-lg);padding:24px;max-width:880px;width:94%;margin:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <div style="font-size:16px;font-weight:600"><i class="ti ti-adjustments" style="margin-right:8px;color:var(--green)"></i><span id="lab-vent-titulo">Ventana del madurador</span></div>
+          <button class="btn btn-sm" onclick="document.getElementById('lab-vent-modal').style.display='none'"><i class="ti ti-x"></i> Cerrar</button>
+        </div>
+        <div id="lab-vent-body"></div>
+      </div>
+    </div>
+
     <!-- Gestión de usuarios y roles (solo administradores) -->
     <div id="gestion-usuarios-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 0">
       <div style="background:var(--bg);border-radius:var(--radius-lg);padding:24px;max-width:640px;width:94%;margin:auto;box-shadow:0 8px 40px rgba(0,0,0,.3)">
@@ -2249,10 +2260,6 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
         <div id="lab-resumen"></div>
         <input type="file" id="lab-file-Q" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="labImportarArchivo('Q', this)">
         <input type="file" id="lab-file-M" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="labImportarArchivo('M', this)">
-      </div>
-      <div class="card" id="lab-ventana-card" style="display:none">
-        <div class="card-title" id="lab-ventana-titulo">Ventana del madurador</div>
-        <div id="lab-ventana"></div>
       </div>
       <div class="card">
         <div id="lab-tabs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"></div>
@@ -4359,21 +4366,37 @@ function labVentSet(key, campo, el) {
 }
 function labVentTol(el) { if (!labPuedeEditar()) return; var v = labVentWrite(), n = parseFloat(el.value); v.tol = (n >= 0 && n <= 30) ? n : 5; autoSave(); renderLabores(); }
 function labVentReset() { if (!labPuedeEditar() || !confirm('¿Restablecer la ventana del madurador (días y tolerancias manuales) a los valores del plan?')) return; labAsegurarMeta(); delete laboresMeta.ventanaMad; autoSave(); renderLabores(); }
+function labVentAbrir() { var m = document.getElementById('lab-vent-modal'); if (!m) return; m.style.display = 'flex'; labVentRefrescar(); }
+function labVentRefrescar() {
+  var m = document.getElementById('lab-vent-modal'); if (!m || m.style.display !== 'flex') return;
+  var z = labFiltroVal('lab-zafra'), v = laboresMeta.vigente['M||' + z];
+  document.getElementById('lab-vent-titulo').textContent = 'Ventana del madurador · ' + z + (v ? ' · plan v' + (v.version || 1) : '');
+  document.getElementById('lab-vent-body').innerHTML = labHtmlVentana(z);
+}
 function labHtmlVentana(z) {
   var G = labVentGrupos(z), cfg = labVentRead(), puede = labPuedeEditar(), dis = puede ? '' : ' disabled';
   var v = laboresMeta.vigente['M||' + z];
-  if (!G.list.length) return '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>Hay plan de madurador cargado para ' + z + ', pero ninguna fila pudo entrar al cálculo de la ventana' + (G.sinTen ? ': ' + G.sinTen + ' fila(s) con un código que no existe en Campos ni en Planificación (no se conoce su tenencia)' : '') + (G.sinDias ? '; ' + G.sinDias + ' fila(s) sin «Días Madurador a Corte (Plan)»' : '') + '.</span></div>';
-  var h = '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">Ventana en la que el corte debe llegar al lote, contada desde la aplicación del madurador: <strong>media ponderada por hectáreas aplicadas</strong> de los «Días Madurador a Corte (Plan)» de cada producto, separada por tenencia, <strong>± tolerancia</strong>. ' +
-    (v ? 'Calculada con el plan vigente v' + (v.version || 1) + ' (' + labEsc(v.archivo || '') + '). ' : '') + 'El seguimiento de cosecha usa esta configuración. Los ajustes manuales se conservan al subir una nueva versión del plan.</p>';
-  h += '<div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:10px"><div style="width:180px"><label style="font-size:11px">Tolerancia general (± días)</label><input type="number" min="0" max="30" step="1" value="' + cfg.tol + '" onchange="labVentTol(this)"' + dis + ' style="margin:0"></div>' +
+  if (!G.list.length) return '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>No hay plan de madurador con datos para calcular la ventana en ' + z + (G.sinTen ? ': ' + G.sinTen + ' fila(s) con un código que no existe en Campos ni en Planificación (no se conoce su tenencia)' : '') + (G.sinDias ? '; ' + G.sinDias + ' fila(s) sin «Días Madurador a Corte (Plan)»' : '') + '.</span></div>';
+  var h = '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">Ventana en la que el corte debe llegar al lote, contada desde la aplicación: <strong>media ponderada por hectáreas aplicadas</strong> de los «Días Madurador a Corte (Plan)», por tenencia y producto, <strong>± tolerancia</strong>. ' +
+    (v ? 'Calculada con el plan vigente v' + (v.version || 1) + ' (' + labEsc(v.archivo || '') + '). ' : '') + 'El seguimiento de cosecha usa esta configuración y los ajustes manuales se conservan al subir una nueva versión del plan.</p>';
+  h += '<div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:12px"><div style="width:180px"><label style="font-size:11px">Tolerancia general (± días)</label><input type="number" min="0" max="30" step="1" value="' + cfg.tol + '" onchange="labVentTol(this)"' + dis + ' style="margin:0"></div>' +
     (puede ? '<button class="btn btn-sm" onclick="labVentReset()">Restablecer a los valores del plan</button>' : '') + '</div>';
-  h += labTabla(['Producto', 'Tenencia', 'Lotes', 'Ha aplicadas', 'Días plan (media ponderada)', 'Días a usar', 'Tolerancia ±', 'Ventana (días)'], G.list.map(function (g) {
-    var k = labEsc(labVentKey(z, g.producto, g.tenencia));
-    return '<tr><td>' + labEsc(g.producto) + '</td><td>' + (g.tenencia === 'Proveedor' ? 'Proveedores' : 'Propio') + '</td><td style="text-align:right">' + labFmt(g.n) + '</td><td style="text-align:right">' + labFmt(g.ha, 1) + '</td><td style="text-align:right">' + labFmt(g.media, 1) + '</td>' +
-      '<td style="text-align:right"><input type="number" min="1" step="1" style="width:84px;margin:0;text-align:right" placeholder="' + labFmt(g.media, 1) + '" value="' + (g.manualD ? g.dias : '') + '" onchange="labVentSet(\'' + k + '\',\'dias\',this)"' + dis + '></td>' +
-      '<td style="text-align:right"><input type="number" min="0" max="30" step="1" style="width:84px;margin:0;text-align:right" placeholder="' + cfg.tol + '" value="' + (g.manualT ? g.tol : '') + '" onchange="labVentSet(\'' + k + '\',\'tol\',this)"' + dis + '></td>' +
-      '<td><strong>' + g.lo + '–' + g.hi + ' d</strong>' + (g.manualD || g.manualT ? ' <span class="badge badge-amber" style="font-size:10px">manual</span>' : '') + '</td></tr>';
-  }));
+  var orden = { 'Propio': 0, 'Proveedor': 1 }, porTen = {};
+  G.list.forEach(function (g) { (porTen[g.tenencia] || (porTen[g.tenencia] = [])).push(g); });
+  var filas = [];
+  Object.keys(porTen).sort(function (a, b) { return (orden[a] == null ? 9 : orden[a]) - (orden[b] == null ? 9 : orden[b]); }).forEach(function (t) {
+    var gs = porTen[t].sort(function (a, b) { return a.producto < b.producto ? -1 : 1; }), lotes = {}, ha = 0;
+    gs.forEach(function (g) { ha += g.ha; });
+    filas.push('<tr><td colspan="6" style="background:var(--bg2);font-weight:600;color:var(--brand)">' + (t === 'Proveedor' ? 'Proveedores' : 'Propio') + ' <span style="font-weight:400;color:var(--text2)">· ' + gs.length + ' producto(s) · ' + labFmt(ha, 1) + ' ha aplicadas</span></td></tr>');
+    gs.forEach(function (g) {
+      var k = labEsc(labVentKey(z, g.producto, g.tenencia));
+      filas.push('<tr><td style="padding-left:22px">' + labEsc(g.producto) + '</td><td style="text-align:right">' + labFmt(g.n) + '</td><td style="text-align:right">' + labFmt(g.ha, 1) + '</td><td style="text-align:right">' + labFmt(g.media, 1) + '</td>' +
+        '<td style="text-align:right"><input type="number" min="1" step="1" style="width:84px;margin:0;text-align:right" placeholder="' + labFmt(g.media, 1) + '" value="' + (g.manualD ? g.dias : '') + '" onchange="labVentSet(\'' + k + '\',\'dias\',this)"' + dis + '></td>' +
+        '<td style="text-align:right"><input type="number" min="0" max="30" step="1" style="width:84px;margin:0;text-align:right" placeholder="' + cfg.tol + '" value="' + (g.manualT ? g.tol : '') + '" onchange="labVentSet(\'' + k + '\',\'tol\',this)"' + dis + '></td>' +
+        '<td><strong>' + g.lo + '–' + g.hi + ' d</strong>' + (g.manualD || g.manualT ? ' <span class="badge badge-amber" style="font-size:10px">manual</span>' : '') + '</td></tr>');
+    });
+  });
+  h += labTabla(['Producto', 'Lotes', 'Ha aplicadas', 'Días plan (media pond.)', 'Días a usar', 'Tolerancia ±', 'Ventana (días)'], filas).replace('<th>Ventana (días)</th></tr>', '<th>Ventana (días)</th></tr>');
   h += '<div style="font-size:11px;color:var(--text2);margin-top:8px">Deja «Días a usar» o «Tolerancia» vacíos para usar la media del plan y la tolerancia general.' + (G.sinTen ? ' ' + G.sinTen + ' fila(s) del plan se omitieron por no encontrar el lote en Campos/Planificación (sin tenencia).' : '') + (G.sinDias ? ' ' + G.sinDias + ' fila(s) sin «Días a corte» no entran en la media.' : '') + '</div>';
   return h;
 }
@@ -4438,6 +4461,7 @@ function renderLabores() {
     } else h += '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">' + (esQ ? 'Mientras no se cargue, todos los lotes de la zafra se asumen a corte en verde.' : 'Aún no se cargó el plan de madurador de esta zafra.') + '</p>';
     h += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
     if (puede) h += '<button class="btn btn-sm btn-primary" onclick="labImportarElegir(\'' + tipo + '\')"><i class="ti ti-file-upload"></i> ' + (ix ? 'Actualizar' : 'Cargar') + ' (.xlsx / .csv)</button>';
+    if (ix && !esQ) h += '<button class="btn btn-sm" onclick="labVentAbrir()"><i class="ti ti-adjustments"></i> Ventana de madurador</button>';
     if (ix) h += '<button class="btn btn-sm" onclick="labExportarCSV(\'' + tipo + '\')"><i class="ti ti-download"></i> CSV</button>';
     if (ix && puede) h += '<button class="btn btn-sm btn-danger" onclick="labEliminarPlan(\'' + tipo + '\',\'' + z + '\')"><i class="ti ti-trash"></i></button>';
     return h + '</div></div>';
@@ -4447,11 +4471,7 @@ function renderLabores() {
   var kQ = ixQ ? labKpi('Lotes', labFmt(sQ.codigos), labFmt(sQ.filas) + ' registros') + labKpi('Ha a quemar', labFmt(sQ.ha, 1), '') + labKpi('Primera quema', sQ.fMin, '') + labKpi('Última quema', sQ.fMax, '') : '';
   var kM = ixM ? labKpi('Lotes', labFmt(sM.codigos), labFmt(sM.filas) + ' aplicaciones') + labKpi('Ha aplicadas', labFmt(sM.ha, 1), '') + labKpi('Días a corte', sM.diasProm != null ? labFmt(sM.diasProm, 1) : '–', 'promedio ponderado') + labKpi('Aplicaciones', sM.fMin ? sM.fMin.slice(5) + ' → ' + sM.fMax.slice(5) : '–', '') : '';
   document.getElementById('lab-resumen').innerHTML = '<div class="grid2">' + tarjeta('Q', ixQ, fQ, kQ) + tarjeta('M', ixM, fM, kM) + '</div>';
-  var vc = document.getElementById('lab-ventana-card');
-  if (vc) {
-    vc.style.display = ixM ? 'block' : 'none';
-    if (ixM) { document.getElementById('lab-ventana-titulo').textContent = 'Ventana del madurador · ' + z + (fM ? ' · plan v' + (fM.version || 1) : ''); document.getElementById('lab-ventana').innerHTML = labHtmlVentana(z); }
-  }
+  labVentRefrescar();
   var tabs = [['cruce', 'Cruce con la cosecha'], ['quema', 'Detalle quema'], ['madurador', 'Detalle madurador'], ['historial', 'Historial de cargas']];
   document.getElementById('lab-tabs').innerHTML = tabs.map(function (t) { return '<button class="btn btn-sm' + (_labTab === t[0] ? ' btn-primary' : '') + '" onclick="labTab(\'' + t[0] + '\')">' + t[1] + '</button>'; }).join(' ');
   var h = '';
