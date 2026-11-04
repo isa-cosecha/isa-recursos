@@ -2245,7 +2245,6 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
       <div class="card">
         <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:14px">
           <div style="min-width:180px"><label>Zafra</label><select id="lab-zafra" onchange="renderLabores()" style="margin:0"></select></div>
-          <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text);margin:0 0 6px;cursor:pointer"><input type="checkbox" id="lab-usar-quema" onchange="labToggleUsarQuema(this)" style="width:auto;margin:0"> Usar el Plan de Quema para definir Verde/Quemada de cada lote en la zafra (si hay plan cargado)</label>
         </div>
         <div id="lab-resumen"></div>
         <input type="file" id="lab-file-Q" accept=".xlsx,.xls,.csv,.txt" style="display:none" onchange="labImportarArchivo('Q', this)">
@@ -3938,7 +3937,7 @@ var _labPend = null;
 function labEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 function labKey(n) { return String(n == null ? '' : n).trim().replace(/^0+/, ''); }
 function labFmt(n, d) { return (n == null || isNaN(n)) ? '–' : Number(n).toLocaleString('es', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
-function labUsarPlanQuema() { return !laboresMeta || laboresMeta.usarPlanQuemaTipoCana !== false; }
+function labUsarPlanQuema() { return true; }   // regla fija: con plan manda el plan; sin plan cargado, todo se asume Verde
 function labHayDatos() { return planMadurador.length > 0 || planQuema.length > 0 || !!(laboresMeta && laboresMeta.historial && laboresMeta.historial.length); }
 function labPuedeEditar() { return !(typeof fbRolActual !== 'undefined' && fbRolActual === 'visor'); }
 function labInvalidar() { _labIdxQ = {}; _labIdxM = {}; _labIdxC = null; _labIdxCRef = null; }
@@ -4007,8 +4006,8 @@ function labIdxMad(z) {
 
 /* Tipo de caña de un campo en una zafra según el Plan de Quema: 'Quemada' | 'Verde' | null (no hay plan → no se toca) */
 function tipoCanaPorPlanQuema(c, z) {
-  if (!c || !z || !labUsarPlanQuema()) return null;
-  var ix = labIdxQuema(z); if (!ix) return null;
+  if (!c || !z) return null;
+  var ix = labIdxQuema(z); if (!ix) return 'Verde';   // sin plan de quema cargado para la zafra: todo a corte en verde
   return ix.map[labKey(c.nombre)] ? 'Quemada' : 'Verde';
 }
 /* Insignias para la tabla de Planificación (🔥/🌿 por plan de quema, 🧪 madurador) */
@@ -4302,7 +4301,7 @@ function labConfirmarCarga() {
 }
 function labEliminarPlan(tipo, z) {
   if (!labPuedeEditar()) return;
-  if (!confirm('¿Eliminar el plan de ' + (tipo === 'Q' ? 'quema' : 'madurador') + ' de la zafra ' + z + '? ' + (tipo === 'Q' ? 'Los lotes de esa zafra volverán a usar el tipo de caña (Verde/Quemada) registrado en Campos.' : '') )) return;
+  if (!confirm('¿Eliminar el plan de ' + (tipo === 'Q' ? 'quema' : 'madurador') + ' de la zafra ' + z + '? ' + (tipo === 'Q' ? 'Todos los lotes de esa zafra volverán a asumirse a corte en verde.' : '') )) return;
   labAsegurarMeta();
   if (tipo === 'Q') planQuema = planQuema.filter(function (r) { return r.zafra !== z; }); else planMadurador = planMadurador.filter(function (r) { return r.zafra !== z; });
   var prev = laboresMeta.vigente[tipo + '||' + z]; delete laboresMeta.vigente[tipo + '||' + z];
@@ -4325,7 +4324,7 @@ function labCruceZafra(z) {
     var k = labKey(p.campoNombre), c = cidx[k] || campos.find(function (x) { return x.id === p.campoId; }) || null;
     usados[k] = 1; musados[k] = 1;
     var tCampos = (c && c.tipoCana) || 'Verde', q = qi ? qi.map[k] : null, m = mi ? mi.map[k] : null;
-    var tPlan = qi ? (q ? 'Quemada' : 'Verde') : null;
+    var tPlan = q ? 'Quemada' : 'Verde';
     var esp = (q && q.fMin && p.fechaInicio) ? labDias(q.fMin, p.fechaInicio) : null;
     var dObj = (m && m.fObjetivo && p.fechaInicio) ? labDias(m.fObjetivo, p.fechaInicio) : null;
     var al = [];
@@ -4375,7 +4374,7 @@ function renderLabores() {
       h += '<div class="preview-grid" style="grid-template-columns:repeat(4,1fr)">' + kpis + '</div>';
       if (ficha) h += '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Archivo <strong>' + labEsc(ficha.archivo || '–') + '</strong> · cargado por ' + labEsc(ficha.usuario || '–') + ' · ' + (ficha.fecha ? new Date(ficha.fecha).toLocaleString() : '–') + '</div>';
       else h += '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Sin ficha de carga (datos importados desde un JSON anterior).</div>';
-    } else h += '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">' + (esQ ? 'Sin este plan, el tipo de caña (Verde/Quemada) de la zafra sale del registro de cada campo.' : 'Aún no se cargó el plan de madurador de esta zafra.') + '</p>';
+    } else h += '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">' + (esQ ? 'Mientras no se cargue, todos los lotes de la zafra se asumen a corte en verde.' : 'Aún no se cargó el plan de madurador de esta zafra.') + '</p>';
     h += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
     if (puede) h += '<button class="btn btn-sm btn-primary" onclick="labImportarElegir(\'' + tipo + '\')"><i class="ti ti-file-upload"></i> ' + (ix ? 'Actualizar' : 'Cargar') + ' (.xlsx / .csv)</button>';
     if (ix) h += '<button class="btn btn-sm" onclick="labExportarCSV(\'' + tipo + '\')"><i class="ti ti-download"></i> CSV</button>';
@@ -4404,7 +4403,7 @@ function labBadgeAl(a) {
 function labHtmlCruce(z) {
   var R = labCruceZafra(z), h = '';
   if (!R.nPlan) return '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>No hay lotes en el plan de cosecha de la zafra ' + z + ' (Planificación). El cruce se muestra cuando exista ese plan.</span></div>';
-  if (!R.qi) h += '<div class="alert alert-warn"><i class="ti ti-flame"></i><span>No hay Plan de Quema cargado para ' + z + ': el tipo de caña sale del registro de cada campo.</span></div>';
+  if (!R.qi) h += '<div class="alert alert-warn"><i class="ti ti-flame"></i><span>No hay Plan de Quema cargado para ' + z + ': todos los lotes se asumen a corte en verde hasta que se cargue.</span></div>';
   h += '<div class="preview-grid" style="grid-template-columns:repeat(6,1fr)">' +
     labKpi('Lotes en plan de cosecha', labFmt(R.nPlan), labFmt(R.haPlan, 1) + ' ha') +
     labKpi('A corte QUEMADO', R.qi ? labFmt(R.nQuemar) : '–', R.qi ? labFmt(R.haQuemar, 1) + ' ha · ' + (R.haPlan ? labFmt(100 * R.haQuemar / R.haPlan, 1) : '0') + '%' : 'sin plan de quema') +

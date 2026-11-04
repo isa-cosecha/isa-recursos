@@ -162,7 +162,7 @@ function labSep(d){ /* quema y madurador: del JSON (planQuema/planMadurador) o d
 }
 function laborTag(p){ /* quema/madurador del lote en su zafra: 🔥 en plan de quema, 🌿 fuera (si la zafra tiene plan), 🧪 madurador */
   if(!DB||!DB.labores||!p)return '';var k=p.zafra+'|'+labKey(p.campoNombre),L=DB.labores,t='';
-  if(L.zQ[p.zafra]){var q=L.Q[k];t+=q?'<span title="Plan de quema: '+q.f+(q.n>1?' ('+q.n+' bloques)':'')+'" style="margin-left:4px">🔥'+q.f.slice(5)+'</span>':'<span title="Fuera del plan de quema: corte en verde" style="margin-left:4px">🌿</span>';}
+  {var q=L.Q[k];t+=q?'<span title="Plan de quema: '+q.f+(q.n>1?' ('+q.n+' bloques)':'')+'" style="margin-left:4px">🔥'+q.f.slice(5)+'</span>':'<span title="Fuera del plan de quema (o sin plan cargado): corte en verde" style="margin-left:4px">🌿</span>';}
   var m=L.M[k];if(m)t+='<span title="Madurador aplicado '+m.f+' · '+m.dias+' d a corte → objetivo '+(m.obj||'—')+'" style="margin-left:4px">🧪'+(m.dias!=null?m.dias+'d':'')+'</span>';
   return t;
 }
