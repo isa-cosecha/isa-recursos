@@ -89,7 +89,11 @@
 .sgp .chip{display:inline-block;font-size:11.5px;font-weight:700;border-radius:12px;padding:3px 10px;background:var(--panel);border:1px solid var(--line);margin-right:6px}
 @media (max-width:1000px){.sgp .fcard-grid{grid-template-columns:minmax(0,1fr)}}
 .sgp .kpis.k4{grid-template-columns:repeat(4,1fr)}
+.sgp .kpis.k6{grid-template-columns:repeat(6,1fr)}
+@media (max-width:1400px){.sgp .kpis.k6{grid-template-columns:repeat(3,1fr)}}
 @media (max-width:1400px){.sgp .kpis,.sgp .kpis.k4{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:1400px){.sgp .kpis.k6{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:760px){.sgp .kpis.k6{grid-template-columns:repeat(2,1fr)}}
 
 .sgp .tabs button.on{color:var(--navy)}
 .sgp .st{display:inline-block;font-size:11px;font-weight:700;border-radius:10px;padding:1px 8px}
@@ -633,14 +637,16 @@ function stHtml(e){return '<span class="st '+(e==='Completo'?'c':e==='En cosecha
 function avance(i){return i.tonPlan>0?Math.min(100,i.tonReal/i.tonPlan*100):0;}
 
 function viewResumen(P){
-  var win=P.win,F=win?P.frentes.filter(function(f){return f.items.length;}):P.frentes,prog=F.filter(function(f){return f.items.length;}),tonT=0,nT=0,fin=P.snap.fechaBase,B={adel:0,vent:0,leve:0,crit:0,nd:0},tPl=0,tRe=0,tVe=0;
-  prog.forEach(function(f){tonT+=f.tonTotal;tPl+=f.tonPlan;tRe+=f.tonReal;tVe+=f.tonVent;nT+=f.items.filter(function(i){return i.estado!=='Completo';}).length;if(f.tonTotal>0&&f.fin>fin)fin=f.fin;ORDEN_B.concat('nd').forEach(function(k){B[k]+=f.bandas[k];});});
+  var win=P.win,F=win?P.frentes.filter(function(f){return f.items.length;}):P.frentes,prog=F.filter(function(f){return f.items.length;}),tonT=0,haPend=0,haPl=0,nT=0,fin=P.snap.fechaBase,B={adel:0,vent:0,leve:0,crit:0,nd:0},tPl=0,tRe=0,tVe=0;
+  prog.forEach(function(f){tonT+=f.tonTotal;haPend+=f.haTotal;haPl+=f.haPlan;tPl+=f.tonPlan;tRe+=f.tonReal;tVe+=f.tonVent;nT+=f.items.filter(function(i){return i.estado!=='Completo';}).length;if(f.tonTotal>0&&f.fin>fin)fin=f.fin;ORDEN_B.concat('nd').forEach(function(k){B[k]+=f.bandas[k];});});
   var tarde=B.leve+B.crit;
   var banner=win?'<div class="diag info" style="margin-bottom:14px"><b>Filtro</b><span>'+esc(ventanaTxt(win))+': se muestran los lotes que llegan o están en cosecha dentro de esa ventana ('+prog.reduce(function(a,f){return a+f.items.length;},0)+' lotes en '+prog.length+' frentes). Toneladas que se cortarían dentro de la ventana: <b>'+fN(tVe)+' t</b> (prorrateo por días de cada lote).</span></div>':'';
-  var k='<div class="kpis k4">'
+  var k='<div class="kpis k6">'
+   +'<div class="kpi"><div class="k">Hectáreas pendientes'+(win?' (lotes en ventana)':'')+'</div><div class="v">'+fN(haPend,1)+'</div><div class="s">de '+fN(haPl,1)+' ha del plan</div></div>'
    +'<div class="kpi"><div class="k">Toneladas pendientes'+(win?' (lotes en ventana)':'')+'</div><div class="v">'+fN(tonT)+'</div><div class="s">'+nT+' lotes sin completar en '+prog.length+' frentes</div></div>'
+   +'<div class="kpi"><div class="k">TCH est. pendiente</div><div class="v">'+(haPend>0?fN(tonT/haPend,1):'—')+'</div><div class="s">t/ha · plan: '+(haPl>0?fN(tPl/haPl,1):'—')+' t/ha</div></div>'
    +'<div class="kpi"><div class="k">Avance real del plan</div><div class="v">'+(tPl>0?fN(tRe/tPl*100,1)+'%':'—')+'</div><div class="s">'+fN(tRe)+' de '+fN(tPl)+' t del plan</div></div>'
-   +'<div class="kpi"><div class="k">Fin de la cola más larga</div><div class="v">'+fD(fin)+'</div><div class="s">'+fN(fin-P.snap.fechaBase,1)+' días desde el corte del '+fD(P.snap.fechaBase)+'</div></div>'
+   +'<div class="kpi"><div class="k">Última fecha fin de corte</div><div class="v">'+fD(fin)+'</div><div class="s">'+fN(fin-P.snap.fechaBase,1)+' días desde el corte del '+fD(P.snap.fechaBase)+'</div></div>'
    +'<div class="kpi"><div class="k">Pendiente que llega tarde</div><div class="v" style="color:'+(tarde>0?'var(--red)':'inherit')+'">'+fN(tarde)+'</div><div class="s">'+(tonT?fN(tarde/tonT*100,1):'0')+'% (más de '+S.tol+' d) · '+fN(B.adel)+' t adelantadas</div></div>'
    +'</div>';
   /* totales de la tabla */
