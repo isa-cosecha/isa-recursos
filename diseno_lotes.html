@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Diseño de Lotes · Cosecha ISA</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
-<link rel="stylesheet" href="isa-barra.css?v=3">
+<link rel="stylesheet" href="isa-barra.css?v=4">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root {
@@ -149,9 +149,11 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
 <script src="isa-conexion.js"></script>
 <script src="isa-sello.js?v=2"></script>
 <script src="isa-sync.js?v=2"></script>
+<script src="isa-barra.js?v=4"></script>
 </head>
 <body>
-<header class="isa-barra"><a href="index.html" class="isa-btn" title="Volver a la portada"><i class="ti ti-home" aria-hidden="true"></i> Inicio</a><span class="isa-titulo">Diseño de Lotes</span><span id="isa-sync-chip" class="isa-sync-chip" aria-live="polite"></span><span id="isa-usuario-chip" class="isa-usuario" hidden></span><button type="button" id="b-isa-leer" class="isa-btn" title="Volver a leer la base" hidden><i class="ti ti-refresh" aria-hidden="true"></i> Actualizar</button></header>
+<header class="isa-barra"><a href="index.html" class="isa-btn" title="Volver a la portada"><i class="ti ti-home" aria-hidden="true"></i> Inicio</a><span class="isa-titulo">Diseño de Lotes</span><span id="isa-sync-chip" class="isa-sync-chip" aria-live="polite"></span><span id="isa-estado" class="isa-estado" aria-live="polite"></span><button type="button" id="b-isa-leer" class="isa-btn" title="Volver a leer la base" hidden><i class="ti ti-refresh" aria-hidden="true"></i> Actualizar</button></header>
+<div id="isa-sin-sesion" class="isa-aviso warn" hidden>No hay sesión iniciada. <a href="index.html">Inicia sesión desde el inicio</a> para leer la base, o usa el archivo .json.</div>
 <main>
   <div class="isa-intro"><h1>Diseño de lotes para la cosecha</h1><p>Lee el maestro de líneas de cosecha y los datos del planificador, calcula para cada lote los surcos, la distancia que recorren las cosechadoras, los giros y el tiempo de maniobras, y prepara esos datos para el planificador.</p></div>
   <nav class="paginas" role="tablist" aria-label="Páginas del módulo">
@@ -167,7 +169,6 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
         <div>
           <h3>Datos del planificador</h3>
           <p>Se leen de la base con la sesión con la que entraste al inicio; «Actualizar» (barra superior) vuelve a leerlos. Si no hay conexión, usa el archivo .json que exporta el planificador.</p>
-          <p class="isa-o" id="isa-sin-sesion" hidden>No hay sesión iniciada. <a href="index.html">Inicia sesión desde el inicio</a> para leer la base, o usa el archivo .json.</p>
           <p class="isa-o" id="isa-o-txt">O bien, el archivo .json que exporta el planificador (Exportar datos):</p>
           <label class="archivo"><input type="file" id="f-plan" accept=".json,application/json">Elegir archivo .json</label>
           <span class="estado-archivo" id="e-plan">Sin datos.</span>
@@ -763,8 +764,9 @@ var leyendoBase = false;
 async function leerDeBase(ctx) {
   if (typeof ISA === 'undefined' || leyendoBase) return false;
   leyendoBase = true; $('b-isa-leer').disabled = true;
+  try { ISABarra.estado('Actualizando…', 'ld'); } catch (e) {}
   var auto = !!(ctx && ctx.auto === true), completa = !auto || !!ctx.completa;   // un clic del botón (ctx = evento) es lectura completa
-  var zPrev = $('p-zafra').value, ok = false;
+  var zPrev = $('p-zafra').value, ok = false, errEstado = false;
   try {
     var sello = null;
     try { sello = ISA.sello ? await ISA.sello() : null; } catch (e) { sello = null; }   // sin sello (o sin permiso): lectura completa de siempre
@@ -782,8 +784,10 @@ async function leerDeBase(ctx) {
     }
     ok = (await leerRegistroDeBase(ctx)) !== false;
   }
-  catch (e) { mensaje('e-plan', 'No se pudo leer la base: ' + e.message + ' También puedes usar el archivo .json.', 'error'); }
+  catch (e) { mensaje('e-plan', 'No se pudo leer la base: ' + e.message + ' También puedes usar el archivo .json.', 'error');
+    errEstado = true; try { ISABarra.estado('No se pudo actualizar la base', 'err', e.message); } catch (e2) {} }
   finally { leyendoBase = false; $('b-isa-leer').disabled = false; }
+  try { if (ok) ISABarra.actualizado(); else if (!errEstado) ISABarra.estado('No se pudo leer el registro de la base', 'err'); } catch (e) {}
   try { ISASync.marcar('diseno', ok, completa); } catch (e) {}
   return ok;
 }
@@ -797,8 +801,8 @@ if (typeof ISASync !== 'undefined') {
 }
 function pintarSesion(s) {
   var dentro = !!(s && s.user), sinSesion = !dentro && !!(s && s.listo);   // «listo» sin usuario: Firebase ya respondió y no hay sesión
-  $('isa-usuario-chip').hidden = !dentro; $('b-isa-leer').hidden = !dentro; $('isa-sin-sesion').hidden = !sinSesion;
-  if (dentro) $('isa-usuario-chip').textContent = s.email + ' ' + (s.listo ? (s.rol ? '(' + s.rol + ')' : '(sin rol)') : '(comprobando rol…)');
+  $('b-isa-leer').hidden = !dentro; $('isa-sin-sesion').hidden = !sinSesion;
+  if (dentro) $('b-isa-leer').title = 'Volver a leer la base · Sesión: ' + s.email + (s.listo ? (s.rol ? ' (' + s.rol + ')' : ' (sin rol)') : ' (comprobando rol…)');
 }
 (function() {
   if (typeof ISA === 'undefined' || !ISA.iniciar()) { $('b-reg-leer').hidden = true; $('e-regbase').textContent = 'Sin conexión a la base: carga los CSV del Sheet.'; $('isa-o-txt') && ($('isa-o-txt').hidden = true); mensaje('e-plan', 'Sin conexión a la base: usa el archivo .json.'); return; }

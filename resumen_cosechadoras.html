@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Resumen de Cosechadoras · Cosecha ISA</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
-<link rel="stylesheet" href="isa-barra.css?v=3">
+<link rel="stylesheet" href="isa-barra.css?v=4">
 <style>
 :root{
   box-sizing:border-box;
@@ -89,20 +89,16 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="isa-conexion.js"></script>
 <script src="isa-sync.js?v=2"></script>
+<script src="isa-barra.js?v=4"></script>
 </head>
 <body>
-<header class="isa-barra"><a href="index.html" class="isa-btn" title="Volver a la portada"><i class="ti ti-home" aria-hidden="true"></i> Inicio</a><span class="isa-titulo">Resumen de Cosechadoras</span><span id="isa-sync-chip" class="isa-sync-chip" aria-live="polite"></span><span id="isa-usuario-chip" class="isa-usuario" hidden></span><button type="button" id="b-isa-leer" class="isa-btn" title="Volver a leer la base" hidden><i class="ti ti-refresh" aria-hidden="true"></i> Actualizar</button></header>
+<header class="isa-barra"><a href="index.html" class="isa-btn" title="Volver a la portada"><i class="ti ti-home" aria-hidden="true"></i> Inicio</a><span class="isa-titulo">Resumen de Cosechadoras</span><span id="isa-sync-chip" class="isa-sync-chip" aria-live="polite"></span><span id="isa-estado" class="isa-estado" aria-live="polite"></span><button type="button" id="b-isa-leer" class="isa-btn" title="Volver a leer la base" hidden><i class="ti ti-refresh" aria-hidden="true"></i> Actualizar</button></header>
+<div id="isa-sin-sesion" class="isa-aviso warn" hidden>No hay sesión iniciada. <a href="index.html">Inicia sesión desde el inicio</a> para leer y guardar en la base; mientras tanto puedes procesar los shapes y descargar el .zip.</div>
+<div id="isa-aviso" class="isa-aviso" hidden></div>
 <main>
   <h1>Resumen de cosechadoras por lote y zafra</h1>
   <div id="vista-resumen">
   <p class="lead">Lee los registros de trabajo de las cosechadoras que exporta Operations Center, mide giros, esperas en ralentí y productividad, y deja un resumen pequeño por lote, organizado por zafra. Los shapes pesados no se guardan.</p>
-
-  <section aria-labelledby="h-base">
-    <h2 id="h-base">Registro en la base</h2>
-    <p class="hint">El registro de cosechadoras se guarda en la base del planificador (Firebase), no en un Google Sheet. Se usa la sesión con la que entraste al inicio: aquí no hay que volver a entrar. «Actualizar» (barra superior) vuelve a leerlo.</p>
-    <p class="hint" id="isa-sin-sesion" hidden>No hay sesión iniciada. <a href="index.html">Inicia sesión desde el inicio</a> para leer y guardar en la base; mientras tanto puedes procesar los shapes y descargar el .zip.</p>
-    <div class="status" id="st-base" aria-live="polite"></div>
-  </section>
 
   <section aria-labelledby="h-prev">
     <h2 id="h-prev">1. Registro anterior (opcional)</h2>
@@ -847,7 +843,16 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
   /* ================= BASE DE DATOS (Firebase, colección registro_cosechadoras) ================= */
   var versionBase = {}, sesionClaves = {}, leyendoBase = false, guardandoBase = false, ALERTA = { ok: "var(--ok)", bad: "var(--bad)", warn: "var(--warn)" };
   function marcarSesion(z, clave) { (sesionClaves[z] = sesionClaves[z] || {})[clave] = 1; }
-  function stBase(t, tipo) { var e = $("st-base"); e.textContent = t; e.style.color = tipo ? ALERTA[tipo] : ""; }
+  var ultimoMsgBase = "";
+  function stBase(t, tipo) {   // el estado vive en la barra superior; advertencias y errores, además, en la franja bajo la barra
+    ultimoMsgBase = t;
+    if (!window.ISABarra) { if (tipo === "bad" && window.console) console.error(t); return; }
+    if (tipo === "info") { ISABarra.aviso(t, "info"); return; }                                  // p. ej. usuario de solo lectura: no toca el estado
+    if (tipo === "warn" || tipo === "bad") { ISABarra.estado(t, "err"); ISABarra.aviso(t, tipo); return; }
+    ISABarra.aviso(null);
+    if (!tipo) { ISABarra.estado(t, "ld"); return; }                                              // progreso
+    ISABarra.estado(/^Registro leído de la base/.test(t) ? "Actualizado " + ISABarra.fechaCorta(Date.now()) : t, "", t);
+  }
   function incorporarDeBase(res) {
     var n = 0;
     Object.keys(res.zafras).forEach(function (z) {
@@ -877,7 +882,7 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
       var zs = Object.keys(res.zafras);
       stBase(zs.length ? "Registro leído de la base: zafra" + (zs.length > 1 ? "s " : " ") + zs.join(", ") + " (" + n.toLocaleString("es") + " lotes)." : "La base todavía no tiene registro de cosechadoras. Procesa shapes (o importa el Sheet) y pulsa «Guardar en la base».", "ok");
       renderResultados(); actualizarBotones();
-      if (ISA.sesion().rol === "visor") stBase($("st-base").textContent + " Tu usuario es de solo lectura (visor): puedes procesar, pero no guardar.", "warn");
+      if (ISA.sesion().rol === "visor") stBase(ultimoMsgBase + " Tu usuario es de solo lectura (visor): puedes procesar, pero no guardar.", "info");
       try { ISASync.marcar("resumen", true, !Array.isArray(soloZ)); } catch (e2) {}
       return true;
     } catch (e) { try { ISASync.marcar("resumen", false); } catch (e2) {} stBase("No se pudo leer el registro de la base: " + e.message, "bad"); return false; }
@@ -995,15 +1000,15 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
   /* ---- sesión ---- */
   function pintarSesion(s) {
     var dentro = !!(s && s.user), sinSesion = !dentro && !!(s && s.listo);   // «listo» sin usuario: Firebase ya respondió y no hay sesión
-    $("isa-usuario-chip").hidden = !dentro; $("b-isa-leer").hidden = !dentro; $("isa-sin-sesion").hidden = !sinSesion;
-    if (dentro) $("isa-usuario-chip").textContent = s.email + " " + (s.listo ? (s.rol ? "(" + s.rol + ")" : "(sin rol)") : "(comprobando rol…)");
+    $("b-isa-leer").hidden = !dentro; $("isa-sin-sesion").hidden = !sinSesion;
+    if (dentro) $("b-isa-leer").title = "Volver a leer la base · Sesión: " + s.email + (s.listo ? (s.rol ? " (" + s.rol + ")" : " (sin rol)") : " (comprobando rol…)");
     actualizarBotones();
   }
   (function () {
     if (typeof ISA === "undefined" || !ISA.iniciar()) { stBase("Sin conexión a la base: puedes procesar y descargar el .zip, pero no guardar en la base.", "warn"); return; }
     ISA.alCambiarSesion(function (s) {
       pintarSesion(s);
-      if (s.user && s.listo && s.rol) { if (!leyendoBase && !Object.keys(versionBase).length) leerBase(); if (s.rol === "visor") stBase("Tu usuario es de solo lectura (visor): puedes procesar, pero no guardar en la base.", "warn"); }
+      if (s.user && s.listo && s.rol) { if (!leyendoBase && !Object.keys(versionBase).length) leerBase(); if (s.rol === "visor") stBase("Tu usuario es de solo lectura (visor): puedes procesar, pero no guardar en la base.", "info"); }
       if (s.user && s.listo && !s.rol) stBase("Tu usuario no tiene rol asignado en el planificador.", "bad");
     });
     $("b-isa-leer").addEventListener("click", leerBase);
