@@ -3,15 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Diseño de lotes · Cosecha</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap" rel="stylesheet">
+<title>Diseño de Lotes · Cosecha ISA</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<link rel="stylesheet" href="isa-barra.css?v=2">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root {
   --papel: #F2F5EF; --superficie: #FFFFFF; --tinta: #1C2620; --tinta-2: #4A5A4F; --tinta-3: #7A887E;
-  --hoja: #23452F; --brote: #4F7D3A; --brote-bg: #E4EEDC; --ocre: #8A5F14; --ocre-bg: #F6EBD3; --barro: #7A3B2E; --barro-bg: #F6E1DC;
+  --hoja: #0D4934; --brote: #4F7D3A; --brote-bg: #E4EEDC; --ocre: #8A5F14; --ocre-bg: #F6EBD3; --barro: #7A3B2E; --barro-bg: #F6E1DC;
   --linea: #D5DDD2; --surco: rgba(35, 69, 47, 0.10); --foco: #B07D24;
   color-scheme: light;
 }
@@ -32,8 +31,8 @@
 :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 html { scroll-padding-top: env(safe-area-inset-top, 0px); }
 *, *::before, *::after { box-sizing: inherit; }
-body { margin: 0; background: var(--papel); color: var(--tinta); font-family: 'Barlow', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 16px; line-height: 1.5; }
-.num, table { font-family: 'Barlow Semi Condensed', 'Barlow', 'Arial Narrow', Arial, sans-serif; font-variant-numeric: tabular-nums; }
+body { margin: 0; background: var(--papel); color: var(--tinta); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-size: 16px; line-height: 1.5; }
+.num, table { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid var(--foco); outline-offset: 2px; }
 
 header.campo {
@@ -58,7 +57,7 @@ h2 { font-size: 22px; margin: 0 0 6px; font-weight: 600; }
 
 ol.pasos { list-style: none; counter-reset: paso; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px 28px; }
 ol.pasos > li { counter-increment: paso; display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
-ol.pasos > li::before { content: counter(paso); width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--hoja); color: var(--hoja); display: grid; place-items: center; font-weight: 600; font-family: 'Barlow Semi Condensed', sans-serif; }
+ol.pasos > li::before { content: counter(paso); width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid var(--hoja); color: var(--hoja); display: grid; place-items: center; font-weight: 600; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
 .paso h3 { margin: 4px 0 4px; font-size: 17px; font-weight: 600; }
 .paso p { margin: 0 0 10px; color: var(--tinta-2); font-size: 15px; }
 .archivo { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border: 1.5px dashed var(--tinta-3); border-radius: 8px; cursor: pointer; color: var(--tinta); background: var(--superficie); font: inherit; font-size: 15px; }
@@ -83,7 +82,7 @@ button.secundario:disabled { opacity: 0.45; cursor: not-allowed; }
 .progreso small { display: block; color: var(--tinta-2); margin-top: 6px; font-size: 14px; }
 
 .resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 18px 28px; margin: 6px 0 18px; }
-.resumen .dato strong { display: block; font-size: 30px; font-weight: 600; line-height: 1.1; font-family: 'Barlow Semi Condensed', sans-serif; }
+.resumen .dato strong { display: block; font-size: 30px; font-weight: 600; line-height: 1.1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
 .resumen .dato span { color: var(--tinta-2); font-size: 14px; }
 .reparto { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 4px 0 8px; background: var(--linea); }
 .reparto i { display: block; height: 100%; }
@@ -101,7 +100,7 @@ thead th[aria-sort="descending"]::after { content: " ▼"; font-size: 10px; }
 td { padding: 8px 10px; border-bottom: 1px solid var(--linea); text-align: right; white-space: nowrap; }
 td small { color: var(--tinta-3); }
 tbody tr:hover { background: var(--surco); }
-.chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 13px; font-family: 'Barlow', sans-serif; font-weight: 500; }
+.chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 13px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; font-weight: 500; }
 .chip.ok { background: var(--brote-bg); color: var(--brote); }
 .chip.revisar { background: var(--ocre-bg); color: var(--ocre); }
 .chip.error { background: var(--barro-bg); color: var(--barro); }
@@ -148,13 +147,13 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="isa-conexion.js"></script>
+<script src="isa-sello.js?v=2"></script>
+<script src="isa-sync.js?v=2"></script>
 </head>
 <body>
-<header class="campo">
-  <h1>Diseño de lotes para la cosecha</h1>
-  <p>Lee el maestro de líneas de cosecha y los datos del planificador, calcula para cada lote los surcos, la distancia que recorren las cosechadoras, los giros y el tiempo de maniobras, y prepara esos datos para el planificador.</p>
-</header>
+<header class="isa-barra"><a href="index.html" class="isa-btn" title="Volver a la portada"><i class="ti ti-home" aria-hidden="true"></i> Inicio</a><span class="isa-titulo">Diseño de Lotes</span><span id="isa-sync-chip" class="isa-sync-chip" aria-live="polite"></span></header>
 <main>
+  <div class="isa-intro"><h1>Diseño de lotes para la cosecha</h1><p>Lee el maestro de líneas de cosecha y los datos del planificador, calcula para cada lote los surcos, la distancia que recorren las cosechadoras, los giros y el tiempo de maniobras, y prepara esos datos para el planificador.</p></div>
   <nav class="paginas" role="tablist" aria-label="Páginas del módulo">
     <button role="tab" id="tab-diseno" aria-selected="true">Diseño de lotes</button>
     <button role="tab" id="tab-maq" aria-selected="false">Análisis por máquina<span class="punto" id="punto-maq" hidden title="Análisis actualizado"></span></button>
@@ -346,7 +345,6 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
   </div>
 </main>
 
-<script src="isa-sync.js?v=1"></script>
 <script>
 'use strict';
 /* ═══ Núcleo del cálculo (sin interfaz: se puede probar por separado) ═══ */
@@ -745,11 +743,15 @@ function csvDeFilas(filas) {   // convierte las filas de la base a texto CSV, pa
   var q = function(v) { if (v === null || v === undefined) return ''; var t = String(v); return /[;"\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
   return [cols.join(';')].concat(filas.map(function(r) { return cols.map(function(k) { return q(r[k]); }).join(';'); })).join('\n');
 }
-async function leerRegistroDeBase() {
+function firmaVersiones(meta) { var z = (meta && meta.zafras) || {}; return JSON.stringify(Object.keys(z).sort().map(function(k) { return [k, z[k].version]; })); }
+async function leerRegistroDeBase(ctx) {
   if (typeof ISA === 'undefined' || leyendoReg) return;
   leyendoReg = true; $('b-reg-leer').disabled = true;
   try {
+    var soloVer = !!(ctx && ctx.auto === true && !ctx.completa);   // disparo automático: solo se relee si cambió alguna versión del registro
+    if (soloVer && estado.regVers) { var m0 = await ISA.registro.meta(); if (firmaVersiones(m0) === estado.regVers) return true; }
     var res = await ISA.registro.leerTodo(function(t) { mensaje('e-regbase', t); }), zs = Object.keys(res.zafras).sort();
+    estado.regVers = firmaVersiones(res.meta);
     if (!zs.length) { mensaje('e-regbase', 'La base todavía no tiene registro de cosechadoras. Se llena en «Resumen de cosechadoras».', 'error'); return; }
     var nombres = await ISA.registro.operadores.leer(), lotes = [], maq = [], dias = [];   // nombres = null si no hay permiso para verlos
     var conNombre = function(r) {
@@ -769,29 +771,40 @@ async function leerRegistroDeBase() {
   finally { leyendoReg = false; $('b-reg-leer').disabled = false; }
 }
 var leyendoBase = false;
-async function leerDeBase() {
+async function leerDeBase(ctx) {
   if (typeof ISA === 'undefined' || leyendoBase) return false;
   leyendoBase = true; $('b-isa-leer').disabled = true;
+  var auto = !!(ctx && ctx.auto === true), completa = !auto || !!ctx.completa;   // un clic del botón (ctx = evento) es lectura completa
   var zPrev = $('p-zafra').value, ok = false;
   try {
-    aceptarPlan(await ISA.leerPlan(function(t) { mensaje('e-plan', t); }), 'Base del planificador');
-    estado.planOrigen = 'base';
-    // aceptarPlan reinicia el selector de zafra: se conserva la elección del usuario si sigue existiendo
-    if (zPrev && Array.from($('p-zafra').options).some(function(o) { return o.value === zPrev; })) $('p-zafra').value = zPrev;
-    ok = (await leerRegistroDeBase()) !== false;
+    var sello = null;
+    try { sello = ISA.sello ? await ISA.sello() : null; } catch (e) { sello = null; }   // sin sello (o sin permiso): lectura completa de siempre
+    if (completa) estado.cachePlan = {};
+    if (!completa && estado.planOrigen === 'base' && estado.plan && ISA.selloIgual && ISA.selloIgual(estado.selloPlan, sello)) {
+      /* el sello no cambió: el plan que ya está en pantalla sigue vigente, no se baja nada */
+    } else {
+      var plan = ISA.leerPlanInc
+        ? await ISA.leerPlanInc(function(t) { mensaje('e-plan', t); }, { sello: sello, cache: (estado.cachePlan = estado.cachePlan || {}), compartir: ['geodata'] })
+        : await ISA.leerPlan(function(t) { mensaje('e-plan', t); });
+      aceptarPlan(plan, 'Base del planificador');
+      estado.planOrigen = 'base'; estado.selloPlan = sello;
+      // aceptarPlan reinicia el selector de zafra: se conserva la elección del usuario si sigue existiendo
+      if (zPrev && Array.from($('p-zafra').options).some(function(o) { return o.value === zPrev; })) $('p-zafra').value = zPrev;
+    }
+    ok = (await leerRegistroDeBase(ctx)) !== false;
   }
   catch (e) { mensaje('e-plan', 'No se pudo leer la base: ' + e.message + ' También puedes usar el archivo .json.', 'error'); }
   finally { leyendoBase = false; $('b-isa-leer').disabled = false; }
-  try { ISASync.marcar('diseno', ok); } catch (e) {}
+  try { ISASync.marcar('diseno', ok, completa); } catch (e) {}
   return ok;
 }
 /* Sincronización manual/automática (configurada en index → Ajustes). No toca datos cargados desde archivo .json. */
 if (typeof ISASync !== 'undefined') {
-  ISASync.registrar({ id: 'diseno', nombre: 'Diseño de lotes',
+  ISASync.registrar({ id: 'diseno', nombre: 'Diseño de Lotes',
     permitido: function() { var s = ISA.sesion && ISA.sesion(); return !!(s && s.user && s.listo && s.rol) && estado.planOrigen === 'base'; },
     ocupado: function() { return leyendoBase || leyendoReg; },
     ejecutar: leerDeBase });
-  ISASync.montarChip('diseno');
+  ISASync.montarChip('diseno', 'isa-sync-chip');
 }
 function pintarSesion(s) {
   var dentro = !!(s && s.user);

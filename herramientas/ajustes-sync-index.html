@@ -43,6 +43,15 @@
         <option value="0">Seguir leyendo</option>
       </select>
     </div>
+    <div>
+      <label title="Aunque el sello diga «sin cambios», cada cierto tiempo se relee todo por seguridad">Lectura completa de seguridad</label>
+      <select id="sync-barrido" onchange="guardarSyncConfig()">
+        <option value="30">Cada 30 min</option>
+        <option value="60">Cada 1 h</option>
+        <option value="120">Cada 2 h</option>
+        <option value="240">Cada 4 h</option>
+      </select>
+    </div>
   </div>
 
   <div style="margin-top:12px">
@@ -58,8 +67,10 @@
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">
     <button class="btn btn-sm btn-primary" onclick="sincronizarAhoraModulos()" title="Ordena una lectura inmediata a los módulos abiertos en este navegador"><i class="ti ti-refresh"></i> Sincronizar ahora</button>
+    <button class="btn btn-sm" id="sync-btn-sello" onclick="publicarSelloCompleto()" title="Crea o renueva el sello de cambios de TODAS las categorías. Úsalo una vez al activar esta función, o si un módulo no detecta cambios."><i class="ti ti-stamp"></i> Publicar sello de cambios</button>
     <span id="sync-estado" style="font-size:12px;color:var(--text2)"></span>
   </div>
+  <div id="sync-sello-info" style="font-size:12px;color:var(--text2);margin-top:8px"></div>
 </div>
 
 <script>
@@ -75,6 +86,9 @@ function syncAjustesSyncCard() {
   document.getElementById('sync-unidad').value = enHoras ? '60' : '1';
   document.getElementById('sync-valor').value = enHoras ? c.intervaloMin / 60 : Math.round(c.intervaloMin);
   document.getElementById('sync-pausar').value = c.pausarOculta ? '1' : '0';
+  var bsel = document.getElementById('sync-barrido'); if (!bsel.querySelector('option[value="' + c.barridoMin + '"]')) { var ob = document.createElement('option'); ob.value = c.barridoMin; ob.textContent = 'Cada ' + c.barridoMin + ' min'; bsel.appendChild(ob); }
+  bsel.value = String(c.barridoMin);
+  pintarSelloInfo();
   ['seguimiento', 'diseno', 'resumen'].forEach(function (k) {
     document.getElementById('sync-mod-' + k).checked = c.modulos[k] !== false;
   });
@@ -107,6 +121,7 @@ function guardarSyncConfig() {
     modo: document.getElementById('sync-modo').value,
     intervaloMin: minutos,                                   // ISASync lo acota a [MIN_MIN, MAX_MIN]
     pausarOculta: document.getElementById('sync-pausar').value === '1',
+    barridoMin: parseFloat(document.getElementById('sync-barrido').value) || 60,
     modulos: {
       seguimiento: document.getElementById('sync-mod-seguimiento').checked,
       diseno: document.getElementById('sync-mod-diseno').checked,
@@ -120,6 +135,29 @@ function guardarSyncConfig() {
     if (typeof showToast === 'function') showToast('Intervalo ajustado al rango permitido (' + ISASync.MIN_MIN + ' min a ' + (ISASync.MAX_MIN / 60) + ' h).');
   }
   pintarAvisoSync(c);
+}
+
+/* Sello de cambios: estado y publicación manual (solo admin/editor). Ver fbEscribirSello() en el guardado. */
+function pintarSelloInfo() {
+  var el = document.getElementById('sync-sello-info'), b = document.getElementById('sync-btn-sello');
+  if (!el || !b) return;
+  var puede = typeof fbRolActual !== 'undefined' && (fbRolActual === 'admin' || fbRolActual === 'editor');
+  b.style.display = puede ? '' : 'none';
+  if (typeof fbDb === 'undefined' || !fbDb) { el.textContent = ''; return; }
+  fbDb.collection(FB_COLECCION).doc('sello').get().then(function (d) {
+    if (!d.exists) { el.innerHTML = '⚠ Todavía no existe el sello de cambios: los módulos releen todo en cada ciclo. ' + (puede ? 'Pulsa «Publicar sello de cambios».' : 'Pide a un editor o administrador que lo publique.'); return; }
+    var x = d.data() || {}, n = Object.keys(x.cats || {}).length;
+    el.textContent = 'Sello activo: ' + n + ' categorías · última actualización ' + (x.actualizado ? new Date(x.actualizado).toLocaleString() : '–') + (x.usuario ? ' · ' + x.usuario : '') + '.';
+  }).catch(function (e) { el.textContent = 'No se pudo leer el sello' + (e && e.code === 'permission-denied' ? ' (revisa las reglas de Firestore).' : '.'); });
+}
+function publicarSelloCompleto() {
+  if (typeof fbPublicarSelloCompleto !== 'function') return;
+  fbPublicarSelloCompleto().then(function () {
+    if (typeof showToast === 'function') showToast('Sello de cambios publicado.');
+    pintarSelloInfo();
+  }).catch(function (e) {
+    if (typeof showToast === 'function') showToast('No se pudo publicar el sello' + (e && e.code === 'permission-denied' ? ': tu usuario no tiene permiso de escritura.' : '.'));
+  });
 }
 
 function sincronizarAhoraModulos() {

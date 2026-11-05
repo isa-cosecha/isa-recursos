@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Seguimiento de Cosecha — módulo independiente</title>
+<title>Seguimiento del Plan · Cosecha ISA</title>
 <!--
   Módulo de seguimiento (SGP), independiente del Planificador de Cosecha.
   Solo LEE la base del planificador (Firestore, colección compartida) o su JSON exportado. No escribe nada en la base.
@@ -14,6 +14,8 @@
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script src="isa-sync.js?v=2"></script>
+<link rel="stylesheet" href="isa-barra.css?v=2">
 <style>
 
 .sgp{
@@ -157,9 +159,8 @@
 </style>
 </head>
 <body style="margin:0;background:#edf0f4">
-<header class="sgp-top"><a href="index.html" class="sgp-btn" title="Volver a la portada"><i class="ti ti-home"></i> Inicio</a><span class="sgp-title">Seguimiento de Cosecha</span><span id="sgp-sync" class="sgp-sync" aria-live="polite"></span><button type="button" class="sgp-btn" onclick="SGP.api.recargar()" title="Vuelve a leer la base del planificador"><i class="ti ti-refresh"></i> Actualizar</button></header>
+<header class="isa-barra"><a href="index.html" class="sgp-btn" title="Volver a la portada"><i class="ti ti-home"></i> Inicio</a><span class="isa-titulo">Seguimiento del Plan</span><span id="isa-sync-chip" class="isa-sync-chip" aria-live="polite"></span><span id="sgp-sync" class="sgp-sync" aria-live="polite"></span><button type="button" class="sgp-btn" onclick="SGP.api.recargar()" title="Vuelve a leer la base del planificador"><i class="ti ti-refresh"></i> Actualizar</button></header>
 <div id="sgp-root" class="sgp"></div>
-<script src="isa-sync.js?v=1"></script>
 <script>
 var SGP=(function(){
 'use strict';
@@ -195,6 +196,11 @@ var FB_CONFIG={
   measurementId: "G-0DSZBP5KVQ"
 };
 var DB=null, fbDb=null, fbAuth=null;
+/* Sello de cambios: el planificador cambia el token de una categoría al terminar de guardarla. Aquí solo se relee lo que cambió. */
+var CATS_SGP=['plan','campos','ejecucion','equipos','labores'],CAMPO_SGP={plan:'planItems',campos:'campos',ejecucion:null,equipos:null,labores:'laboresPlan'},CAT_CACHE={},SELLO_PREV=null;
+function tokSGP(s,c){return s&&s.cats&&typeof s.cats[c]==='string'&&s.cats[c]?s.cats[c]:null;}
+function clon(o){return typeof structuredClone==='function'?structuredClone(o):JSON.parse(JSON.stringify(o));}
+function leerSelloSGP(){return fbDb.collection(COL).doc('sello').get().then(function(d){return d.exists?(d.data()||{}):null;});}
 /* ── Caché local (IndexedDB): muestra al instante la última lectura y actualiza en segundo plano ── */
 var CACHE_DB='sgp-cache',CACHE_ST='base',CACHE_KEY='ultima',_leyendo=false;
 function cacheAbrir(){return new Promise(function(res,rej){try{var q=indexedDB.open(CACHE_DB,1);q.onupgradeneeded=function(){q.result.createObjectStore(CACHE_ST);};q.onsuccess=function(){res(q.result);};q.onerror=function(){rej(q.error);};}catch(e){rej(e);}});}
@@ -242,22 +248,34 @@ async function leerCategoria(cat,campoArray){
   if(campoArray){var all=[];parts.forEach(function(p){all=all.concat(p.items||[]);});r[campoArray]=all;}
   return r;
 }
-async function leerDesdeFirestore(){
+async function leerDesdeFirestore(ctx){
   if(_leyendo)return false;_leyendo=true;
-  var hayDB=!!DB,hechos=0,total=5,lento=null;
+  var auto=!!(ctx&&ctx.auto===true),completa=!auto||!!ctx.completa,sello=null,cambiadas=CATS_SGP.slice();
+  try{sello=await leerSelloSGP();}catch(e){sello=null;}   // sin sello (o sin permiso): lectura completa de siempre
+  if(sello&&!completa&&SELLO_PREV){cambiadas=CATS_SGP.filter(function(c){var a=tokSGP(sello,c);return !a||a!==tokSGP(SELLO_PREV,c)||!CAT_CACHE[c];});}
+  if(auto&&!completa&&sello&&SELLO_PREV&&DB&&!cambiadas.length){
+    _leyendo=false;setSync('Sin cambios · comprobado '+fechaCorta(Date.now()),'');
+    try{ISASync.marcar('seguimiento',true,false);}catch(e){}
+    return true;
+  }
+  var hayDB=!!DB,hechos=0,total=cambiadas.length||CATS_SGP.length,lento=null;
   S.srcMsg='Leyendo la base del planificador…';S.srcOk=true;S.prog='0/'+total;
   setSync(hayDB?'Actualizando en segundo plano…':'Leyendo la base del planificador… 0/'+total,'ld');
   if(!hayDB)render();
   lento=setTimeout(function(){setSync(hayDB?'Actualizando… (conexión lenta; se mantienen los datos mostrados)':'Leyendo la base… la conexión está lenta, sigo intentando','ld');},15000);
   function marca(p){return p.then(function(v){hechos++;S.prog=hechos+'/'+total;if(!DB){setSync('Leyendo la base del planificador… '+S.prog,'ld');render();}return v;});}
   try{
-    var lectura=Promise.all([marca(leerCategoria('plan','planItems')),marca(leerCategoria('campos','campos')),marca(leerCategoria('ejecucion',null)),marca(leerCategoria('equipos',null)),marca(leerCategoria('labores','laboresPlan'))]);
+    var lectura=Promise.all(CATS_SGP.map(function(c){
+      if(cambiadas.indexOf(c)<0)return Promise.resolve(CAT_CACHE[c]);   // sello sin cambios: se usa lo ya leído
+      return marca(leerCategoria(c,CAMPO_SGP[c])).then(function(v){if(v)CAT_CACHE[c]=v;else delete CAT_CACHE[c];return v;});
+    }));
     var tope=new Promise(function(_,rej){setTimeout(function(){rej(new Error('Tiempo de espera agotado (120 s). Revisa la conexión y pulsa Actualizar.'));},120000);});
     var r=await Promise.race([lectura,tope]);
+    r=r.map(function(x){return x?clon(x):x;});   // copia: lo que se muta después no daña la caché
     if(!r[0]){throw new Error('No encontré el documento plan_0 en la colección "'+COL+'". ¿Tu usuario tiene permiso de lectura?');}
     var d=Object.assign({},r[4]||{},r[3]||{},r[2]||{},r[1]||{},r[0]);
     var nuevo=normalizarDB(d,'Firestore ('+COL+')');
-    DB=nuevo;cacheGuardar(d);
+    DB=nuevo;cacheGuardar(d);SELLO_PREV=sello;
     S.srcMsg='Base leída ('+DB.labores.nQ+' reg. quema, '+DB.labores.nM+' aplic. madurador): '+DB.planItems.length+' lotes, '+DB.campos.length+' campos, '+DB.realRecords.length+' registros reales.';S.srcOk=true;
     setSync('Actualizado '+fechaCorta(Date.now()),'');
   }catch(e){
@@ -268,7 +286,7 @@ async function leerDesdeFirestore(){
   clearTimeout(lento);_leyendo=false;
   if(!hayDB)S.zafra='';
   render();
-  try{ISASync.marcar('seguimiento',S.srcOk);}catch(e){}
+  try{ISASync.marcar('seguimiento',S.srcOk,completa);}catch(e){}
   return S.srcOk;
 }
 function iniciarFirebase(){
@@ -1078,14 +1096,14 @@ function mount(el){root=el;cargarLocal();cargarMotivos();bind();iniciarFirebase(
       setSync('Datos guardados del '+fechaCorta(c.ts)+(_leyendo||S.authPend?' · actualizando…':''),_leyendo||S.authPend?'ld':'');render();}
     catch(e){DB=null;}
   });}
-return {mount:mount,api:{recargar:function(){if(fbDb&&S.user)return leerDesdeFirestore();render();},puLote:puLote,nMaqAlCrear:nMaqAlCrear,fromBase:fromBase,project:project,compare:compare,diagnose:diagnose,state:S,render:render,setDB:function(d){DB=normalizarDB(d,'API');S.zafra='';render();}}};
+return {mount:mount,api:{recargar:function(ctx){if(fbDb&&S.user)return leerDesdeFirestore(ctx);render();},puLote:puLote,nMaqAlCrear:nMaqAlCrear,fromBase:fromBase,project:project,compare:compare,diagnose:diagnose,state:S,render:render,setDB:function(d){DB=normalizarDB(d,'API');S.zafra='';render();}}};
 })();
 SGP.mount(document.getElementById('sgp-root'));
 if(typeof ISASync!=='undefined'){
-  ISASync.registrar({id:'seguimiento',nombre:'Seguimiento de cosecha',
+  ISASync.registrar({id:'seguimiento',nombre:'Seguimiento del Plan',
     permitido:function(){return !!SGP.api.state.user;},
-    ejecutar:function(){return SGP.api.recargar();}});
-  ISASync.montarChip('seguimiento');
+    ejecutar:function(ctx){return SGP.api.recargar(ctx);}});
+  ISASync.montarChip('seguimiento','isa-sync-chip');
 }
 
 </script>

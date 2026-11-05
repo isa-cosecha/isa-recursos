@@ -3,14 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Resumen de cosechadoras por lote y zafra</title>
+<title>Resumen de Cosechadoras · Cosecha ISA</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<link rel="stylesheet" href="isa-barra.css?v=2">
 <style>
 :root{
   box-sizing:border-box;
   padding-top:env(safe-area-inset-top,0px);
   padding-bottom:env(safe-area-inset-bottom,0px);
   --bg:#F3F5F0; --surface:#FFFFFF; --ink:#1B2620; --muted:#55655B; --line:#D3DBD2;
-  --accent:#2F6B4D; --accent-ink:#FFFFFF; --accent-soft:#E3EEE7; --warn:#8F5410; --bad:#A33A2B; --ok:#2F6B4D;
+  --accent:#0D4934; --accent-ink:#FFFFFF; --accent-soft:#E3EEE7; --warn:#8F5410; --bad:#A33A2B; --ok:#2F6B4D;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
@@ -86,8 +88,10 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <script src="isa-conexion.js"></script>
+<script src="isa-sync.js?v=2"></script>
 </head>
 <body>
+<header class="isa-barra"><a href="index.html" class="isa-btn" title="Volver a la portada"><i class="ti ti-home" aria-hidden="true"></i> Inicio</a><span class="isa-titulo">Resumen de Cosechadoras</span><span id="isa-sync-chip" class="isa-sync-chip" aria-live="polite"></span></header>
 <main>
   <h1>Resumen de cosechadoras por lote y zafra</h1>
   <div id="vista-resumen">
@@ -657,7 +661,6 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
 })(typeof window !== "undefined" ? window : globalThis);
 
 </script>
-<script src="isa-sync.js?v=1"></script>
 <script>
 (function () {
   "use strict";
@@ -872,11 +875,11 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
     base.lotes_maquina_dia = (base.lotes_maquina_dia || []).filter(function (x) { return !es(x); }).concat((local.lotes_maquina_dia || []).filter(es));
     base.parametros_por_id = Object.assign({}, base.parametros_por_id, local.parametros_por_id); base.cap_av_t = base.cap_av_t || local.cap_av_t;
   }
-  async function leerBase() {
+  async function leerBase(soloZ) {   // soloZ: lista de zafras a releer (el botón pasa un evento: se ignora)
     if (typeof ISA === "undefined" || leyendoBase) return;
     leyendoBase = true;
     try {
-      var res = await ISA.registro.leerTodo(function (t) { stBase(t); });
+      var res = await ISA.registro.leerTodo(function (t) { stBase(t); }, Array.isArray(soloZ) ? soloZ : undefined);
       var locales = {}; Object.keys(tocadas).forEach(function (z) { if (tocadas[z]) locales[z] = registro[z]; });
       var n = incorporarDeBase(res);
       Object.keys(locales).forEach(function (z) { if (locales[z]) { if (!registro[z]) registro[z] = locales[z]; else sobreponerSesion(z, locales[z]); } });
@@ -884,7 +887,7 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
       stBase(zs.length ? "Registro leído de la base: zafra" + (zs.length > 1 ? "s " : " ") + zs.join(", ") + " (" + n.toLocaleString("es") + " lotes)." : "La base todavía no tiene registro de cosechadoras. Procesa shapes (o importa el Sheet) y pulsa «Guardar en la base».", "ok");
       renderResultados(); actualizarBotones();
       if (ISA.sesion().rol === "visor") stBase($("st-base").textContent + " Tu usuario es de solo lectura (visor): puedes procesar, pero no guardar.", "warn");
-      try { ISASync.marcar("resumen", true); } catch (e2) {}
+      try { ISASync.marcar("resumen", true, !Array.isArray(soloZ)); } catch (e2) {}
       return true;
     } catch (e) { try { ISASync.marcar("resumen", false); } catch (e2) {} stBase("No se pudo leer el registro de la base: " + e.message, "bad"); return false; }
     finally { leyendoBase = false; }
@@ -1018,18 +1021,28 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
     });
     $("isa-pass").addEventListener("keydown", function (ev) { if (ev.key === "Enter") $("b-isa-entrar").click(); });
     $("b-isa-leer").addEventListener("click", leerBase);
+    var inicio = document.querySelector('.isa-barra a[href="index.html"]');   // no perder zafras procesadas y sin guardar
+    if (inicio) inicio.addEventListener("click", function (ev) {
+      var pend = Object.keys(tocadas).some(function (z) { return tocadas[z] && registro[z]; });
+      if (pend && !confirm("Hay zafras procesadas que no se han guardado en la base. Si sales, se pierden. ¿Salir de todos modos?")) ev.preventDefault();
+    });
     if (typeof ISASync !== "undefined") {   // sincronización manual/automática (index → Ajustes)
-      ISASync.registrar({ id: "resumen", nombre: "Resumen de cosechadoras",
+      ISASync.registrar({ id: "resumen", nombre: "Resumen de Cosechadoras",
         permitido: function () { var s = ISA.sesion && ISA.sesion(); return !!(s && s.user && s.listo && s.rol); },
         ocupado: function () { return leyendoBase || guardandoBase || corriendo; },
-        ejecutar: async function () {   // si las versiones de «meta» no cambiaron, basta 1 lectura en vez de releer todo
-          try {
-            var meta = await ISA.registro.meta(), zs = Object.keys(meta.zafras || {}), vb = Object.keys(versionBase);
-            if (zs.length && zs.length === vb.length && zs.every(function (z) { return versionBase[z] === meta.zafras[z].version; })) return true;
-          } catch (e) { /* si la comprobación falla, se hace la lectura completa */ }
+        ejecutar: async function (ctx) {   // por versión de «meta»: nada que leer, o solo las zafras que cambiaron
+          if (ctx && ctx.auto === true && !ctx.completa) {
+            try {
+              var meta = await ISA.registro.meta(), mz = meta.zafras || {}, vb = Object.keys(versionBase);
+              if (vb.length && !vb.some(function (z) { return !(z in mz); })) {
+                var cambiadas = Object.keys(mz).filter(function (z) { return versionBase[z] !== mz[z].version; });
+                return cambiadas.length ? leerBase(cambiadas) : true;
+              }
+            } catch (e) { /* si la comprobación falla, lectura completa */ }
+          }
           return leerBase();
         } });
-      ISASync.montarChip("resumen");
+      ISASync.montarChip("resumen", "isa-sync-chip");
     }
     $("b-isa-salir").addEventListener("click", function () { ISA.logout(); });
   })();

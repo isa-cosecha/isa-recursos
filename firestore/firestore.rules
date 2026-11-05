@@ -1,0 +1,79 @@
+rules_version = '2';
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════════
+   Reglas de Firestore — Planificador de Cosecha y módulos (Ingenio San Antonio)
+   PROPUESTA DE REFERENCIA reconstruida a partir de lo que hace el código. NO sustituyas las reglas
+   publicadas sin compararlas antes con Consola → Firestore → Reglas, y pruébalas en el «Simulador de reglas».
+   Lo imprescindible para el sello de cambios es el bloque marcado «SELLO» en planificador_compartido.
+   ════════════════════════════════════════════════════════════════════════════════════════════════ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ── Utilidades ── el rol vive en usuarios_roles/{correo en minúsculas}: { rol: 'admin'|'editor'|'visor' } */
+    function conSesion()  { return request.auth != null && request.auth.token.email != null; }
+    function miCorreo()   { return request.auth.token.email.lower(); }
+    function docRol()     { return /databases/$(database)/documents/usuarios_roles/$(miCorreo()); }
+    function tieneRol()   { return conSesion() && exists(docRol()); }
+    function miRol()      { return get(docRol()).data.rol; }
+    function puedeLeer()  { return tieneRol() && miRol() in ['admin', 'editor', 'visor']; }
+    function puedeEditar(){ return tieneRol() && miRol() in ['admin', 'editor']; }
+    function esAdmin()    { return tieneRol() && miRol() == 'admin'; }
+
+    /* ── Datos del planificador: categorías en partes «categoria_N» + el sello de cambios ── */
+    match /planificador_compartido/{docId} {
+      allow read: if puedeLeer();
+
+      // partes de datos: campos_0 … labores_7, etc.
+      allow create, update: if puedeEditar()
+        && docId.matches('(campos|plan|molienda|equipos|ejecucion|geodata|vialidad|labores)_[0-9]+');
+      allow delete: if puedeEditar()
+        && docId.matches('(campos|plan|molienda|equipos|ejecucion|geodata|vialidad|labores)_[0-9]+');
+
+      // SELLO: un token por categoría que el planificador renueva al terminar de guardarla (set con merge)
+      allow create, update: if puedeEditar() && docId == 'sello'
+        && request.resource.data.keys().hasOnly(['cats', 'actualizado', 'usuario'])
+        && request.resource.data.cats is map
+        && request.resource.data.actualizado is string;
+      allow delete: if esAdmin() && docId == 'sello';
+    }
+
+    /* ── Registro de cosechadoras (lo escribe «Resumen de cosechadoras», lo lee «Diseño de lotes») ──
+       meta  +  z_<zafra>_<tipo>_v<versión>_<parte>  con tipo = lotes | maquinas | dias | extra */
+    match /registro_cosechadoras/{docId} {
+      allow read: if puedeLeer();
+      allow create, update, delete: if puedeEditar()
+        && (docId == 'meta' || docId.matches('z_.+_(lotes|maquinas|dias|extra)_v[0-9]+_[0-9]+'));
+    }
+
+    /* ── Nombres de operadores (dato personal): AJUSTAR a tu política vigente ──
+       isa-conexion.js devuelve null cuando la lectura se niega, y los módulos muestran «Operador XXXX». */
+    match /registro_operadores/{docId} {
+      allow read: if esAdmin();
+      allow write: if puedeEditar();
+    }
+
+    /* ── Auditoría: cualquier rol con lectura la ve; los editores agregan; nadie edita ni borra ── */
+    match /historial_cambios/{id} {
+      allow read: if puedeLeer();
+      allow create: if puedeEditar()
+        && request.resource.data.keys().hasOnly(['email', 'accion', 'fecha'])
+        && request.resource.data.email.lower() == miCorreo();
+      allow update, delete: if false;
+    }
+
+    /* ── Roles ── cada persona lee SU documento; solo el administrador lista y gestiona.
+       (Quien no tiene rol no puede listar: la pantalla «sin rol» ya maneja ese error.) */
+    match /usuarios_roles/{correo} {
+      allow get: if conSesion() && (miCorreo() == correo || esAdmin());
+      allow list: if esAdmin();
+      allow create, update: if esAdmin()
+        && request.resource.data.keys().hasOnly(['email', 'rol', 'creadoPor', 'fecha', 'modulos'])
+        && request.resource.data.rol in ['admin', 'editor', 'visor'];
+      allow delete: if esAdmin() && miCorreo() != correo;
+
+      /* ARRANQUE INICIAL (solo si aún NO existe ningún administrador): descomenta, publica, entra con el
+         primer usuario, y vuelve a comentar. Dejarlo activo permite que cualquiera con sesión se haga admin.
+      allow create: if conSesion() && miCorreo() == correo && request.resource.data.rol == 'admin'; */
+    }
+  }
+}

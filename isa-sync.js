@@ -10,7 +10,9 @@
  * Contrato de registrar(def):
  *   id         'seguimiento' | 'diseno' | 'resumen'   (clave en cfg.modulos)
  *   nombre     texto para mostrar
- *   ejecutar() función que lee la base. Puede ser async. Devolver false (o lanzar) = fallo => backoff.
+ *   ejecutar(ctx) función que lee la base. Puede ser async. Devolver false (o lanzar) = fallo => backoff.
+ *              ctx = { auto: bool, completa: bool }. auto=true: disparo del reloj. completa=true: el módulo debe
+ *              ignorar sellos/versiones y releer todo (lectura manual, o «barrido de seguridad» cada barridoMin).
  *   permitido() opcional. false => no hay sesión / datos cargados de archivo / etc. (se reintenta pronto)
  *   ocupado()   opcional. true  => el módulo está leyendo, guardando o procesando (se reintenta pronto)
  */
@@ -27,6 +29,7 @@
   var DEF = {
     modo: 'manual',                     // 'manual' | 'auto'
     intervaloMin: 10,
+    barridoMin: 60,                     // cada cuánto se fuerza una lectura COMPLETA aunque el sello no haya cambiado
     pausarOculta: true,                 // no lee con la pestaña en segundo plano; al volver, lee si venció
     modulos: { seguimiento: true, diseno: false, resumen: true }   // diseno baja geodata (~12 MB): se activa a propósito
   };
@@ -39,6 +42,8 @@
     o.modo = o.modo === 'auto' ? 'auto' : 'manual';
     var n = parseFloat(o.intervaloMin);
     o.intervaloMin = isFinite(n) ? Math.min(MAX_MIN, Math.max(MIN_MIN, n)) : DEF.intervaloMin;
+    var b = parseFloat(o.barridoMin);
+    o.barridoMin = isFinite(b) ? Math.min(MAX_MIN, Math.max(5, b)) : DEF.barridoMin;
     o.pausarOculta = o.pausarOculta !== false;
     o.modulos = Object.assign({}, DEF.modulos, (c && c.modulos) || {});
     return o;
@@ -105,12 +110,13 @@
     } else {
       try { if (m.ocupado && m.ocupado()) return false; } catch (e) { return false; }
     }
+    var ctx = { auto: !forzar, completa: !!forzar || (Date.now() - m.ultimaCompleta) >= c.barridoMin * 60000 };
     m.ejecutando = true; m.ultimoIntento = Date.now(); m.estado = 'sincronizando'; notificar();
     var ok = false;
-    try { ok = (await m.ejecutar()) !== false; }
+    try { ok = (await m.ejecutar(ctx)) !== false; }
     catch (e) { ok = false; m.error = e && e.message ? e.message : String(e); }
     m.ejecutando = false;
-    if (ok) { m.ultima = Date.now(); m.fallos = 0; m.estado = 'ok'; m.error = ''; }
+    if (ok) { m.ultima = Date.now(); if (ctx.completa) m.ultimaCompleta = m.ultima; m.fallos = 0; m.estado = 'ok'; m.error = ''; }
     else { m.fallos++; m.estado = 'error'; }
     reprogramar(id); notificar();
     return ok;
@@ -121,15 +127,15 @@
     if (!def || !def.id || typeof def.ejecutar !== 'function') throw new Error('ISASync.registrar: se requiere id y ejecutar().');
     mods[def.id] = {
       id: def.id, nombre: def.nombre || def.id, ejecutar: def.ejecutar, permitido: def.permitido, ocupado: def.ocupado,
-      ultima: 0, ultimoIntento: Date.now(), proxima: 0, fallos: 0, estado: 'inactivo', ejecutando: false, pendiente: false, error: ''
+      ultima: 0, ultimaCompleta: 0, ultimoIntento: Date.now(), proxima: 0, fallos: 0, estado: 'inactivo', ejecutando: false, pendiente: false, error: ''
     };
     reprogramar(def.id); notificar();
   }
   /* Para que una lectura manual (botón del propio módulo) reinicie el reloj y actualice «última sincronización». */
-  function marcar(id, ok) {
+  function marcar(id, ok, completa) {   // completa=true: fue una lectura completa (reinicia el reloj del barrido de seguridad)
     var m = mods[id]; if (!m) return;
     m.ultimoIntento = Date.now();
-    if (ok === false) { m.fallos++; m.estado = 'error'; } else { m.ultima = Date.now(); m.fallos = 0; m.estado = 'ok'; }
+    if (ok === false) { m.fallos++; m.estado = 'error'; } else { m.ultima = Date.now(); if (completa) m.ultimaCompleta = m.ultima; m.fallos = 0; m.estado = 'ok'; }
     reprogramar(id); notificar();
   }
   function ahora(id) {

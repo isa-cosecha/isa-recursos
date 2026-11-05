@@ -301,6 +301,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
       <ul>
         <li><a href="#" id="portada-planificador" onclick="entrarAlPlanificador();return false"><span class="portada-cuadro" aria-hidden="true"><i class="ti ti-tractor"></i></span>Planificador de Cosecha de Caña<i class="ti ti-chevron-right portada-flecha" aria-hidden="true"></i></a></li>
         <li><a href="seguimiento_cosecha.html" id="portada-seguimiento"><span class="portada-cuadro" aria-hidden="true"><i class="ti ti-chart-line"></i></span>Seguimiento del Plan<i class="ti ti-chevron-right portada-flecha" aria-hidden="true"></i></a></li>
+        <li><a href="resumen_cosechadoras.html" id="portada-resumen"><span class="portada-cuadro" aria-hidden="true"><i class="ti ti-report-analytics"></i></span>Resumen de Cosechadoras<i class="ti ti-chevron-right portada-flecha" aria-hidden="true"></i></a></li>
         <li><a href="diseno_lotes.html" id="portada-diseno-lotes"><span class="portada-cuadro" aria-hidden="true"><i class="ti ti-layout-grid"></i></span>Diseño de Lotes<i class="ti ti-chevron-right portada-flecha" aria-hidden="true"></i></a></li>
       </ul>
     </nav>
@@ -311,7 +312,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
 /* Módulos externos: en GitHub Pages usan ruta relativa; abierto en local (file://) apuntan a la copia publicada. */
 (function(){
   var BASE='https://isa-cosecha.github.io/isa-recursos/';
-  var MODULOS={'portada-seguimiento':'seguimiento_cosecha.html','portada-diseno-lotes':'diseno_lotes.html'};
+  var MODULOS={'portada-seguimiento':'seguimiento_cosecha.html','portada-resumen':'resumen_cosechadoras.html','portada-diseno-lotes':'diseno_lotes.html'};
   if(location.protocol!=='file:') return;
   Object.keys(MODULOS).forEach(function(id){
     var a=document.getElementById(id); if(!a) return;
@@ -2412,6 +2413,15 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
         <option value="0">Seguir leyendo</option>
       </select>
     </div>
+    <div>
+      <label title="Aunque el sello diga «sin cambios», cada cierto tiempo se relee todo por seguridad">Lectura completa de seguridad</label>
+      <select id="sync-barrido" onchange="guardarSyncConfig()">
+        <option value="30">Cada 30 min</option>
+        <option value="60">Cada 1 h</option>
+        <option value="120">Cada 2 h</option>
+        <option value="240">Cada 4 h</option>
+      </select>
+    </div>
   </div>
 
   <div style="margin-top:12px">
@@ -2427,8 +2437,10 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
 
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">
     <button class="btn btn-sm btn-primary" onclick="sincronizarAhoraModulos()" title="Ordena una lectura inmediata a los módulos abiertos en este navegador"><i class="ti ti-refresh"></i> Sincronizar ahora</button>
+    <button class="btn btn-sm" id="sync-btn-sello" onclick="publicarSelloCompleto()" title="Crea o renueva el sello de cambios de TODAS las categorías. Úsalo una vez al activar esta función, o si un módulo no detecta cambios."><i class="ti ti-stamp"></i> Publicar sello de cambios</button>
     <span id="sync-estado" style="font-size:12px;color:var(--text2)"></span>
   </div>
+  <div id="sync-sello-info" style="font-size:12px;color:var(--text2);margin-top:8px"></div>
 </div>
 
     
@@ -3083,6 +3095,30 @@ function fbRefrescarFirmas(categoriasRemotas) {
     });
   } catch (e) { fbFirmaCat = {}; }
 }
+/* ── Sello de cambios ──────────────────────────────────────────────────────────────────────────────────────────────
+   Documento planificador_compartido/sello: { cats: { campos:'token', plan:'token', … }, actualizado, usuario }.
+   El token de una categoría cambia SOLO cuando TODAS sus partes ya se escribieron bien. Los módulos lectores (Seguimiento,
+   Diseño de lotes, Resumen) comparan tokens y releen solo lo que cambió, en vez de bajar toda la base en cada ciclo.
+   Si el sello falla al escribirse, los módulos igual releen todo cada «lectura completa de seguridad» (Ajustes). */
+var fbSelloPend = {}, fbSelloTimer = null;
+function fbEscribirSello(cat) {
+  if (!fbDb || !fbUsuarioActual) return;
+  fbSelloPend[cat] = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  clearTimeout(fbSelloTimer);
+  fbSelloTimer = setTimeout(function() {   // agrupa varias categorías guardadas casi a la vez en UNA escritura
+    var cats = fbSelloPend; fbSelloPend = {};
+    fbDb.collection(FB_COLECCION).doc('sello').set({ cats: cats, actualizado: new Date().toISOString(), usuario: fbUsuarioActual.email }, { merge: true })
+      .catch(function(err) { console.warn('No se pudo actualizar el sello de cambios (los módulos usarán la lectura completa de seguridad)', err); });
+  }, 400);
+}
+/* Crea o renueva el sello de TODAS las categorías (botón en Ajustes; solo admin/editor). */
+function fbPublicarSelloCompleto() {
+  if (!fbDb || !fbUsuarioActual) return Promise.reject(new Error('Sin sesión'));
+  var cats = {}, t = Date.now().toString(36);
+  FB_DOCS.forEach(function(c) { cats[c] = t + '-' + c; });
+  return fbDb.collection(FB_COLECCION).doc('sello').set({ cats: cats, actualizado: new Date().toISOString(), usuario: fbUsuarioActual.email }, { merge: true });
+}
+
 function guardarEnFirestore(dataOpc) {
   if (!fbDb || !fbUsuarioActual || fbAplicandoRemoto) return;
   // Los usuarios con rol "visor" no pueden escribir — esto también lo
@@ -3135,6 +3171,7 @@ function guardarEnFirestore(dataOpc) {
     var partes = partesPorCategoria[nombreCat];
     var previas = fbPartesEscritas[nombreCat] || 0;
     fbFirmaCat[nombreCat] = firmas[nombreCat];   // se da por guardada; si falla, se borra para reintentar
+    var pCat = [];   // una promesa por parte escrita: el sello se publica solo si TODAS terminaron bien
     partes.forEach(function(parteData, i) {
       var docId = nombreCat + '_' + i;
       var parteSaneada = saneaUndefinedParaFirestore(parteData);
@@ -3146,7 +3183,9 @@ function guardarEnFirestore(dataOpc) {
       // este try/catch, esa excepción se propagaría hacia arriba y
       // detendría por completo el resto del guardado.
       try {
-        fbDb.collection(FB_COLECCION).doc(docId).set(parteSaneada, { merge: false })
+        var prSet = fbDb.collection(FB_COLECCION).doc(docId).set(parteSaneada, { merge: false });
+        pCat.push(prSet.then(function() { return true; }, function() { return false; }));
+        prSet
           .then(function() {
             if (!huboError && badge) badge.textContent = 'Guardado ☁';
           })
@@ -3171,6 +3210,7 @@ function guardarEnFirestore(dataOpc) {
         if (badge) badge.textContent = '⚠ Error al guardar en la nube';
       }
     });
+    Promise.all(pCat).then(function(oks) { if (oks.length && oks.every(Boolean)) fbEscribirSello(nombreCat); });
     // Borrar partes SOBRANTES de un guardado anterior más grande (ej. si se eliminaron muchos lotes y ahora caben
     // en menos documentos) — solo las que sabemos que existen: las que vimos en la nube y las que escribimos nosotros.
     // Si todavía no sabemos nada de esa categoría, se hace UNA limpieza completa en la sesión.
@@ -26786,7 +26826,7 @@ updatePreview();
 initFirebase();
 
 </script>
-<script src="isa-sync.js?v=1"></script>
+<script src="isa-sync.js?v=2"></script>
 <script>
 /* ── Ajustes · Sincronización con la base ── */
 function syncAjustesSyncCard() {
@@ -26800,6 +26840,9 @@ function syncAjustesSyncCard() {
   document.getElementById('sync-unidad').value = enHoras ? '60' : '1';
   document.getElementById('sync-valor').value = enHoras ? c.intervaloMin / 60 : Math.round(c.intervaloMin);
   document.getElementById('sync-pausar').value = c.pausarOculta ? '1' : '0';
+  var bsel = document.getElementById('sync-barrido'); if (!bsel.querySelector('option[value="' + c.barridoMin + '"]')) { var ob = document.createElement('option'); ob.value = c.barridoMin; ob.textContent = 'Cada ' + c.barridoMin + ' min'; bsel.appendChild(ob); }
+  bsel.value = String(c.barridoMin);
+  pintarSelloInfo();
   ['seguimiento', 'diseno', 'resumen'].forEach(function (k) {
     document.getElementById('sync-mod-' + k).checked = c.modulos[k] !== false;
   });
@@ -26832,6 +26875,7 @@ function guardarSyncConfig() {
     modo: document.getElementById('sync-modo').value,
     intervaloMin: minutos,                                   // ISASync lo acota a [MIN_MIN, MAX_MIN]
     pausarOculta: document.getElementById('sync-pausar').value === '1',
+    barridoMin: parseFloat(document.getElementById('sync-barrido').value) || 60,
     modulos: {
       seguimiento: document.getElementById('sync-mod-seguimiento').checked,
       diseno: document.getElementById('sync-mod-diseno').checked,
@@ -26845,6 +26889,29 @@ function guardarSyncConfig() {
     if (typeof showToast === 'function') showToast('Intervalo ajustado al rango permitido (' + ISASync.MIN_MIN + ' min a ' + (ISASync.MAX_MIN / 60) + ' h).');
   }
   pintarAvisoSync(c);
+}
+
+/* Sello de cambios: estado y publicación manual (solo admin/editor). Ver fbEscribirSello() en el guardado. */
+function pintarSelloInfo() {
+  var el = document.getElementById('sync-sello-info'), b = document.getElementById('sync-btn-sello');
+  if (!el || !b) return;
+  var puede = typeof fbRolActual !== 'undefined' && (fbRolActual === 'admin' || fbRolActual === 'editor');
+  b.style.display = puede ? '' : 'none';
+  if (typeof fbDb === 'undefined' || !fbDb) { el.textContent = ''; return; }
+  fbDb.collection(FB_COLECCION).doc('sello').get().then(function (d) {
+    if (!d.exists) { el.innerHTML = '⚠ Todavía no existe el sello de cambios: los módulos releen todo en cada ciclo. ' + (puede ? 'Pulsa «Publicar sello de cambios».' : 'Pide a un editor o administrador que lo publique.'); return; }
+    var x = d.data() || {}, n = Object.keys(x.cats || {}).length;
+    el.textContent = 'Sello activo: ' + n + ' categorías · última actualización ' + (x.actualizado ? new Date(x.actualizado).toLocaleString() : '–') + (x.usuario ? ' · ' + x.usuario : '') + '.';
+  }).catch(function (e) { el.textContent = 'No se pudo leer el sello' + (e && e.code === 'permission-denied' ? ' (revisa las reglas de Firestore).' : '.'); });
+}
+function publicarSelloCompleto() {
+  if (typeof fbPublicarSelloCompleto !== 'function') return;
+  fbPublicarSelloCompleto().then(function () {
+    if (typeof showToast === 'function') showToast('Sello de cambios publicado.');
+    pintarSelloInfo();
+  }).catch(function (e) {
+    if (typeof showToast === 'function') showToast('No se pudo publicar el sello' + (e && e.code === 'permission-denied' ? ': tu usuario no tiene permiso de escritura.' : '.'));
+  });
 }
 
 function sincronizarAhoraModulos() {
