@@ -9078,12 +9078,21 @@ async function eqCalcular() {
   autoSave();   // las reglas quedan guardadas con el plan
   var metaMax = eqIso(new Date(eqFecha(meta).getTime() + P.margen * EQ_DIA));
   var prog = document.getElementById('eq-progreso'), btn = document.getElementById('eq-btn-calcular');
-  var paso = function(t) { if (prog) prog.textContent = t; return new Promise(function(r) { setTimeout(r, 25); }); };
+  var prevR = (_eqCierre && _eqCierre.zafra === zafra) ? _eqCierre : null;   // para comparar con el cálculo anterior
+  var elRes = document.getElementById('eq-resultado');
+  if (elRes) elRes.innerHTML = '<div style="padding:14px 16px;border:0.5px solid var(--border);border-radius:var(--radius);margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:baseline;font-size:12px;margin-bottom:6px"><span id="eq-bar-txt" style="color:var(--text2)">Preparando…</span><strong id="eq-bar-pct" style="font-size:16px">0%</strong></div><div style="height:8px;background:var(--border);border-radius:4px;overflow:hidden"><div id="eq-bar" style="height:8px;width:0%;background:var(--green);border-radius:4px;transition:width .25s"></div></div><div style="font-size:11px;color:var(--text3);margin-top:6px">Revisando el plan con las reglas actuales. El resultado aparece al llegar a 100%.</div></div>';
+  var paso = function(t, pct) {
+    if (pct !== undefined) { var b = document.getElementById('eq-bar'), pc = document.getElementById('eq-bar-pct'), tx = document.getElementById('eq-bar-txt'), v = Math.max(0, Math.min(100, Math.round(pct))); if (b) b.style.width = v + '%'; if (pc) pc.textContent = v + '%'; if (tx) tx.textContent = t; }
+    else if (prog) prog.textContent = t;
+    return new Promise(function(r) { setTimeout(r, 30); });
+  };
+  var nRondas = 0, RONDAS_MAX = 12;   // 2 fases × 6 rondas como máximo: la barra avanza según la ronda en curso
+  var pctRonda = function(fr) { return Math.min(94, 6 + (Math.max(1, nRondas) - 1 + fr) * (88 / RONDAS_MAX)); };
   if (btn) btn.disabled = true;
   var snap = JSON.parse(JSON.stringify(planItems)), snapSeq = planIdSeq;
   var resultado = null;
   try {
-    await paso('Midiendo el plan actual…');
+    await paso('Midiendo el plan actual…', 2);
     recalcularCacheProd(); invalidarSimCache();
     var antes = eqMedir(zafra, meta, metaMax);
     var cent = {}; (geoFeatures || []).forEach(function(gf) { if (gf.campoId && gf.centroid) cent[gf.campoId] = gf.centroid; });
@@ -9099,10 +9108,10 @@ async function eqCalcular() {
       return (cacheCosto[k] = v);
     };
     var participa = function(fr) { var f = frentes.find(function(x) { return x.nombre === fr; }); return f && !frenteEsManual(f) && excl.indexOf(fr) < 0; };
-    var movs = {}, metaActual = meta, nRondas = 0;
+    var movs = {}, metaActual = meta;
     for (var fase = 0; fase < 2; fase++) {
       for (var ronda = 1; ronda <= 6; ronda++) {
-        nRondas++; await paso('Ronda ' + nRondas + ': buscando lotes para mover…');
+        nRondas++; await paso('Ronda ' + nRondas + ': midiendo frentes y buscando lotes para mover…', pctRonda(0));
         var E = eqMedir(zafra, metaActual, metaActual);
         var donantes = Object.keys(E.fin).filter(function(f) { return participa(f) && E.fin[f] > metaActual; });
         var receptores = Object.keys(E.fin).filter(function(f) { return participa(f) && E.fin[f] < metaActual && donantes.indexOf(f) < 0; }).sort(function(a, b) { return E.fin[a].localeCompare(E.fin[b]); });
@@ -9141,8 +9150,11 @@ async function eqCalcular() {
           }
         });
         if (!n) break;
+        await paso('Ronda ' + nRondas + ': ' + n + ' lote(s) movidos, recalculando…', pctRonda(0.35));
         recalcularCacheProd(); invalidarSimCache();
-        donantes.concat(receptores).forEach(function(fr) { ajustarSecuenciaGrupo(fr, zafra); });
+        var grp = donantes.concat(receptores);
+        for (var gi = 0; gi < grp.length; gi++) { await paso('Ronda ' + nRondas + ': reordenando ' + grp[gi] + '…', pctRonda(0.4 + 0.5 * gi / grp.length)); ajustarSecuenciaGrupo(grp[gi], zafra); }
+        await paso('Ronda ' + nRondas + ': recalculando producción…', pctRonda(0.92));
         recalcularCacheProd(); invalidarSimCache();
       }
       // Si con la fecha meta no alcanza, se usa el margen
@@ -9151,7 +9163,7 @@ async function eqCalcular() {
       if (!tarde.length || !(P.margen > 0) || metaActual !== meta) break;
       metaActual = metaMax;
     }
-    await paso('Midiendo el resultado…');
+    await paso('Midiendo el resultado…', 96);
     recalcularCacheProd(); invalidarSimCache();
     var despues = eqMedir(zafra, meta, metaMax);
     var lista = Object.keys(movs).map(function(k) {
@@ -9161,6 +9173,11 @@ async function eqCalcular() {
       return m;
     }).filter(function(m) { return m.a !== m.de; }).sort(function(a, b) { return a.a.localeCompare(b.a) || (a.fecha || '').localeCompare(b.fecha || ''); });
     resultado = { zafra: zafra, meta: meta, metaMax: metaMax, antes: antes, despues: despues, movs: lista, excl: excl.slice(), metaUsada: metaActual };
+    var sigM = function(a) { return a.map(function(m) { return m.id + '>' + m.a + '@' + m.fecha; }).sort().join('|'); };
+    resultado.ts = new Date().toLocaleTimeString('es');
+    resultado.rondas = nRondas;
+    resultado.cmp = prevR ? { ts: prevR.ts || '', igual: sigM(prevR.movs) === sigM(lista) && Math.round(prevR.despues.defTon) === Math.round(despues.defTon), movs: [prevR.movs.length, lista.length], falt: [Math.round(prevR.despues.defTon), Math.round(despues.defTon)], dias: [prevR.despues.defDias, despues.defDias] } : null;
+    await paso('Listo', 100);
   } catch (e) {
     console.error(e); alert('No se pudo calcular la propuesta: ' + (e && e.message ? e.message : e));
   } finally {
@@ -9170,6 +9187,8 @@ async function eqCalcular() {
     if (prog) prog.textContent = '';
   }
   if (resultado) { _eqCierre = resultado; eqRenderResultado(); }
+  else if (_eqCierre) eqRenderResultado();   // si falló, vuelve a mostrarse el cálculo anterior
+  else { var elE = document.getElementById('eq-resultado'); if (elE) elE.innerHTML = ''; }
 }
 function eqRenderResultado() {
   var el = document.getElementById('eq-resultado'), R = _eqCierre; if (!el || !R) return;
@@ -9177,7 +9196,8 @@ function eqRenderResultado() {
   var color = function(f) { return !f ? 'var(--text3)' : f <= R.meta ? 'var(--green-text)' : f <= R.metaMax ? 'var(--amber-text)' : 'var(--red-text)'; };
   var frs = Object.keys(A.fin).filter(function(f) { return R.excl.indexOf(f) < 0 && !frenteEsManual(frentes.find(function(x) { return x.nombre === f; })); }).sort(function(a, b) { return A.fin[a].localeCompare(A.fin[b]); });
   var pct = function(x) { return A.total > 0 ? (x / A.total * 100).toFixed(1) + '%' : '–'; };
-  var h = '';
+  var h = '<div style="font-size:11px;color:var(--text2);margin-bottom:8px">Calculado a las <strong>' + (R.ts || '–') + '</strong>' + (R.rondas ? ' · ' + R.rondas + ' ronda(s) de revisión' : '') + '.' +
+    (R.cmp ? (R.cmp.igual ? ' <span style="color:var(--amber-text)">Sin diferencias frente al cálculo anterior (' + (R.cmp.ts || '') + '): con los parámetros que cambiaste la propuesta sale igual.</span>' : ' Frente al cálculo anterior (' + (R.cmp.ts || '') + '): lotes a mover <strong>' + R.cmp.movs[0] + ' → ' + R.cmp.movs[1] + '</strong> · toneladas faltantes <strong>' + R.cmp.falt[0].toLocaleString() + ' → ' + R.cmp.falt[1].toLocaleString() + '</strong> · días con faltante <strong>' + R.cmp.dias[0] + ' → ' + R.cmp.dias[1] + '</strong>.') : '') + '</div>';
   if (!R.movs.length) h += '<div class="alert alert-info" style="margin-bottom:12px"><i class="ti ti-info-circle"></i><span>No hace falta mover lotes: ningún frente que participa termina después de la fecha meta, o no hay lotes que cumplan las reglas.</span></div>';
   h += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">' +
     '<div class="metric-card"><div class="metric-label">Caña cosechada al ' + R.meta + '</div><div class="metric-value">' + pct(B.hastaMeta) + '</div><div class="metric-unit">hoy ' + pct(A.hastaMeta) + ' · ' + Math.round(B.hastaMeta).toLocaleString() + ' t</div></div>' +
