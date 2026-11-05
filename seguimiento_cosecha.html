@@ -755,7 +755,7 @@ function viewSeguimiento(cs){
 /* Producto Madurador, Días Aplicación y Ventana Madurador ya salen del Plan de Madurador (v285 del planificador) */
 var PF_SIN_DATO={'Conformación Carretas':'Número de carretas por plantío','Removido':'Plan de removido (SI/NO)','Autoguiado':'Autoguiado (SI/NO)','Autoguiado Total/Parcial':'Cobertura del autoguiado','Pasadiceo':'Pasadiceo (SI/NO)','Observación de Cosecha':'Observación de cosecha por plantío','Evaluaciones':'Plantío en evaluación (SI/NO)'};
 var PF_TIP={'Cosech. nec.':'Cosechadoras necesarias para cortar el lote en su ventana programada. Rojo = más que las asignadas al frente. Toca el número para ver por qué.','Hrs efect. /máq/día':'Horas efectivas de trabajo por máquina y día en la ventana del lote (horas/día del frente menos paros de mantenimiento y traslado).','TM/h':'Toneladas por hora de una cosechadora en este lote (t/h por máquina, sin multiplicar por las máquinas del frente).','TM/Máq/Día':'Toneladas que corta una máquina por día = t/h por máquina × horas efectivas/máq/día.','Capacidad frente':'Capacidad del frente en t/día mientras corta este lote = TM/Máq/Día × máquinas asignadas.'};
-var PF_COLS=['Semana','Sec','Plantío','Variedad','N. Cortes','Área (Ha)','TM Est','TM Real','TCH Est.','TCH Real','Cosech. nec.','Hrs efect. /máq/día','TM/h','TM/Máq/Día','Capacidad frente','Fecha de Corte','Corte/Siembra','Edad Corte','Edad Actual','Dist siembra','Conformación Carretas','Removido','Autoguiado','Autoguiado Total/Parcial','Pasadiceo','Producto Madurador','Días Aplicación','Ventana Madurador','Estatus Plantío','Observación de Cosecha','Evaluaciones'];
+var PF_COLS=['Semana','Sec','Plantío','Variedad','N. Cortes','Área (Ha)','TM Est','TM Real','TCH Est.','TCH Real','Cosech. nec.','Hrs efect. /máq/día','TM/h','TM/Máq/Día','Capacidad frente','Fecha de Corte (Inicio)','Fecha Fin de Corte','Corte/Siembra','Edad Corte','Edad Actual','Dist siembra','Conformación Carretas','Removido','Autoguiado','Autoguiado Total/Parcial','Pasadiceo','Producto Madurador','Días Aplicación','Ventana Madurador','Estatus Plantío','Observación de Cosecha','Evaluaciones'];
 function pfEstatus(i){return i.estado==='Completo'?'Cosechado':i.estado==='En cosecha'?'Trabajando':'Pendiente';}
 /* ═══ Ventana de madurador ═══
    Media ponderada (por Ha aplicadas) de «Días Madurador a Corte (Plan)», por producto y tenencia, de la zafra elegida.
@@ -829,7 +829,7 @@ function maqLote(i){
   var mAsig=M/H,MHnec=T/pu,tT=(DB.tTrasladoMin>0?DB.tTrasladoMin:30)/60,den=Math.max(H-tT,H*0.25);
   var base=MHnec/H,mtto=L/H,N=(MHnec+L)/den,tras=Math.max(0,N-(MHnec+L)/H);
   var hef=Math.max(0,(H-tT-(mAsig>0?L/mAsig:0))/dias);
-  return {p:p,fn:fn,T:T,pu:pu,d0:d0,d1:d1,dias:dias,H:H,L:L,mAsig:mAsig,MHnec:MHnec,base:base,mtto:mtto,tras:tras,N:N,nec:Math.ceil(N-0.25),hef:hef,tTmin:tT*60,mtD:mtD,red:Math.ceil(N-0.25)>mAsig+0.05};
+  return {p:p,fn:fn,T:T,pu:pu,d0:d0,d1:d1,dias:dias,H:H,L:L,mAsig:mAsig,MHnec:MHnec,base:base,mtto:mtto,tras:tras,N:N,nec:Math.max(1,Math.ceil(N-0.25)),hef:hef,tTmin:tT*60,mtD:mtD,red:Math.max(1,Math.ceil(N-0.25))>mAsig+0.05};
 }
 function edadCls(v){return v==null?'':(v<330?'ed-r':(v>370?'ed-o':'ed-g'));}
 function motivoAuto(q){
@@ -878,7 +878,7 @@ function viewPrograma(cs,P){
       else if(zPasada)edad=edadCorte;
       else edad=Math.floor(hoy-i.fechaUlt);
     }
-    return {i:i,est:est,sem:sem,edad:edad,edadCorte:edadCorte};
+    return {i:i,est:est,sem:sem,edad:edad,edadCorte:edadCorte,q:maqLote(i)};
   }).filter(function(x){return S.pfEst[x.est];});
   /* orden: semana, luego la secuencia del plan (orden del frente) */
   var orden={},ok=function(i){return (i._fr||'')+'|'+i.codigo;};F.items.forEach(function(i,k){orden[ok(i)]=k;});
@@ -886,12 +886,17 @@ function viewPrograma(cs,P){
   var grupos=[],g=null;
   filas.forEach(function(x){if(!g||g.sem!==x.sem){g={sem:x.sem,filas:[]};grupos.push(g);}g.filas.push(x);});
   function sub(fs){var ha=0,te=0,tr=0,sr=0;fs.forEach(function(x){ha+=x.i.exist||0;te+=x.i.tonPlan;tr+=x.i.tonReal;sr+=(x.i.exist>0?x.i.tonReal/x.i.exist:0);});
-    return {ha:ha,te:te,tr:tr,tchE:ha>0?te/ha:null,tchR:fs.length?sr/fs.length:null};}
+    var n=0,a={nec:0,hef:0,tmh:0,tmmd:0,cap:0};
+    fs.forEach(function(x){var q=x.q;if(!q)return;n++;a.nec+=q.nec;a.hef+=q.hef;a.tmh+=q.pu;a.tmmd+=q.pu*q.hef;a.cap+=q.pu*q.mAsig*q.hef;});
+    return {ha:ha,te:te,tr:tr,tchE:ha>0?te/ha:null,tchR:fs.length?sr/fs.length:null,
+      nec:n?a.nec/n:null,hef:n?a.hef/n:null,tmh:n?a.tmh/n:null,tmmd:n?a.tmmd/n:null,cap:n?a.cap/n:null};}
   var nd='<td class="sd">—</td>',cn=function(v,d){return '<td>'+fN(v,d)+'</td>';};
   var cols=PF_COLS.filter(function(c){return S.pfSD||!PF_SIN_DATO[c];}),nCols=cols.length;
+  /* promedios simples de los plantíos del grupo: Cosech. nec., Hrs efect., TM/h, TM/Máq/Día y Capacidad frente */
+  var avgC=function(o){return '<td title="Promedio de los plantíos">'+fN(o.nec,1)+'</td><td title="Promedio de los plantíos">'+fN(o.hef,1)+'</td><td title="Promedio de los plantíos">'+fN(o.tmh,1)+'</td><td title="Promedio de los plantíos">'+fN(o.tmmd,0)+'</td><td title="Promedio de los plantíos">'+fN(o.cap,0)+'</td><td colspan="'+(nCols-15)+'"></td>';};
   var body='';
   grupos.forEach(function(gr){
-    gr.filas.forEach(function(x,k){var i=x.i,C={},q=maqLote(i),mo=MOT[S.zafra+'|'+i.codigo];
+    gr.filas.forEach(function(x,k){var i=x.i,C={},q=x.q,mo=MOT[S.zafra+'|'+i.codigo];
       C['Semana']='<td class="l">'+(k===0?(gr.sem!=null?gr.sem:'—'):'')+'</td>';
       C['Sec']='<td class="l">'+(k+1)+'</td>';
       C['Plantío']='<td class="l nm" title="'+esc((todos&&i._fr?i._fr+' · ':'')+i.nombre+' | '+(i.finca||''))+'">'+(todos&&i._fr?'<span class="pf-fr">'+esc(i._fr)+'</span>':'')+esc(i.nombre+(i.finca?' | '+i.finca:''))+(i.lab||'')+'</td>';
@@ -905,7 +910,8 @@ function viewPrograma(cs,P){
       else{C['Cosech. nec.']=nd;C['Hrs efect. /máq/día']=nd;}
       if(q){C['TM/h']=cn(q.pu,1);C['TM/Máq/Día']=cn(q.pu*q.hef,0);C['Capacidad frente']=cn(q.pu*q.mAsig*q.hef,0);}
       else{C['TM/h']=nd;C['TM/Máq/Día']=nd;C['Capacidad frente']=nd;}
-      C['Fecha de Corte']='<td>'+(i.fechaProg!=null?fD(i.fechaProg)+'/'+String(dOf(i.fechaProg).getUTCFullYear()).slice(2):'—')+'</td>';
+      C['Fecha de Corte (Inicio)']='<td>'+(i.fechaProg!=null?fD(i.fechaProg)+'/'+String(dOf(i.fechaProg).getUTCFullYear()).slice(2):'—')+'</td>';
+      C['Fecha Fin de Corte']='<td title="Fecha de fin programada en el plan del lote">'+(i.finProg!=null?fD(i.finProg)+'/'+String(dOf(i.finProg).getUTCFullYear()).slice(2):'—')+'</td>';
       C['Corte/Siembra']='<td>'+(i.fechaUlt!=null?fD(i.fechaUlt)+'/'+String(dOf(i.fechaUlt).getUTCFullYear()).slice(2):'—')+'</td>';
       C['Edad Corte']='<td>'+(x.edadCorte!=null?'<span class="ed '+edadCls(x.edadCorte)+'">'+fN(x.edadCorte)+'</span>':'—')+'</td>';
       C['Edad Actual']='<td>'+(x.edad!=null?'<span class="ed '+edadCls(x.edad)+'">'+fN(x.edad)+'</span>':'—')+'</td>';
@@ -915,10 +921,10 @@ function viewPrograma(cs,P){
       C['Estatus Plantío']='<td class="l"><span class="st '+(x.est==='Cosechado'?'c':x.est==='Trabajando'?'e':'p')+'">'+x.est+'</span></td>';
       body+='<tr>'+cols.map(function(c){return C[c]!==undefined?C[c]:nd;}).join('')+'</tr>';});
     var s=sub(gr.filas);
-    body+='<tr class="pf-sub"><td class="l" colspan="2">Total '+(gr.sem!=null?gr.sem:'—')+'</td><td colspan="3"></td>'+cn(s.ha,2)+cn(s.te)+cn(s.tr)+cn(s.tchE,1)+cn(s.tchR,1)+'<td colspan="'+(nCols-10)+'"></td></tr>';
+    body+='<tr class="pf-sub"><td class="l" colspan="2">Total '+(gr.sem!=null?gr.sem:'—')+'</td><td colspan="3"></td>'+cn(s.ha,2)+cn(s.te)+cn(s.tr)+cn(s.tchE,1)+cn(s.tchR,1)+avgC(s)+'</tr>';
   });
   var T=sub(filas);
-  var foot='<tr><td class="l" colspan="2">Total '+(todos?'todos los frentes':esc(S.pfFrente))+'</td><td colspan="3"></td>'+cn(T.ha,2)+cn(T.te)+cn(T.tr)+cn(T.tchE,1)+cn(T.tchR,1)+'<td colspan="'+(nCols-10)+'"></td></tr>';
+  var foot='<tr><td class="l" colspan="2">Total '+(todos?'todos los frentes':esc(S.pfFrente))+'</td><td colspan="3"></td>'+cn(T.ha,2)+cn(T.te)+cn(T.tr)+cn(T.tchE,1)+cn(T.tchR,1)+avgC(T)+'</tr>';
   var head=cols.map(function(c){var sd=PF_SIN_DATO[c],tp=PF_TIP[c];return '<th class="'+(c==='Plantío'||c==='Variedad'||c==='Semana'||c==='Sec'||c==='Estatus Plantío'||c==='Dist siembra'?'l':'')+(sd?' nd':'')+'"'+(sd?' title="Sin dato en la base del planificador: '+esc(sd)+'"':(tp?' title="'+esc(tp)+'"':''))+'>'+c+'</th>';}).join('');
   var chips=['Trabajando','Cosechado','Pendiente','Accidentado'].map(function(e){return '<label><input type="checkbox" data-pfe="'+e+'"'+(S.pfEst[e]?' checked':'')+'> '+e+(e==='Accidentado'?' <span style="color:var(--muted)">(sin dato)</span>':'')+'</label>';}).join('');
   var opts='<option value="'+PF_T+'"'+(todos?' selected':'')+'>Todos los frentes ('+selF.length+')</option>'+frs.map(function(f){return '<option'+(!todos&&f===S.pfFrente?' selected':'')+'>'+esc(f)+'</option>';}).join('');
@@ -926,7 +932,7 @@ function viewPrograma(cs,P){
     +'<div class="note" style="margin:-2px 0 8px">Edad óptima 330–370 d: <span class="ed ed-g">verde</span> · menor a 330 <span class="ed ed-r">rojo</span> · mayor a 370 <span class="ed ed-o">naranja</span>. En <b>Cosech. nec.</b>, <span class="ed ed-r">rojo</span> = hacen falta más cosechadoras que las asignadas al frente; toca el número para ver el motivo.</div>'
     +(todos?'<div class="note" style="margin:-2px 0 8px">'+(selF.length?'Se muestran los '+selF.length+' frente(s) marcados en ▸ Filtros → Frentes a mostrar: '+esc(selF.map(function(f){return f.frente;}).join(', '))+'.':'No hay frentes marcados en ▸ Filtros → Frentes a mostrar.')+'</div>':'')
     +'<div class="scroll" style="max-height:640px"><table class="t pf"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody><tfoot>'+foot+'</tfoot></table></div>'+(S.maqWhy?(function(){var it=F.items.filter(function(z){return String(z.codigo)===String(S.maqWhy);})[0];return it?maqModal(it):'';})():'')
-    +'<div class="note" style="margin-top:8px">Réplica de la tabla dinámica de la hoja «Frente K1» del Excel. Columnas en gris: no existen en la base del planificador. Producto Madurador / Días Aplicación (hoy − fecha de aplicación) / Ventana Madurador salen del Plan de Madurador: la ventana es la media ponderada de los días a corte del plan ± tolerancia (se configura en el planificador: Datos maestros → Quema y madurador → Ventana madurador) y se evalúa con la fecha de corte real o la llegada proyectada. Corte/Siembra = fecha del corte anterior (o de la siembra) del plantío guardada en el plan de la zafra; Edad Corte = Fecha de Corte − Corte/Siembra; Edad Actual = fecha real de corte − Corte/Siembra; si el plantío no tiene dato real y la zafra ya terminó queda igual que la Edad Corte; en una zafra en curso, sin corte real, cuenta hasta hoy; Semana = semana de zafra (miércoles a martes) de la fecha de corte del plan; Sec = orden dentro de la semana según la secuencia del plan. TCH Est. del total = TM Est ÷ Ha; TCH Real de los totales = promedio simple del TCH Real de cada plantío, igual que la tabla del Excel (no es TM Real ÷ Ha).</div></div>';
+    +'<div class="note" style="margin-top:8px">Réplica de la tabla dinámica de la hoja «Frente K1» del Excel. Columnas en gris: no existen en la base del planificador. Producto Madurador / Días Aplicación (hoy − fecha de aplicación) / Ventana Madurador salen del Plan de Madurador: la ventana es la media ponderada de los días a corte del plan ± tolerancia (se configura en el planificador: Datos maestros → Quema y madurador → Ventana madurador) y se evalúa con la fecha de corte real o la llegada proyectada. Corte/Siembra = fecha del corte anterior (o de la siembra) del plantío guardada en el plan de la zafra; Fecha Fin de Corte = fecha de fin programada del lote en el plan; Edad Corte = Fecha de Corte (Inicio) − Corte/Siembra; Edad Actual = fecha real de corte − Corte/Siembra; si el plantío no tiene dato real y la zafra ya terminó queda igual que la Edad Corte; en una zafra en curso, sin corte real, cuenta hasta hoy; Semana = semana de zafra (miércoles a martes) de la fecha de corte del plan; Sec = orden dentro de la semana según la secuencia del plan. TCH Est. del total = TM Est ÷ Ha; TCH Real y Cosech. nec., Hrs efect., TM/h, TM/Máq/Día y Capacidad frente de los totales = promedio simple de cada plantío, igual que la tabla del Excel (no es TM Real ÷ Ha).</div></div>';
 }
 
 function viewControles(cs,names){
