@@ -754,8 +754,8 @@ function viewSeguimiento(cs){
    Las columnas marcadas «sin dato» (gris) no existen en la base del planificador; el resto sale de planItems, campos y Ejecución. */
 /* Producto Madurador, Días Aplicación y Ventana Madurador ya salen del Plan de Madurador (v285 del planificador) */
 var PF_SIN_DATO={'Conformación Carretas':'Número de carretas por plantío','Removido':'Plan de removido (SI/NO)','Autoguiado':'Autoguiado (SI/NO)','Autoguiado Total/Parcial':'Cobertura del autoguiado','Pasadiceo':'Pasadiceo (SI/NO)','Observación de Cosecha':'Observación de cosecha por plantío','Evaluaciones':'Plantío en evaluación (SI/NO)'};
-var PF_TIP={'Cosech. nec.':'Cosechadoras necesarias para cortar el lote en su ventana programada. Rojo = más que las asignadas al frente. Toca el número para ver por qué.','Hrs efect. /máq/día':'Horas efectivas de trabajo por máquina y día en la ventana del lote (horas/día del frente menos paros de mantenimiento y traslado).'};
-var PF_COLS=['Semana','Sec','Plantío','Variedad','N. Cortes','Área (Ha)','TM Est','TM Real','TCH Est.','TCH Real','Cosech. nec.','Hrs efect. /máq/día','Fecha de Corte','Corte/Siembra','Edad Corte','Edad Actual','Dist siembra','Conformación Carretas','Removido','Autoguiado','Autoguiado Total/Parcial','Pasadiceo','Producto Madurador','Días Aplicación','Ventana Madurador','Estatus Plantío','Observación de Cosecha','Evaluaciones'];
+var PF_TIP={'Cosech. nec.':'Cosechadoras necesarias para cortar el lote en su ventana programada. Rojo = más que las asignadas al frente. Toca el número para ver por qué.','Hrs efect. /máq/día':'Horas efectivas de trabajo por máquina y día en la ventana del lote (horas/día del frente menos paros de mantenimiento y traslado).','TM/h':'Toneladas por hora de una cosechadora en este lote (t/h por máquina, sin multiplicar por las máquinas del frente).','TM/Máq/Día':'Toneladas que corta una máquina por día = t/h por máquina × horas efectivas/máq/día.','Capacidad frente':'Capacidad del frente en t/día mientras corta este lote = TM/Máq/Día × máquinas asignadas.'};
+var PF_COLS=['Semana','Sec','Plantío','Variedad','N. Cortes','Área (Ha)','TM Est','TM Real','TCH Est.','TCH Real','Cosech. nec.','Hrs efect. /máq/día','TM/h','TM/Máq/Día','Capacidad frente','Fecha de Corte','Corte/Siembra','Edad Corte','Edad Actual','Dist siembra','Conformación Carretas','Removido','Autoguiado','Autoguiado Total/Parcial','Pasadiceo','Producto Madurador','Días Aplicación','Ventana Madurador','Estatus Plantío','Observación de Cosecha','Evaluaciones'];
 function pfEstatus(i){return i.estado==='Completo'?'Cosechado':i.estado==='En cosecha'?'Trabajando':'Pendiente';}
 /* ═══ Ventana de madurador ═══
    Media ponderada (por Ha aplicadas) de «Días Madurador a Corte (Plan)», por producto y tenencia, de la zafra elegida.
@@ -903,6 +903,8 @@ function viewPrograma(cs,P){
         C['Cosech. nec.']='<td class="mq'+(rojo?' mq-red':'')+'" data-act="maqwhy" data-cod="'+esc(i.codigo)+'" title="Necesarias '+fN(q.N,1)+' · asignadas '+fN(q.mAsig,1)+(rojo?' · toca para ver por qué sumar cosechadoras':' · toca para ver el detalle')+'"><b>'+q.nec+'</b>'+(mo?'<span class="mq-n" title="Con motivo guardado">💬</span>':'')+'</td>';
         C['Hrs efect. /máq/día']='<td title="Ventana '+fD(q.d0)+'–'+fD(q.d1)+' ('+q.dias+' d)">'+fN(q.hef,1)+'</td>';}
       else{C['Cosech. nec.']=nd;C['Hrs efect. /máq/día']=nd;}
+      if(q){C['TM/h']=cn(q.pu,1);C['TM/Máq/Día']=cn(q.pu*q.hef,0);C['Capacidad frente']=cn(q.pu*q.mAsig*q.hef,0);}
+      else{C['TM/h']=nd;C['TM/Máq/Día']=nd;C['Capacidad frente']=nd;}
       C['Fecha de Corte']='<td>'+(i.fechaProg!=null?fD(i.fechaProg)+'/'+String(dOf(i.fechaProg).getUTCFullYear()).slice(2):'—')+'</td>';
       C['Corte/Siembra']='<td>'+(i.fechaUlt!=null?fD(i.fechaUlt)+'/'+String(dOf(i.fechaUlt).getUTCFullYear()).slice(2):'—')+'</td>';
       C['Edad Corte']='<td>'+(x.edadCorte!=null?'<span class="ed '+edadCls(x.edadCorte)+'">'+fN(x.edadCorte)+'</span>':'—')+'</td>';
