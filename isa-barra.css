@@ -1,6 +1,10 @@
 /* isa-barra.css — Barra superior estándar de los módulos de Cosecha (Ingenio San Antonio).
    La usan Seguimiento del Plan, Resumen de Cosechadoras y Diseño de Lotes: misma altura, color, botón «Inicio»
-   (vuelve a la portada de index.html), título y estado de sincronización. Requiere los íconos Tabler (clase «ti»). */
+   (vuelve a la portada de index.html), título, estado de sincronización, usuario de la sesión y «Actualizar».
+   Requiere los íconos Tabler (clase «ti»). */
+/* El atributo hidden debe ganar siempre: reglas como .row{display:flex} o .isa-btn{display:inline-flex} lo anulaban
+   y dejaban visibles a la vez el formulario de acceso y la sesión iniciada. */
+[hidden] { display: none !important; }
 :root {
   --isa-verde-oscuro: #0D4934;
   --isa-verde: #1D9E75;
@@ -19,8 +23,10 @@
 }
 .isa-btn:hover { background: rgba(255, 255, 255, .25); }
 .isa-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.isa-usuario { font-size: 12px; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 28vw; }
 .isa-sync-chip { font-size: 12px; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 45vw; }
-@media (max-width: 640px) { .isa-barra { padding: 0 12px; } .isa-sync-chip { display: none; } }
+@media (max-width: 640px) { .isa-barra { padding: 0 12px; } .isa-usuario { font-size: 12px; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 28vw; }
+.isa-sync-chip { display: none; } }
 /* Título + descripción de la página, bajo la barra */
 .isa-intro h1 { font-size: 26px; line-height: 1.2; margin: 0 0 8px; font-weight: 650; letter-spacing: -.01em; max-width: none; }
 .isa-intro p { margin: 0 0 22px; max-width: 70ch; font-size: 15px; opacity: .8; }

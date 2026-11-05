@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Resumen de Cosechadoras · Cosecha ISA</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
-<link rel="stylesheet" href="isa-barra.css?v=2">
+<link rel="stylesheet" href="isa-barra.css?v=3">
 <style>
 :root{
   box-sizing:border-box;
@@ -91,25 +91,16 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
 <script src="isa-sync.js?v=2"></script>
 </head>
 <body>
-<header class="isa-barra"><a href="index.html" class="isa-btn" title="Volver a la portada"><i class="ti ti-home" aria-hidden="true"></i> Inicio</a><span class="isa-titulo">Resumen de Cosechadoras</span><span id="isa-sync-chip" class="isa-sync-chip" aria-live="polite"></span></header>
+<header class="isa-barra"><a href="index.html" class="isa-btn" title="Volver a la portada"><i class="ti ti-home" aria-hidden="true"></i> Inicio</a><span class="isa-titulo">Resumen de Cosechadoras</span><span id="isa-sync-chip" class="isa-sync-chip" aria-live="polite"></span><span id="isa-usuario-chip" class="isa-usuario" hidden></span><button type="button" id="b-isa-leer" class="isa-btn" title="Volver a leer la base" hidden><i class="ti ti-refresh" aria-hidden="true"></i> Actualizar</button></header>
 <main>
   <h1>Resumen de cosechadoras por lote y zafra</h1>
   <div id="vista-resumen">
   <p class="lead">Lee los registros de trabajo de las cosechadoras que exporta Operations Center, mide giros, esperas en ralentí y productividad, y deja un resumen pequeño por lote, organizado por zafra. Los shapes pesados no se guardan.</p>
 
   <section aria-labelledby="h-base">
-    <h2 id="h-base">Conexión con la base</h2>
-    <p class="hint">El registro de cosechadoras se guarda en la base del planificador (Firebase), no en un Google Sheet. Entra con tu usuario del planificador: al entrar se lee el registro que ya está guardado.</p>
-    <div class="row" id="isa-form">
-      <input type="email" id="isa-email" placeholder="Correo del planificador" autocomplete="username" style="width:230px">
-      <input type="password" id="isa-pass" placeholder="Contraseña" autocomplete="current-password" style="width:200px">
-      <button id="b-isa-entrar">Entrar</button>
-    </div>
-    <div class="row" id="isa-ok" hidden>
-      <span>Sesión: <b id="isa-usuario"></b> <small id="isa-rol"></small></span>
-      <button class="sec" id="b-isa-leer">Leer la base otra vez</button>
-      <button class="sec" id="b-isa-salir">Cerrar sesión</button>
-    </div>
+    <h2 id="h-base">Registro en la base</h2>
+    <p class="hint">El registro de cosechadoras se guarda en la base del planificador (Firebase), no en un Google Sheet. Se usa la sesión con la que entraste al inicio: aquí no hay que volver a entrar. «Actualizar» (barra superior) vuelve a leerlo.</p>
+    <p class="hint" id="isa-sin-sesion" hidden>No hay sesión iniciada. <a href="index.html">Inicia sesión desde el inicio</a> para leer y guardar en la base; mientras tanto puedes procesar los shapes y descargar el .zip.</p>
     <div class="status" id="st-base" aria-live="polite"></div>
   </section>
 
@@ -1003,23 +994,18 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
 
   /* ---- sesión ---- */
   function pintarSesion(s) {
-    var dentro = !!(s && s.user);
-    $("isa-form").hidden = dentro; $("isa-ok").hidden = !dentro;
-    if (dentro) { $("isa-usuario").textContent = s.email; $("isa-rol").textContent = s.listo ? (s.rol ? "(" + s.rol + ")" : "(sin rol asignado)") : "(comprobando rol…)"; }
+    var dentro = !!(s && s.user), sinSesion = !dentro && !!(s && s.listo);   // «listo» sin usuario: Firebase ya respondió y no hay sesión
+    $("isa-usuario-chip").hidden = !dentro; $("b-isa-leer").hidden = !dentro; $("isa-sin-sesion").hidden = !sinSesion;
+    if (dentro) $("isa-usuario-chip").textContent = s.email + " " + (s.listo ? (s.rol ? "(" + s.rol + ")" : "(sin rol)") : "(comprobando rol…)");
     actualizarBotones();
   }
   (function () {
-    if (typeof ISA === "undefined" || !ISA.iniciar()) { stBase("Sin conexión a la base: puedes procesar y descargar el .zip, pero no guardar en la base.", "warn"); $("isa-form").hidden = true; return; }
+    if (typeof ISA === "undefined" || !ISA.iniciar()) { stBase("Sin conexión a la base: puedes procesar y descargar el .zip, pero no guardar en la base.", "warn"); return; }
     ISA.alCambiarSesion(function (s) {
       pintarSesion(s);
       if (s.user && s.listo && s.rol) { if (!leyendoBase && !Object.keys(versionBase).length) leerBase(); if (s.rol === "visor") stBase("Tu usuario es de solo lectura (visor): puedes procesar, pero no guardar en la base.", "warn"); }
       if (s.user && s.listo && !s.rol) stBase("Tu usuario no tiene rol asignado en el planificador.", "bad");
     });
-    $("b-isa-entrar").addEventListener("click", async function () {
-      var b = $("b-isa-entrar"); b.disabled = true; stBase("Conectando…");
-      try { await ISA.login($("isa-email").value, $("isa-pass").value); $("isa-pass").value = ""; } catch (e) { stBase(e.message, "bad"); } finally { b.disabled = false; }
-    });
-    $("isa-pass").addEventListener("keydown", function (ev) { if (ev.key === "Enter") $("b-isa-entrar").click(); });
     $("b-isa-leer").addEventListener("click", leerBase);
     var inicio = document.querySelector('.isa-barra a[href="index.html"]');   // no perder zafras procesadas y sin guardar
     if (inicio) inicio.addEventListener("click", function (ev) {
@@ -1044,7 +1030,6 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
         } });
       ISASync.montarChip("resumen", "isa-sync-chip");
     }
-    $("b-isa-salir").addEventListener("click", function () { ISA.logout(); });
   })();
 
   /* ---------- salida: código para el Sheet y .zip ---------- */
