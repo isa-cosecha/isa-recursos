@@ -159,6 +159,7 @@
 <body style="margin:0;background:#edf0f4">
 <header class="sgp-top"><a href="index.html" class="sgp-btn" title="Volver a la portada"><i class="ti ti-home"></i> Inicio</a><span class="sgp-title">Seguimiento de Cosecha</span><span id="sgp-sync" class="sgp-sync" aria-live="polite"></span><button type="button" class="sgp-btn" onclick="SGP.api.recargar()" title="Vuelve a leer la base del planificador"><i class="ti ti-refresh"></i> Actualizar</button></header>
 <div id="sgp-root" class="sgp"></div>
+<script src="isa-sync.js?v=1"></script>
 <script>
 var SGP=(function(){
 'use strict';
@@ -242,7 +243,7 @@ async function leerCategoria(cat,campoArray){
   return r;
 }
 async function leerDesdeFirestore(){
-  if(_leyendo)return;_leyendo=true;
+  if(_leyendo)return false;_leyendo=true;
   var hayDB=!!DB,hechos=0,total=5,lento=null;
   S.srcMsg='Leyendo la base del planificador…';S.srcOk=true;S.prog='0/'+total;
   setSync(hayDB?'Actualizando en segundo plano…':'Leyendo la base del planificador… 0/'+total,'ld');
@@ -267,6 +268,8 @@ async function leerDesdeFirestore(){
   clearTimeout(lento);_leyendo=false;
   if(!hayDB)S.zafra='';
   render();
+  try{ISASync.marcar('seguimiento',S.srcOk);}catch(e){}
+  return S.srcOk;
 }
 function iniciarFirebase(){
   if(typeof firebase==='undefined'||!FB_CONFIG){S.fbListo=false;return;}
@@ -1075,9 +1078,15 @@ function mount(el){root=el;cargarLocal();cargarMotivos();bind();iniciarFirebase(
       setSync('Datos guardados del '+fechaCorta(c.ts)+(_leyendo||S.authPend?' · actualizando…':''),_leyendo||S.authPend?'ld':'');render();}
     catch(e){DB=null;}
   });}
-return {mount:mount,api:{recargar:function(){if(fbDb&&S.user)leerDesdeFirestore();else render();},puLote:puLote,nMaqAlCrear:nMaqAlCrear,fromBase:fromBase,project:project,compare:compare,diagnose:diagnose,state:S,render:render,setDB:function(d){DB=normalizarDB(d,'API');S.zafra='';render();}}};
+return {mount:mount,api:{recargar:function(){if(fbDb&&S.user)return leerDesdeFirestore();render();},puLote:puLote,nMaqAlCrear:nMaqAlCrear,fromBase:fromBase,project:project,compare:compare,diagnose:diagnose,state:S,render:render,setDB:function(d){DB=normalizarDB(d,'API');S.zafra='';render();}}};
 })();
 SGP.mount(document.getElementById('sgp-root'));
+if(typeof ISASync!=='undefined'){
+  ISASync.registrar({id:'seguimiento',nombre:'Seguimiento de cosecha',
+    permitido:function(){return !!SGP.api.state.user;},
+    ejecutar:function(){return SGP.api.recargar();}});
+  ISASync.montarChip('seguimiento');
+}
 
 </script>
 </body>

@@ -2378,6 +2378,59 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
           <span id="config-zafra-default-status" style="font-size:12px;color:var(--text2)"></span>
         </div>
       </div>
+
+      <div class="card" id="card-sync">
+  <div class="card-title">Sincronización de datos con la base</div>
+  <p style="font-size:12px;color:var(--text2);margin-bottom:14px">
+    Define cómo se actualizan los módulos que <strong>leen</strong> la base (Seguimiento de cosecha, Diseño de lotes,
+    Resumen de cosechadoras). El planificador sigue en tiempo real. La configuración es <strong>por navegador</strong>
+    y se aplica al instante en los módulos ya abiertos.
+  </p>
+
+  <div class="grid3">
+    <div>
+      <label>Modo</label>
+      <select id="sync-modo" onchange="guardarSyncConfig()">
+        <option value="manual">Manual — solo al pulsar «Actualizar»</option>
+        <option value="auto">Automática — cada intervalo</option>
+      </select>
+    </div>
+    <div>
+      <label>Actualizar cada</label>
+      <div style="display:flex;gap:6px">
+        <input type="number" id="sync-valor" min="1" step="1" value="10" style="margin:0;width:90px" onchange="guardarSyncConfig()">
+        <select id="sync-unidad" style="margin:0" onchange="guardarSyncConfig()">
+          <option value="1">minutos</option>
+          <option value="60">horas</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label>Con la pestaña en segundo plano</label>
+      <select id="sync-pausar" onchange="guardarSyncConfig()">
+        <option value="1">Pausar y leer al volver (recomendado)</option>
+        <option value="0">Seguir leyendo</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="margin-top:12px">
+    <label style="margin-bottom:6px">Módulos incluidos en la sincronización automática</label>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:13px">
+      <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" id="sync-mod-seguimiento" style="margin:0;width:auto" onchange="guardarSyncConfig()"> Seguimiento de cosecha</label>
+      <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" id="sync-mod-diseno" style="margin:0;width:auto" onchange="guardarSyncConfig()"> Diseño de lotes</label>
+      <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" id="sync-mod-resumen" style="margin:0;width:auto" onchange="guardarSyncConfig()"> Resumen de cosechadoras</label>
+    </div>
+  </div>
+
+  <div id="sync-aviso" style="font-size:12px;color:var(--text2);margin-top:12px"></div>
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">
+    <button class="btn btn-sm btn-primary" onclick="sincronizarAhoraModulos()" title="Ordena una lectura inmediata a los módulos abiertos en este navegador"><i class="ti ti-refresh"></i> Sincronizar ahora</button>
+    <span id="sync-estado" style="font-size:12px;color:var(--text2)"></span>
+  </div>
+</div>
+
     
 <div class="card">
         <div class="card-title">Velocidad de cosecha por rango de TCH</div>
@@ -9523,6 +9576,7 @@ function aplicarDefaultZafraSiVacio(sel, cur, zafras) {
 
 /* ── Página Ajustes ── */
 function syncAjustesPage() {
+  if (typeof syncAjustesSyncCard === 'function') syncAjustesSyncCard();
   var sel = document.getElementById('config-zafra-default');
   if (!sel) return;
   var zafras = getZafrasDisponibles();
@@ -26731,6 +26785,73 @@ updateCiclos();
 updatePreview();
 initFirebase();
 
+</script>
+<script src="isa-sync.js?v=1"></script>
+<script>
+/* ── Ajustes · Sincronización con la base ── */
+function syncAjustesSyncCard() {
+  var estado = document.getElementById('sync-estado');
+  if (typeof ISASync === 'undefined') {
+    if (estado) estado.textContent = 'No se cargó isa-sync.js: agrega su etiqueta script antes del script principal.';
+    return;
+  }
+  var c = ISASync.get(), enHoras = c.intervaloMin >= 60 && c.intervaloMin % 60 === 0;
+  document.getElementById('sync-modo').value = c.modo;
+  document.getElementById('sync-unidad').value = enHoras ? '60' : '1';
+  document.getElementById('sync-valor').value = enHoras ? c.intervaloMin / 60 : Math.round(c.intervaloMin);
+  document.getElementById('sync-pausar').value = c.pausarOculta ? '1' : '0';
+  ['seguimiento', 'diseno', 'resumen'].forEach(function (k) {
+    document.getElementById('sync-mod-' + k).checked = c.modulos[k] !== false;
+  });
+  pintarAvisoSync(c);
+}
+
+function pintarAvisoSync(c) {
+  var av = document.getElementById('sync-aviso'), es = document.getElementById('sync-estado');
+  if (!av) return;
+  var txt = [];
+  if (c.modo === 'manual') {
+    txt.push('Los módulos solo leen la base al abrirse, al iniciar sesión o al pulsar su botón de actualizar.');
+  } else {
+    txt.push('Cada ' + (c.intervaloMin >= 60 && c.intervaloMin % 60 === 0 ? (c.intervaloMin / 60) + ' h' : c.intervaloMin + ' min') +
+             ' cada módulo activo relee la base. Se omite si el módulo está ocupado, si estás escribiendo, si no hay sesión o si el dato proviene de un archivo.');
+    if (c.intervaloMin < 5 && c.modulos.diseno !== false)
+      txt.push('⚠ Diseño de lotes descarga también los polígonos (geodata), la categoría más pesada de la base: con intervalos menores a 5 min conviene desactivarlo aquí.');
+    txt.push('Costo: cada lectura son N documentos de Firestore por usuario; lecturas/día ≈ N × (horas abiertas × 60 ÷ intervalo).');
+  }
+  av.innerHTML = txt.join('<br>');
+  if (es) es.textContent = 'Guardado en este navegador.';
+}
+
+function guardarSyncConfig() {
+  if (typeof ISASync === 'undefined') return;
+  var valor = parseFloat(document.getElementById('sync-valor').value);
+  var unidad = parseFloat(document.getElementById('sync-unidad').value) || 1;
+  var minutos = isFinite(valor) ? valor * unidad : ISASync.get().intervaloMin;
+  var c = ISASync.set({
+    modo: document.getElementById('sync-modo').value,
+    intervaloMin: minutos,                                   // ISASync lo acota a [MIN_MIN, MAX_MIN]
+    pausarOculta: document.getElementById('sync-pausar').value === '1',
+    modulos: {
+      seguimiento: document.getElementById('sync-mod-seguimiento').checked,
+      diseno: document.getElementById('sync-mod-diseno').checked,
+      resumen: document.getElementById('sync-mod-resumen').checked
+    }
+  });
+  if (c.intervaloMin !== minutos) {                          // se acotó: reflejarlo en el formulario
+    var enH = c.intervaloMin >= 60 && c.intervaloMin % 60 === 0;
+    document.getElementById('sync-unidad').value = enH ? '60' : '1';
+    document.getElementById('sync-valor').value = enH ? c.intervaloMin / 60 : c.intervaloMin;
+    if (typeof showToast === 'function') showToast('Intervalo ajustado al rango permitido (' + ISASync.MIN_MIN + ' min a ' + (ISASync.MAX_MIN / 60) + ' h).');
+  }
+  pintarAvisoSync(c);
+}
+
+function sincronizarAhoraModulos() {
+  if (typeof ISASync === 'undefined') return;
+  ISASync.ahoraTodos();
+  if (typeof showToast === 'function') showToast('Orden de sincronización enviada a los módulos abiertos en este navegador.');
+}
 </script>
 </body>
 </html>

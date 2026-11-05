@@ -346,6 +346,7 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
   </div>
 </main>
 
+<script src="isa-sync.js?v=1"></script>
 <script>
 'use strict';
 /* ═══ Núcleo del cálculo (sin interfaz: se puede probar por separado) ═══ */
@@ -763,16 +764,34 @@ async function leerRegistroDeBase() {
     estado.regOrigen = 'base';
     if (estado.resultado) { aplicarRegistro(); mostrarResultado(true); }
     refrescarMaquinas(true);
-  } catch (e) { mensaje('e-regbase', 'No se pudo leer el registro de la base: ' + e.message + ' También puedes cargar los CSV del Sheet.', 'error'); }
+    return true;
+  } catch (e) { mensaje('e-regbase', 'No se pudo leer el registro de la base: ' + e.message + ' También puedes cargar los CSV del Sheet.', 'error'); return false; }
   finally { leyendoReg = false; $('b-reg-leer').disabled = false; }
 }
 var leyendoBase = false;
 async function leerDeBase() {
-  if (typeof ISA === 'undefined' || leyendoBase) return;
+  if (typeof ISA === 'undefined' || leyendoBase) return false;
   leyendoBase = true; $('b-isa-leer').disabled = true;
-  try { aceptarPlan(await ISA.leerPlan(function(t) { mensaje('e-plan', t); }), 'Base del planificador'); estado.planOrigen = 'base'; leerRegistroDeBase(); }
+  var zPrev = $('p-zafra').value, ok = false;
+  try {
+    aceptarPlan(await ISA.leerPlan(function(t) { mensaje('e-plan', t); }), 'Base del planificador');
+    estado.planOrigen = 'base';
+    // aceptarPlan reinicia el selector de zafra: se conserva la elección del usuario si sigue existiendo
+    if (zPrev && Array.from($('p-zafra').options).some(function(o) { return o.value === zPrev; })) $('p-zafra').value = zPrev;
+    ok = (await leerRegistroDeBase()) !== false;
+  }
   catch (e) { mensaje('e-plan', 'No se pudo leer la base: ' + e.message + ' También puedes usar el archivo .json.', 'error'); }
   finally { leyendoBase = false; $('b-isa-leer').disabled = false; }
+  try { ISASync.marcar('diseno', ok); } catch (e) {}
+  return ok;
+}
+/* Sincronización manual/automática (configurada en index → Ajustes). No toca datos cargados desde archivo .json. */
+if (typeof ISASync !== 'undefined') {
+  ISASync.registrar({ id: 'diseno', nombre: 'Diseño de lotes',
+    permitido: function() { var s = ISA.sesion && ISA.sesion(); return !!(s && s.user && s.listo && s.rol) && estado.planOrigen === 'base'; },
+    ocupado: function() { return leyendoBase || leyendoReg; },
+    ejecutar: leerDeBase });
+  ISASync.montarChip('diseno');
 }
 function pintarSesion(s) {
   var dentro = !!(s && s.user);

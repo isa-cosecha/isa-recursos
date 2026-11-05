@@ -657,6 +657,7 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
 })(typeof window !== "undefined" ? window : globalThis);
 
 </script>
+<script src="isa-sync.js?v=1"></script>
 <script>
 (function () {
   "use strict";
@@ -883,7 +884,9 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
       stBase(zs.length ? "Registro leído de la base: zafra" + (zs.length > 1 ? "s " : " ") + zs.join(", ") + " (" + n.toLocaleString("es") + " lotes)." : "La base todavía no tiene registro de cosechadoras. Procesa shapes (o importa el Sheet) y pulsa «Guardar en la base».", "ok");
       renderResultados(); actualizarBotones();
       if (ISA.sesion().rol === "visor") stBase($("st-base").textContent + " Tu usuario es de solo lectura (visor): puedes procesar, pero no guardar.", "warn");
-    } catch (e) { stBase("No se pudo leer el registro de la base: " + e.message, "bad"); }
+      try { ISASync.marcar("resumen", true); } catch (e2) {}
+      return true;
+    } catch (e) { try { ISASync.marcar("resumen", false); } catch (e2) {} stBase("No se pudo leer el registro de la base: " + e.message, "bad"); return false; }
     finally { leyendoBase = false; }
   }
   function prepararFilas(rows, mapa) {   // los nombres de operador no van en las filas: se guardan aparte, con permiso
@@ -1015,6 +1018,19 @@ h3{font-size:16px;margin:22px 0 4px;font-weight:650}
     });
     $("isa-pass").addEventListener("keydown", function (ev) { if (ev.key === "Enter") $("b-isa-entrar").click(); });
     $("b-isa-leer").addEventListener("click", leerBase);
+    if (typeof ISASync !== "undefined") {   // sincronización manual/automática (index → Ajustes)
+      ISASync.registrar({ id: "resumen", nombre: "Resumen de cosechadoras",
+        permitido: function () { var s = ISA.sesion && ISA.sesion(); return !!(s && s.user && s.listo && s.rol); },
+        ocupado: function () { return leyendoBase || guardandoBase || corriendo; },
+        ejecutar: async function () {   // si las versiones de «meta» no cambiaron, basta 1 lectura en vez de releer todo
+          try {
+            var meta = await ISA.registro.meta(), zs = Object.keys(meta.zafras || {}), vb = Object.keys(versionBase);
+            if (zs.length && zs.length === vb.length && zs.every(function (z) { return versionBase[z] === meta.zafras[z].version; })) return true;
+          } catch (e) { /* si la comprobación falla, se hace la lectura completa */ }
+          return leerBase();
+        } });
+      ISASync.montarChip("resumen");
+    }
     $("b-isa-salir").addEventListener("click", function () { ISA.logout(); });
   })();
 
