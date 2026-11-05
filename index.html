@@ -5120,18 +5120,24 @@ var curvaEdad = JSON.parse(JSON.stringify(CURVA_EDAD_DEF));
 function anioOperacion(edad) { return (edad === null || edad === undefined) ? null : Math.min(10, Math.max(1, edad + 1)); }
 function factVelEdad(edad) { var a = anioOperacion(edad); return a === null ? 1 : 1 + (parseFloat(curvaEdad.vel[a - 1]) || 0) / 100; }
 function factHrsEdad(edad) { var a = anioOperacion(edad); return a === null ? 1 : 1 + (parseFloat(curvaEdad.hrs[a - 1]) || 0) / 100; }
+// Media de la flota (máquinas con código y año de inicio): factor de TM/h (v) y de horas (h) por separado
 function factorCurvaFlota(zafra) {
   var l = modelosCosech.filter(function(m) { return m.id !== -1 && m.codigo && edadCosechadora(m, zafra) !== null; });
-  if (!l.length) return 1;
-  return l.reduce(function(s, m) { var e = edadCosechadora(m, zafra); return s + factVelEdad(e) * factHrsEdad(e); }, 0) / l.length;
+  if (!l.length) return { v: 1, h: 1, n: 0 };
+  return { v: l.reduce(function(s, m) { return s + factVelEdad(edadCosechadora(m, zafra)); }, 0) / l.length, h: l.reduce(function(s, m) { return s + factHrsEdad(edadCosechadora(m, zafra)); }, 0) / l.length, n: l.length };
+}
+// Factores de UNA máquina (ya normalizados a la flota si el check está activo): v sobre TM/h, h sobre horas efectivas
+function factoresCurvaMaq(reg, zafra) {
+  var e = reg ? edadCosechadora(reg, zafra) : null, v = factVelEdad(e), h = factHrsEdad(e);
+  if (curvaEdad.normalizar) { var fl = factorCurvaFlota(zafra); if (fl.v > 0) v /= fl.v; if (fl.h > 0) h /= fl.h; }
+  return { v: v, h: h, anio: anioOperacion(e) };
 }
 function factorCurvaFrente(zafra, frenteNombre, horasDia) {
   var fe = getFrenteEfectivo(zafra, frenteNombre); if (!fe || frenteEsManual(fe)) return 1;
   var maqs = cosechadorasDelFrente(fe, zafra); if (!maqs.length) return 1;
   var H = (horasDia > 0) ? horasDia : (getFrenteHorasMax(zafra, frenteNombre) || (getParamsAnal().horasDia || 20)), suma = 0;
-  maqs.forEach(function(m) { var e = edadCosechadora(m, zafra); suma += factVelEdad(e) * Math.min(factHrsEdad(e), 24 / H); });   // una máquina no pasa de 24 h/día
+  maqs.forEach(function(m) { var fm = factoresCurvaMaq(m, zafra); suma += fm.v * Math.min(fm.h, 24 / H); });   // una máquina no pasa de 24 h/día
   var f = suma / maqs.length;
-  if (curvaEdad.normalizar) { var fl = factorCurvaFlota(zafra); if (fl > 0) f /= fl; }
   return Math.max(0.05, Math.min(2, f));
 }
 function leerCurvaEdad() { return curvaEdad; }
@@ -5160,13 +5166,17 @@ function renderCurvaEdad() {
   refrescarCurvaEdad();
 }
 function refrescarCurvaEdad() {
+  var Fv = 1, Fh = 1, nota = '';
+  if (curvaEdad.normalizar) {
+    try { var zf = zafraPorDefecto || ultimaZafraPlan(), fl = factorCurvaFlota(zf); if (fl.n) { Fv = fl.v; Fh = fl.h; nota = ' · Normalizado con la flota de ' + zf + ': ' + fl.n + ' máquinas con año de inicio, factor medio TM/h ' + fl.v.toFixed(3) + ' y horas ' + fl.h.toFixed(3); } else nota = ' · Normalizar sin efecto: ninguna máquina con código y año de inicio (Equipos → Modelos de cosechadora)'; } catch (e) {}
+  }
   var rt = parseFloat((document.getElementById('ce-ref-tmh') || {}).value) || 55, rh = parseFloat((document.getElementById('ce-ref-h') || {}).value) || 15, sumaC = 0;
   for (var i = 0; i < 10; i++) {
-    var fv = 1 + (parseFloat(curvaEdad.vel[i]) || 0) / 100, fh = 1 + (parseFloat(curvaEdad.hrs[i]) || 0) / 100, tmh = rt * fv, hh = rh * fh; sumaC += fv * fh;
+    var fv = (1 + (parseFloat(curvaEdad.vel[i]) || 0) / 100) / Fv, fh = (1 + (parseFloat(curvaEdad.hrs[i]) || 0) / 100) / Fh, tmh = rt * fv, hh = rh * fh; sumaC += fv * fh;
     var set = function(id, t) { var e = document.getElementById(id); if (e) e.textContent = t; };
     set('ce-tmh-' + i, tmh.toFixed(2)); set('ce-h-' + i, hh.toFixed(1)); set('ce-tmd-' + i, Math.round(tmh * hh).toLocaleString()); set('ce-comb-' + i, ((fv * fh - 1) * 100 >= 0 ? '+' : '') + ((fv * fh - 1) * 100).toFixed(1) + '%');
   }
-  var m = document.getElementById('ce-media'); if (m) m.textContent = 'Factor medio de las 10 edades: ' + (sumaC / 10).toFixed(3) + ' (' + ((sumaC / 10 - 1) * 100).toFixed(1) + '% vs. la media de referencia)';
+  var m = document.getElementById('ce-media'); if (m) m.textContent = 'Factor medio de las 10 edades: ' + (sumaC / 10).toFixed(3) + ' (' + ((sumaC / 10 - 1) * 100).toFixed(1) + '% vs. la media de referencia)' + nota;
 }
 function onCurvaEdad() {
   var g = function(id) { return document.getElementById(id); };
@@ -9632,14 +9642,24 @@ function calcCapacidadFrentePorTercio(zafra) {
 
     // Cada código del frente comparte el mismo Horas/Día y TM/Hora (el planificador calcula la
     // productividad a nivel de frente, no por máquina individual — ver nota en la tarjeta).
+    // Con la curva por antigüedad activa, cada máquina tiene sus propias Horas/Día y TM/Hora (media del lote × su factor)
+    // y el total del frente es la SUMA de sus máquinas. Sin curva: todas iguales, como siempre.
+    var regsFrente = cosechadorasDelFrente(fe, zafra);
     var filas = codigosMostrar.map(function(codigo) {
+      var reg = (codigo && codigo !== '–') ? (modelosCosech.find(function(mm) { return mm.codigo === codigo; }) || null) : (regsFrente[0] || null);
+      var fm = curvaEdad.activa ? factoresCurvaMaq(reg, zafra) : { v: 1, h: 1, anio: null };
       return {
-        codigo: codigo,
+        codigo: codigo, anio: curvaEdad.activa ? fm.anio : null,
         porTercio: porTercioFrente.map(function(pt) {
           if (!pt) return null;
-          return { horasProm: pt.horasProm, prodProm: pt.prodProm, tmDia: pt.tmDia, totalDia: pt.tmDia * nMaq, totalSemana: pt.tmDia * nMaq * 7 };
+          var hh = Math.min(24, pt.horasProm * fm.h), pr = pt.prodProm * fm.v;
+          return { horasProm: hh, prodProm: pr, tmDia: hh * pr, totalDia: 0, totalSemana: 0 };
         })
       };
+    });
+    tercios.forEach(function(t, ti) {
+      var suma = 0; filas.forEach(function(fl) { if (fl.porTercio[ti]) suma += fl.porTercio[ti].tmDia; });
+      filas.forEach(function(fl) { if (fl.porTercio[ti]) { fl.porTercio[ti].totalDia = suma; fl.porTercio[ti].totalSemana = suma * 7; } });
     });
     return { frenteNombre: fn, manual: false, nUnidades: nMaq, filas: filas };
   }).filter(Boolean);
@@ -9657,7 +9677,7 @@ function calcCapacidadFrentePorTercio(zafra) {
       }
       var pt = fd.filas[0] && fd.filas[0].porTercio[idx]; // los valores son iguales en todas las filas/códigos del frente
       if (!pt) return;
-      for (var i = 0; i < fd.nUnidades; i++) { horasLista.push(pt.horasProm); tmDiaLista.push(pt.tmDia); }
+      fd.filas.forEach(function(fl) { var q = fl.porTercio[idx]; if (q) { horasLista.push(q.horasProm); tmDiaLista.push(q.tmDia); } });
       totalDia += pt.totalDia; totalSemana += pt.totalSemana;
       nMaqTotal += fd.nUnidades;
     });
@@ -14994,7 +15014,7 @@ function renderCapacidadFrentePorTercio(zafra) {
     fd.filas.forEach(function(fila, i) {
       h += '<tr>';
       h += '<td>' + (i === 0 ? '<strong>' + fd.frenteNombre + '</strong>' + (fd.manual ? ' <span style="color:var(--text3);font-size:10px">(manual)</span>' : '') : '') + '</td>';
-      h += '<td style="font-family:monospace">' + (fd.manual ? '—' : fila.codigo) + '</td>';
+      h += '<td style="font-family:monospace">' + (fd.manual ? '—' : fila.codigo + (fila.anio ? ' <span style="color:var(--text3);font-size:10px">año ' + fila.anio + '</span>' : '')) + '</td>';
       fila.porTercio.forEach(function(pt, ti) {
         if (!pt) {
           h += '<td style="border-left:1px solid var(--border);color:var(--text3)">–</td><td>–</td><td>–</td>';
