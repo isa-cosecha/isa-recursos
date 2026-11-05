@@ -109,7 +109,34 @@
 .sgp table.pf th.nd{color:#9aa3ad;font-style:italic;background:#f1f2f4}
 .sgp table.pf td.sd{color:#c3c8ce;text-align:center}
 .sgp table.pf tr.pf-sub td{background:#edf0f4;font-weight:800;border-top:1px solid var(--line)}
-.sgp table.pf td.nm{max-width:240px}
+.sgp table.pf{font-size:11.5px}
+.sgp table.pf th{white-space:normal;line-height:1.15;padding:6px 5px;vertical-align:bottom;font-size:9.5px;letter-spacing:.03em}
+.sgp table.pf td{padding:4px 5px}
+.sgp table.pf td.nm{max-width:170px}
+.sgp table.pf th:nth-child(1),.sgp table.pf tbody tr:not(.pf-sub) td:nth-child(1){min-width:44px;width:44px;left:0}
+.sgp table.pf th:nth-child(2),.sgp table.pf tbody tr:not(.pf-sub) td:nth-child(2){min-width:38px;width:38px;left:44px}
+.sgp table.pf th:nth-child(3),.sgp table.pf tbody tr:not(.pf-sub) td:nth-child(3){left:82px;min-width:150px}
+.sgp table.pf th:nth-child(-n+3),.sgp table.pf tbody tr:not(.pf-sub) td:nth-child(-n+3){position:sticky;z-index:2;background:#fff}
+.sgp table.pf th:nth-child(-n+3){z-index:4;background:var(--panel)}
+.sgp .ed{display:inline-block;min-width:38px;padding:1px 7px;border-radius:10px;font-weight:700;text-align:center}
+.sgp .ed-r{background:#FCEBEB;color:#A32D2D}.sgp .ed-o{background:#FFE8CC;color:#B85C00}.sgp .ed-g{background:#EAF3DE;color:#3B6D11}
+.sgp td.mq{cursor:pointer;text-align:center}
+.sgp td.mq b{display:inline-block;min-width:30px;padding:1px 8px;border-radius:10px;background:#EAF3DE;color:#3B6D11;border:1px solid transparent}
+.sgp td.mq:hover b{border-color:currentColor}
+.sgp td.mq.mq-red b{background:#FCEBEB;color:#A32D2D;border-color:#e9a9a9}
+.sgp td.mq .mq-n{font-size:10px;margin-left:3px}
+.mq-bg{position:fixed;inset:0;background:rgba(10,30,20,.45);z-index:300}
+.mq-box{position:fixed;z-index:301;left:50%;top:50%;transform:translate(-50%,-50%);width:min(560px,94vw);max-height:90vh;overflow:auto;background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1d2733}
+.mq-box h4{margin:0 0 2px;font-size:15px}.mq-box .sub{font-size:12px;color:#6b7785;margin-bottom:12px}
+.mq-kp{display:flex;gap:10px;margin-bottom:12px}.mq-kp div{flex:1;border:1px solid #e3e6ea;border-radius:10px;padding:8px 10px}.mq-kp b{display:block;font-size:20px}.mq-kp span{font-size:11px;color:#6b7785}
+.mq-kp .bad b{color:#A32D2D}.mq-kp .good b{color:#3B6D11}
+.mq-box table{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:10px}.mq-box td{padding:5px 6px;border-bottom:1px solid #eef0f2}.mq-box td:last-child{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.mq-box tr.tot td{font-weight:800;border-top:2px solid #1d2733}
+.mq-why{background:#f4f7f5;border-left:4px solid #0D4934;border-radius:6px;padding:9px 12px;font-size:13px;margin-bottom:12px}
+.mq-why.red{background:#fdf1f1;border-left-color:#A32D2D}
+.mq-box ul{margin:4px 0 10px 18px;padding:0;font-size:12px;color:#44505d}
+.mq-box select,.mq-box textarea{width:100%;box-sizing:border-box;font:inherit;font-size:13px;border:1px solid #cfd5db;border-radius:8px;padding:6px 8px;margin-bottom:8px}
+.mq-act{display:flex;gap:8px;justify-content:flex-end}
 
 </style>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
@@ -201,7 +228,7 @@ function normalizarDB(d,fuente){
     mantenimientos:Array.isArray(d.mantenimientos)?d.mantenimientos:[],
     horasMetaDiaria:o(d.horasMetaDiaria),horasMetaDiariaOrigen:o(d.horasMetaDiariaOrigen),horasMetaSemanal:o(d.horasMetaSemanal),horasMetaSemanalOrigen:o(d.horasMetaSemanalOrigen),
     maquinasMetaDiaria:o(d.maquinasMetaDiaria),maquinasMetaDiariaOrigen:o(d.maquinasMetaDiariaOrigen),maquinasMetaSemanal:o(d.maquinasMetaSemanal),maquinasMetaSemanalOrigen:o(d.maquinasMetaSemanalOrigen),
-    frenteMaquinasPorZafra:o(d.frenteMaquinasPorZafra),fuente:fuente,cargadoEl:new Date()};
+    frenteMaquinasPorZafra:o(d.frenteMaquinasPorZafra),tTrasladoMin:(d.camion&&+d.camion.tTrasladoFijo>0)?+d.camion.tTrasladoFijo:30,fuente:fuente,cargadoEl:new Date()};
 }
 async function leerCategoria(cat,campoArray){
   var col=fbDb.collection(COL),d0=await col.doc(cat+'_0').get();
@@ -505,7 +532,10 @@ function diagnose(s){
 
 /* ═══════════ estado ═══════════ */
 var S={verFuente:false,verFiltros:false,pfFrente:'',pfEst:{Trabajando:true,Cosechado:true,Pendiente:true,Accidentado:true},notaOpen:false,fMode:'',fDia:'',fDesde:'',fHasta:'',fSemana:1,zafra:'',cur:'live',base:'',tol:3,sel:{},frSel:null,tab:'resumen',huecos:false,msg:null,msgOk:true,srcMsg:null,srcOk:true,fbListo:false,user:null,cortes:[]};
-var root=null,KEY='sgp.cortes.v1';
+var root=null,KEY='sgp.cortes.v1',KEY_MOT='sgp.motivos.v1',MOT={};
+S.pfSD=false;S.maqWhy=null;
+function cargarMotivos(){try{var j=JSON.parse(localStorage.getItem(KEY_MOT)||'{}');MOT=(j&&typeof j==='object')?j:{};}catch(e){MOT={};}}
+function guardarMotivos(){try{localStorage.setItem(KEY_MOT,JSON.stringify(MOT));return true;}catch(e){return false;}}
 function guardarLocal(){try{localStorage.setItem(KEY,JSON.stringify(S.cortes));return true;}catch(e){return false;}}
 function cargarLocal(){try{var j=JSON.parse(localStorage.getItem(KEY)||'[]');S.cortes=Array.isArray(j)?j:[];}catch(e){S.cortes=[];}}
 function cortesZafra(){return S.cortes.filter(function(c){return c.zafra===S.zafra;}).sort(function(a,b){return a.fechaBase-b.fechaBase||a.id.localeCompare(b.id);});}
@@ -724,7 +754,8 @@ function viewSeguimiento(cs){
    Las columnas marcadas «sin dato» (gris) no existen en la base del planificador; el resto sale de planItems, campos y Ejecución. */
 /* Producto Madurador, Días Aplicación y Ventana Madurador ya salen del Plan de Madurador (v285 del planificador) */
 var PF_SIN_DATO={'Conformación Carretas':'Número de carretas por plantío','Removido':'Plan de removido (SI/NO)','Autoguiado':'Autoguiado (SI/NO)','Autoguiado Total/Parcial':'Cobertura del autoguiado','Pasadiceo':'Pasadiceo (SI/NO)','Observación de Cosecha':'Observación de cosecha por plantío','Evaluaciones':'Plantío en evaluación (SI/NO)'};
-var PF_COLS=['Semana','Sec','Plantío','Variedad','N. Cortes','Área (Ha)','TM Est','TM Real','TCH Est.','TCH Real','Fecha de Corte','Corte/Siembra','Edad Corte','Edad Actual','Dist siembra','Conformación Carretas','Removido','Autoguiado','Autoguiado Total/Parcial','Pasadiceo','Producto Madurador','Días Aplicación','Ventana Madurador','Estatus Plantío','Observación de Cosecha','Evaluaciones'];
+var PF_TIP={'Cosech. nec.':'Cosechadoras necesarias para cortar el lote en su ventana programada. Rojo = más que las asignadas al frente. Toca el número para ver por qué.','Hrs efect. /máq/día':'Horas efectivas de trabajo por máquina y día en la ventana del lote (horas/día del frente menos paros de mantenimiento y traslado).'};
+var PF_COLS=['Semana','Sec','Plantío','Variedad','N. Cortes','Área (Ha)','TM Est','TM Real','TCH Est.','TCH Real','Cosech. nec.','Hrs efect. /máq/día','Fecha de Corte','Corte/Siembra','Edad Corte','Edad Actual','Dist siembra','Conformación Carretas','Removido','Autoguiado','Autoguiado Total/Parcial','Pasadiceo','Producto Madurador','Días Aplicación','Ventana Madurador','Estatus Plantío','Observación de Cosecha','Evaluaciones'];
 function pfEstatus(i){return i.estado==='Completo'?'Cosechado':i.estado==='En cosecha'?'Trabajando':'Pendiente';}
 /* ═══ Ventana de madurador ═══
    Media ponderada (por Ha aplicadas) de «Días Madurador a Corte (Plan)», por producto y tenencia, de la zafra elegida.
@@ -771,6 +802,59 @@ function vmCells(i,est,VG,hoy,idx){
   }
   return tdP+tdD+tdV;
 }
+/* ── Cosechadoras necesarias por plantío ──
+   Máquinas-hora que exige el lote = ton ÷ (t/h por máquina). Se reparten en la ventana programada (fecha inicio → fin del plan) con las horas/día
+   configuradas (horasDia, igual que la proyección). Del tiempo disponible se descuentan los paros de mantenimiento de cosechadoras de esos días
+   y un traslado por cambio de lote (tiempo fijo de Equipos; el recorrido real por geodatos no está en la base que lee este módulo).
+   Necesarias N = (máq·h del lote + máq·h perdidas por mantenimiento) ÷ (horas de la ventana − horas de traslado).
+   Se muestra N redondeado hacia arriba con tolerancia de 0.25 máquina (2.2 → 2; 2.3 → 3). */
+var _pl={db:null,by:{},pu:{}};
+function planDe(z,cod){if(_pl.db!==DB){_pl={db:DB,by:{},pu:{}};}var k=z;if(!_pl.by[k]){var m={};DB.planItems.forEach(function(p){if(p.zafra===z)m[p.id]=p;});_pl.by[k]=m;}return _pl.by[k][cod]||null;}
+function puFr(z,fn){var k=z+'||'+fn;if(!_pl.pu[k]){var ls=DB.planItems.filter(function(p){return p.zafra===z&&(p.frenteNombre||'(sin frente)')===fn;});_pl.pu[k]=productividadesFrente(ls,{deManual:[]});}return _pl.pu[k];}
+function maqLote(i){
+  if(!DB)return null;var p=planDe(S.zafra,i.codigo);if(!p)return null;
+  var fn=p.frenteNombre||'(sin frente)';if(frenteManual(fn))return null;
+  var pu=puFr(S.zafra,fn)[p.id],T=p.tonCampo||0,d0=ser(p.fechaInicio),d1=ser(p.fechaFin);
+  if(d0==null||!(pu>0)||!(T>0))return null;
+  d0=Math.floor(d0);d1=Math.max(d0,Math.floor(d1==null?d0:d1));
+  var z0=inicioZafra(),mt=DB.mantenimientos||[],H=0,M=0,L=0,dias=0,mtD=[],d;
+  for(d=d0;d<=d1;d++){
+    var fecha=isoDe(d),h=horasDia(S.zafra,fn,fecha,p,z0),m=maqDia(S.zafra,fn,fecha,p,z0),perd=0;
+    mt.forEach(function(x){if(x.frenteNombre!==fn||x.fecha!==fecha||(x.tipoEquipo!=='Cosechadora'&&x.tipoEquipo!=='General'))return;
+      var n=Math.min(2,parseInt(x.nMaquinas)||1),du=parseFloat(x.duracion)||8;perd+=n*du;mtD.push({fecha:fecha,n:n,h:du,tipo:x.tipo||'',obs:x.obs||''});});
+    perd=Math.min(perd,m*h);
+    if(h>0){dias++;H+=h;M+=m*h;L+=perd;}
+  }
+  if(!(H>0))return null;
+  var mAsig=M/H,MHnec=T/pu,tT=(DB.tTrasladoMin>0?DB.tTrasladoMin:30)/60,den=Math.max(H-tT,H*0.25);
+  var base=MHnec/H,mtto=L/H,N=(MHnec+L)/den,tras=Math.max(0,N-(MHnec+L)/H);
+  var hef=Math.max(0,(H-tT-(mAsig>0?L/mAsig:0))/dias);
+  return {p:p,fn:fn,T:T,pu:pu,d0:d0,d1:d1,dias:dias,H:H,L:L,mAsig:mAsig,MHnec:MHnec,base:base,mtto:mtto,tras:tras,N:N,nec:Math.ceil(N-0.25),hef:hef,tTmin:tT*60,mtD:mtD,red:Math.ceil(N-0.25)>mAsig+0.05};
+}
+function edadCls(v){return v==null?'':(v<330?'ed-r':(v>370?'ed-o':'ed-g'));}
+function motivoAuto(q){
+  if(!q.red)return {k:'',txt:'Las '+fN(q.mAsig,1)+' máquina(s) asignada(s) alcanzan para la ventana programada ('+fN(q.N,1)+' necesarias).'};
+  if(q.base>q.mAsig+0.25)return {k:'Carga de trabajo',txt:'Carga de trabajo: '+fN(q.T)+' t a '+fN(q.pu,1)+' t/h por máquina exigen '+fN(q.base,1)+' cosechadoras en solo '+q.dias+' día(s) de trabajo ('+fD(q.d0)+'–'+fD(q.d1)+'), más de las '+fN(q.mAsig,1)+' asignadas, aun sin paros ni traslados.'};
+  if(q.mtto>0&&q.mtto>=q.tras)return {k:'Mantenimiento',txt:'Mantenimiento: '+q.mtD.length+' paro(s) de cosechadoras en la ventana restan '+fN(q.L,1)+' máq·h; hay que cubrirlos con '+fN(q.mtto,1)+' cosechadora(s) más.'};
+  return {k:'Traslados',txt:'Traslados: el cambio de lote consume ~'+fN(q.tTmin,0)+' min por máquina; esas horas obligan a sumar '+fN(q.tras,1)+' cosechadora(s) más.'};
+}
+function maqModal(i){
+  var q=maqLote(i);if(!q)return '';
+  var au=motivoAuto(q),sv=MOT[S.zafra+'|'+i.codigo]||null,opts=['Traslados','Mantenimiento de cosechadoras','Carga de trabajo','Otro'],pre=sv?sv.mot:(au.k==='Mantenimiento'?'Mantenimiento de cosechadoras':(au.k||'Otro'));
+  var oh=opts.map(function(o){return '<option'+(o===pre?' selected':'')+'>'+o+'</option>';}).join('');
+  var lst=q.mtD.length?'<ul>'+q.mtD.slice(0,8).map(function(x){return '<li>'+fD(ser(x.fecha))+' · '+x.n+' máq × '+fN(x.h,1)+' h'+(x.tipo?' · '+esc(x.tipo):'')+(x.obs?' · '+esc(x.obs):'')+'</li>';}).join('')+(q.mtD.length>8?'<li>… y '+(q.mtD.length-8)+' más</li>':'')+'</ul>':'';
+  return '<div class="mq-bg" data-act="maqx"></div><div class="mq-box" role="dialog" aria-label="Cosechadoras necesarias">'
+   +'<h4>Cosechadoras necesarias · '+esc(i.nombre)+'</h4><div class="sub">Frente '+esc(q.fn)+' · '+fD(q.d0)+' → '+fD(q.d1)+' · '+fN(q.T)+' t · '+fN(q.pu,1)+' t/h por máquina · '+fN(q.hef,1)+' h efectivas/máquina/día</div>'
+   +'<div class="mq-kp"><div><b>'+fN(q.mAsig,1)+'</b><span>Asignadas al frente</span></div><div class="'+(q.red?'bad':'good')+'"><b>'+fN(q.N,1)+' <small>≈ '+q.nec+'</small></b><span>Necesarias en la ventana</span></div><div class="'+(q.red?'bad':'good')+'"><b>'+(q.red?'+'+fN(Math.max(0,q.N-q.mAsig),1):'0')+'</b><span>A sumar</span></div></div>'
+   +'<table><tr><td>Carga de trabajo ('+fN(q.MHnec,0)+' máq·h en '+fN(q.H,0)+' h de ventana)</td><td>'+fN(q.base,2)+'</td></tr>'
+   +'<tr><td>Mantenimiento ('+q.mtD.length+' paro(s), '+fN(q.L,1)+' máq·h perdidas)</td><td>+ '+fN(q.mtto,2)+'</td></tr>'
+   +'<tr><td>Traslados (~'+fN(q.tTmin,0)+' min por cambio de lote, estimado)</td><td>+ '+fN(q.tras,2)+'</td></tr>'
+   +'<tr class="tot"><td>Necesarias</td><td>'+fN(q.N,2)+'</td></tr></table>'
+   +'<div class="mq-why'+(q.red?' red':'')+'"><b>'+(q.red?'Por qué sumar: ':'Resultado: ')+'</b>'+esc(au.txt)+'</div>'+lst
+   +'<label class="lb">Motivo (se guarda en este navegador)</label><select id="sgp-mot">'+oh+'</select>'
+   +'<textarea id="sgp-mot-txt" rows="3" placeholder="Comentario: ¿por qué se necesitan más cosechadoras en este plantío?">'+esc(sv?sv.txt:'')+'</textarea>'
+   +'<div class="mq-act"><button type="button" class="btn-secondary" data-act="maqx">Cerrar</button>'+(sv?'<button type="button" class="btn-secondary" data-act="maqdel" data-cod="'+esc(i.codigo)+'">Quitar</button>':'')+'<button type="button" class="btn-primary" data-act="maqsave" data-cod="'+esc(i.codigo)+'">Guardar motivo</button></div></div>';
+}
 function viewPrograma(cs,P){
   var frs=P.frentes.filter(function(f){return f.items.length;}).map(function(f){return f.frente;});
   if(!frs.length)return '<div class="panel no-data">No hay lotes en el plan'+(P.win?' dentro del filtro de fechas.':'.')+'</div>';
@@ -804,27 +888,42 @@ function viewPrograma(cs,P){
   function sub(fs){var ha=0,te=0,tr=0,sr=0;fs.forEach(function(x){ha+=x.i.exist||0;te+=x.i.tonPlan;tr+=x.i.tonReal;sr+=(x.i.exist>0?x.i.tonReal/x.i.exist:0);});
     return {ha:ha,te:te,tr:tr,tchE:ha>0?te/ha:null,tchR:fs.length?sr/fs.length:null};}
   var nd='<td class="sd">—</td>',cn=function(v,d){return '<td>'+fN(v,d)+'</td>';};
+  var cols=PF_COLS.filter(function(c){return S.pfSD||!PF_SIN_DATO[c];}),nCols=cols.length;
   var body='';
   grupos.forEach(function(gr){
-    gr.filas.forEach(function(x,k){var i=x.i;
-      body+='<tr><td class="l">'+(k===0?(gr.sem!=null?gr.sem:'—'):'')+'</td><td class="l">'+(k+1)+'</td><td class="l nm" title="'+esc((todos&&i._fr?i._fr+' · ':'')+i.nombre+' | '+(i.finca||''))+'">'+(todos&&i._fr?'<span class="pf-fr">'+esc(i._fr)+'</span>':'')+esc(i.nombre+(i.finca?' | '+i.finca:''))+(i.lab||'')+'</td><td class="l">'+esc(i.variedad||'')+'</td><td>'+fN(i.corte)+'</td>'
-        +cn(i.exist,2)+cn(i.tonPlan)+cn(i.tonReal)+cn(i.exist>0?i.tonPlan/i.exist:null,1)+cn(i.exist>0?i.tonReal/i.exist:null,1)
-        +'<td>'+(i.fechaProg!=null?fD(i.fechaProg)+'/'+String(dOf(i.fechaProg).getUTCFullYear()).slice(2):'—')+'</td>'
-        +'<td>'+(i.fechaUlt!=null?fD(i.fechaUlt)+'/'+String(dOf(i.fechaUlt).getUTCFullYear()).slice(2):'—')+'</td><td>'+(x.edadCorte!=null?fN(x.edadCorte):'—')+'</td><td>'+(x.edad!=null?fN(x.edad):'—')+'</td>'
-        +'<td class="l">'+(i.dist!=null?fN(i.dist,2)+' Metros':'—')+'</td>'
-        +nd+nd+nd+nd+nd+vmCells(x.i,x.est,VG,hoy,vmI)
-        +'<td class="l"><span class="st '+(x.est==='Cosechado'?'c':x.est==='Trabajando'?'e':'p')+'">'+x.est+'</span></td>'+nd+nd+'</tr>';});
+    gr.filas.forEach(function(x,k){var i=x.i,C={},q=maqLote(i),mo=MOT[S.zafra+'|'+i.codigo];
+      C['Semana']='<td class="l">'+(k===0?(gr.sem!=null?gr.sem:'—'):'')+'</td>';
+      C['Sec']='<td class="l">'+(k+1)+'</td>';
+      C['Plantío']='<td class="l nm" title="'+esc((todos&&i._fr?i._fr+' · ':'')+i.nombre+' | '+(i.finca||''))+'">'+(todos&&i._fr?'<span class="pf-fr">'+esc(i._fr)+'</span>':'')+esc(i.nombre+(i.finca?' | '+i.finca:''))+(i.lab||'')+'</td>';
+      C['Variedad']='<td class="l">'+esc(i.variedad||'')+'</td>';
+      C['N. Cortes']='<td>'+fN(i.corte)+'</td>';
+      C['Área (Ha)']=cn(i.exist,2);C['TM Est']=cn(i.tonPlan);C['TM Real']=cn(i.tonReal);
+      C['TCH Est.']=cn(i.exist>0?i.tonPlan/i.exist:null,1);C['TCH Real']=cn(i.exist>0?i.tonReal/i.exist:null,1);
+      if(q){var rojo=q.red&&x.est!=='Cosechado';
+        C['Cosech. nec.']='<td class="mq'+(rojo?' mq-red':'')+'" data-act="maqwhy" data-cod="'+esc(i.codigo)+'" title="Necesarias '+fN(q.N,1)+' · asignadas '+fN(q.mAsig,1)+(rojo?' · toca para ver por qué sumar cosechadoras':' · toca para ver el detalle')+'"><b>'+q.nec+'</b>'+(mo?'<span class="mq-n" title="Con motivo guardado">💬</span>':'')+'</td>';
+        C['Hrs efect. /máq/día']='<td title="Ventana '+fD(q.d0)+'–'+fD(q.d1)+' ('+q.dias+' d)">'+fN(q.hef,1)+'</td>';}
+      else{C['Cosech. nec.']=nd;C['Hrs efect. /máq/día']=nd;}
+      C['Fecha de Corte']='<td>'+(i.fechaProg!=null?fD(i.fechaProg)+'/'+String(dOf(i.fechaProg).getUTCFullYear()).slice(2):'—')+'</td>';
+      C['Corte/Siembra']='<td>'+(i.fechaUlt!=null?fD(i.fechaUlt)+'/'+String(dOf(i.fechaUlt).getUTCFullYear()).slice(2):'—')+'</td>';
+      C['Edad Corte']='<td>'+(x.edadCorte!=null?'<span class="ed '+edadCls(x.edadCorte)+'">'+fN(x.edadCorte)+'</span>':'—')+'</td>';
+      C['Edad Actual']='<td>'+(x.edad!=null?'<span class="ed '+edadCls(x.edad)+'">'+fN(x.edad)+'</span>':'—')+'</td>';
+      C['Dist siembra']='<td class="l">'+(i.dist!=null?fN(i.dist,2)+' Metros':'—')+'</td>';
+      var vm=vmCells(x.i,x.est,VG,hoy,vmI).match(/<td[\s\S]*?<\/td>/g)||[nd,nd,nd];
+      C['Producto Madurador']=vm[0];C['Días Aplicación']=vm[1];C['Ventana Madurador']=vm[2];
+      C['Estatus Plantío']='<td class="l"><span class="st '+(x.est==='Cosechado'?'c':x.est==='Trabajando'?'e':'p')+'">'+x.est+'</span></td>';
+      body+='<tr>'+cols.map(function(c){return C[c]!==undefined?C[c]:nd;}).join('')+'</tr>';});
     var s=sub(gr.filas);
-    body+='<tr class="pf-sub"><td class="l" colspan="2">Total '+(gr.sem!=null?gr.sem:'—')+'</td><td colspan="3"></td>'+cn(s.ha,2)+cn(s.te)+cn(s.tr)+cn(s.tchE,1)+cn(s.tchR,1)+'<td colspan="16"></td></tr>';
+    body+='<tr class="pf-sub"><td class="l" colspan="2">Total '+(gr.sem!=null?gr.sem:'—')+'</td><td colspan="3"></td>'+cn(s.ha,2)+cn(s.te)+cn(s.tr)+cn(s.tchE,1)+cn(s.tchR,1)+'<td colspan="'+(nCols-10)+'"></td></tr>';
   });
   var T=sub(filas);
-  var foot='<tr><td class="l" colspan="2">Total '+(todos?'todos los frentes':esc(S.pfFrente))+'</td><td colspan="3"></td>'+cn(T.ha,2)+cn(T.te)+cn(T.tr)+cn(T.tchE,1)+cn(T.tchR,1)+'<td colspan="16"></td></tr>';
-  var head=PF_COLS.map(function(c){var sd=PF_SIN_DATO[c];return '<th class="'+(c==='Plantío'||c==='Variedad'||c==='Semana'||c==='Sec'||c==='Estatus Plantío'||c==='Dist siembra'?'l':'')+(sd?' nd':'')+'"'+(sd?' title="Sin dato en la base del planificador: '+esc(sd)+'"':'')+'>'+c+'</th>';}).join('');
+  var foot='<tr><td class="l" colspan="2">Total '+(todos?'todos los frentes':esc(S.pfFrente))+'</td><td colspan="3"></td>'+cn(T.ha,2)+cn(T.te)+cn(T.tr)+cn(T.tchE,1)+cn(T.tchR,1)+'<td colspan="'+(nCols-10)+'"></td></tr>';
+  var head=cols.map(function(c){var sd=PF_SIN_DATO[c],tp=PF_TIP[c];return '<th class="'+(c==='Plantío'||c==='Variedad'||c==='Semana'||c==='Sec'||c==='Estatus Plantío'||c==='Dist siembra'?'l':'')+(sd?' nd':'')+'"'+(sd?' title="Sin dato en la base del planificador: '+esc(sd)+'"':(tp?' title="'+esc(tp)+'"':''))+'>'+c+'</th>';}).join('');
   var chips=['Trabajando','Cosechado','Pendiente','Accidentado'].map(function(e){return '<label><input type="checkbox" data-pfe="'+e+'"'+(S.pfEst[e]?' checked':'')+'> '+e+(e==='Accidentado'?' <span style="color:var(--muted)">(sin dato)</span>':'')+'</label>';}).join('');
   var opts='<option value="'+PF_T+'"'+(todos?' selected':'')+'>Todos los frentes ('+selF.length+')</option>'+frs.map(function(f){return '<option'+(!todos&&f===S.pfFrente?' selected':'')+'>'+esc(f)+'</option>';}).join('');
-  return '<div class="panel"><h3>Programa por frente'+(P.win?' — '+esc(ventanaTxt(P.win)):'')+'</h3><div class="row" style="margin-bottom:10px"><div><label class="lb">Select Frente</label><select id="sgp-pf-frente">'+opts+'</select></div><div><label class="lb">Estatus Plantío</label><div class="checks">'+chips+'</div></div></div>'
+  return '<div class="panel"><h3>Programa por frente'+(P.win?' — '+esc(ventanaTxt(P.win)):'')+'</h3><div class="row" style="margin-bottom:10px"><div><label class="lb">Select Frente</label><select id="sgp-pf-frente">'+opts+'</select></div><div><label class="lb">Estatus Plantío</label><div class="checks">'+chips+'</div></div><div><label class="lb">Columnas</label><div class="checks"><label><input type="checkbox" data-pfsd="1"'+(S.pfSD?' checked':'')+'> Mostrar sin dato ('+Object.keys(PF_SIN_DATO).length+')</label></div></div></div>'
+    +'<div class="note" style="margin:-2px 0 8px">Edad óptima 330–370 d: <span class="ed ed-g">verde</span> · menor a 330 <span class="ed ed-r">rojo</span> · mayor a 370 <span class="ed ed-o">naranja</span>. En <b>Cosech. nec.</b>, <span class="ed ed-r">rojo</span> = hacen falta más cosechadoras que las asignadas al frente; toca el número para ver el motivo.</div>'
     +(todos?'<div class="note" style="margin:-2px 0 8px">'+(selF.length?'Se muestran los '+selF.length+' frente(s) marcados en ▸ Filtros → Frentes a mostrar: '+esc(selF.map(function(f){return f.frente;}).join(', '))+'.':'No hay frentes marcados en ▸ Filtros → Frentes a mostrar.')+'</div>':'')
-    +'<div class="scroll" style="max-height:640px"><table class="t pf"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody><tfoot>'+foot+'</tfoot></table></div>'
+    +'<div class="scroll" style="max-height:640px"><table class="t pf"><thead><tr>'+head+'</tr></thead><tbody>'+body+'</tbody><tfoot>'+foot+'</tfoot></table></div>'+(S.maqWhy?(function(){var it=F.items.filter(function(z){return String(z.codigo)===String(S.maqWhy);})[0];return it?maqModal(it):'';})():'')
     +'<div class="note" style="margin-top:8px">Réplica de la tabla dinámica de la hoja «Frente K1» del Excel. Columnas en gris: no existen en la base del planificador. Producto Madurador / Días Aplicación (hoy − fecha de aplicación) / Ventana Madurador salen del Plan de Madurador: la ventana es la media ponderada de los días a corte del plan ± tolerancia (se configura en el planificador: Datos maestros → Quema y madurador → Ventana madurador) y se evalúa con la fecha de corte real o la llegada proyectada. Corte/Siembra = fecha del corte anterior (o de la siembra) del plantío guardada en el plan de la zafra; Edad Corte = Fecha de Corte − Corte/Siembra; Edad Actual = fecha real de corte − Corte/Siembra; si el plantío no tiene dato real y la zafra ya terminó queda igual que la Edad Corte; en una zafra en curso, sin corte real, cuenta hasta hoy; Semana = semana de zafra (miércoles a martes) de la fecha de corte del plan; Sec = orden dentro de la semana según la secuencia del plan. TCH Est. del total = TM Est ÷ Ha; TCH Real de los totales = promedio simple del TCH Real de cada plantío, igual que la tabla del Excel (no es TM Real ÷ Ha).</div></div>';
 }
 
@@ -929,6 +1028,10 @@ function bind(){
       else if(a==='salir'){DB=null;S.user=null;cacheBorrar();setSync('');fbAuth.signOut();S.srcMsg='Sesión cerrada.';S.srcOk=true;}
       else if(a==='export'){exportarCortes();return;}
       else if(a==='import'){document.getElementById('sgp-imp').click();return;}
+      else if(a==='maqwhy'){S.maqWhy=t.dataset.cod;}
+      else if(a==='maqx'){S.maqWhy=null;}
+      else if(a==='maqdel'){delete MOT[S.zafra+'|'+t.dataset.cod];guardarMotivos();S.maqWhy=null;}
+      else if(a==='maqsave'){var sm=document.getElementById('sgp-mot'),tx=document.getElementById('sgp-mot-txt');MOT[S.zafra+'|'+t.dataset.cod]={mot:sm?sm.value:'Otro',txt:tx?tx.value.trim():'',ts:Date.now()};guardarMotivos();S.maqWhy=null;}
     }
     render();
   });
@@ -942,6 +1045,7 @@ function bind(){
     else if(id==='sgp-tol'){S.tol=Math.max(0,Math.min(15,parseInt(t.value,10)||0));}
     else if(id==='sgp-pf-frente'){S.pfFrente=t.value;}
     else if(t.dataset.pfe){S.pfEst[t.dataset.pfe]=t.checked;}
+    else if(t.dataset.pfsd){S.pfSD=t.checked;}
     else if(id==='sgp-fmode'){S.fMode=t.value;var b0=curSnap().fechaBase,z0=inicioZafra();
       if(t.value==='dia'&&!S.fDia)S.fDia=isoOf(b0);
       if(t.value==='rango'){if(!S.fDesde)S.fDesde=isoOf(b0);if(!S.fHasta)S.fHasta=isoOf(b0+6);}
@@ -956,7 +1060,7 @@ function bind(){
   });
   root.addEventListener('keydown',function(e){if(e.key==='Enter'&&(e.target.id==='sgp-pass'||e.target.id==='sgp-email'))login();});
 }
-function mount(el){root=el;cargarLocal();bind();iniciarFirebase();render();
+function mount(el){root=el;cargarLocal();cargarMotivos();bind();iniciarFirebase();render();
   cacheLeer().then(function(c){
     if(!c||!c.d||DB)return;
     try{DB=normalizarDB(c.d,'Caché local');DB.cargadoEl=new Date(c.ts);DB.desdeCache=true;S.zafra='';S.srcMsg='Mostrando datos guardados del '+fechaCorta(c.ts)+'.';S.srcOk=true;
