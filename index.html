@@ -5261,8 +5261,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.24', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.25', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.25', '2026-11-06', 'Capacidad por tercio: cosechadoras ordenadas por año (nuevas primero) y por nombre'],
   ['1.24', '2026-11-06', 'Capacidad de frente por tercio: debajo de Toneladas y hectáreas por semana, frentes plegados con [+] y columnas más angostas'],
   ['1.23', '2026-11-06', 'Resultados · Comparativo Plan vs Fábrica: al pasar por cada punto se ve el total, el acumulado y las diferencias; la leyenda oculta series'],
   ['1.22', '2026-11-06', 'Comparativo interactivo: tooltip, leyenda que oculta/resalta series, zoom en líneas, detalle de lotes del plan por clic, CSV/PNG'],
@@ -9863,6 +9864,8 @@ function calcCapacidadFrentePorTercioSim(zafra) {
         return { horasProm: hp, prodProm: pp, tmDia: x.hayTon ? x.ton / x.dias : hp * pp, totalDia: 0, totalSemana: 0 };
       }) };
     });
+    // Orden de las cosechadoras: primero las más nuevas (año de operación menor) y, a igual año, por nombre; sin año al final
+    filas.sort(function(a, b) { var ya = (a.anio === null || a.anio === undefined) ? 999 : a.anio, yb = (b.anio === null || b.anio === undefined) ? 999 : b.anio; return (ya - yb) || String(a.codigo).localeCompare(String(b.codigo), 'es', { numeric: true }); });
     return { frenteNombre: fn, manual: false, nUnidades: filas.length, filas: filas, sub: sub };
   }).filter(Boolean);
   if (!frentesData.length) return null;
