@@ -3202,6 +3202,17 @@ function construirProgDiaZafra(z) {
   });
   var frs = {};
   Object.keys(fd).forEach(function(kf) { var p = kf.split('|'), o = frs[p[0]] = frs[p[0]] || { t: 'F', z: z, f: p[0], d: {} }, x = fd[kf]; o.d[p[1]] = [Object.keys(x.codes).length, r2(x.hT), r2(x.hC), r1(x.ton)]; });
+  // Frentes manuales (personas): producción diaria de la simulación; horas-persona = t ÷ (t/h por persona)
+  var simD = simularProduccionDiaria(z);
+  frentes.forEach(function(ff) {
+    var fe = getFrenteEfectivo(z, ff.nombre); if (!(frenteEsManual(fe) || frenteEsManual(ff))) return;
+    if (!planItems.some(function(p) { return p.zafra === z && p.frenteNombre === ff.nombre; })) return;
+    var tonH = parseFloat((fe && fe.tonHPersona) || ff.tonHPersona) || 0, nP = parseFloat((fe && fe.nCosech) || ff.nCosech) || 0;
+    if (!(tonH > 0) || !(nP > 0)) return;
+    var o = { t: 'F', z: z, f: ff.nombre, man: 1, d: {} };
+    Object.keys(simD).sort().forEach(function(fecha) { var t = (simD[fecha] || {})[ff.nombre] || 0; if (t > 0) o.d[fecha] = [nP, r2(t / tonH), r2(t / tonH), r1(t)]; });
+    if (Object.keys(o.d).length) frs[ff.nombre] = o;
+  });
   return Object.keys(lotes).map(function(id) { return lotes[id]; }).concat(Object.keys(frs).map(function(f) { return frs[f]; }));
 }
 function publicarProgDia(manual) {
@@ -5229,8 +5240,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.18', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.19', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.19', '2026-11-06', 'Capacidad de frente por tercio: desde el programa simulado, con subtotal por frente (coincide con Día a día y Seguimiento); el programa publicado incluye frentes manuales'],
   ['1.18', '2026-11-06', 'Programa diario para Seguimiento: se publica solo tras cada guardado y al cambiar de versión (ya no depende del botón)'],
   ['1.17', '2026-11-06', 'Programa diario publicado: toneladas y velocidad (km/h) por máquina y lote, para el detalle de cosechadoras de Seguimiento'],
   ['1.16', '2026-11-06', 'Día a día · Todas las fechas: cada plantío se despliega [+] con sus días, cosechadoras y secuencia de trabajo'],
@@ -9773,6 +9785,76 @@ function diasSuperpuestos(aDesde, aHasta, bDesde, bHasta) {
    hoja: cada código del frente aparece con el mismo Horas/Día y TM/Día), y promedia sobre eso —
    mismo criterio que las fórmulas AVERAGEIF de la plantilla original. */
 function calcCapacidadFrentePorTercio(zafra) {
+  try { var r = calcCapacidadFrentePorTercioSim(zafra); if (r) return r; } catch (e) { console.warn('Capacidad por tercio: se usa el cálculo por fechas del plan', e); }
+  return calcCapacidadFrentePorTercioPlan(zafra);
+}
+/* Capacidad por tercio desde el PROGRAMA SIMULADO (la misma base que «Día a día» y que el Resumen por frente de Seguimiento):
+   por cada día de corte del frente dentro del tercio — máquinas que participan, horas-máquina de trabajo y toneladas.
+   · Fila de cada máquina: Horas/Día = horas de trabajo ÷ días que trabajó; TM/Hora = t ÷ horas; TM/Día = t ÷ días que trabajó.
+   · Subtotal del frente: Horas/Día = horas-máq ÷ máquinas-día; TM/Hora = t ÷ horas-máq; TM/Día = t ÷ máquinas-día;
+     Total por Día = t ÷ días de corte; Total por Semana = Total por Día × 7. «General» = toda la zafra (= Resumen por frente de Seguimiento). */
+function calcCapacidadFrentePorTercioSim(zafra) {
+  var tercios = getTerciosZafra(zafra); if (!tercios) return null;
+  var P = ddProgramaZafra(zafra);
+  var frs = Array.from(new Set(planItems.filter(function(p) { return p.zafra === zafra; }).map(function(p) { return p.frenteNombre; }))).sort();
+  var enT = function(f, t) { return f >= t.desde && f <= t.hasta; };
+  var frentesData = frs.map(function(fn) {
+    var F = P.F[fn]; if (!F) return null;
+    var fe = getFrenteEfectivo(zafra, fn), frenteObj = frentes.find(function(f) { return f.nombre === fn; });
+    var esManual = frenteEsManual(fe) || frenteEsManual(frenteObj);
+    var sub = tercios.map(function(t) {
+      var sn = 0, hT = 0, ton = 0, nd = 0;
+      Object.keys(F.d || {}).forEach(function(f) { if (!enT(f, t)) return; var a = F.d[f]; if (!(+a[3] > 0)) return; sn += +a[0] || 0; hT += +a[1] || 0; ton += +a[3] || 0; nd++; });
+      if (!(nd > 0) || !(sn > 0) || !(hT > 0)) return null;
+      return { nMaq: sn / nd, horasProm: hT / sn, prodProm: ton / hT, tmDia: ton / sn, totalDia: ton / nd, totalSemana: ton / nd * 7, sn: sn, hT: hT, ton: ton, nd: nd };
+    });
+    if (sub.every(function(x) { return !x; })) return null;
+    if (esManual) {
+      return { frenteNombre: fn, manual: true, nUnidades: 0, sub: sub, filas: [{ codigo: null, porTercio: sub.map(function(x) { return x ? { horasProm: x.horasProm, prodProm: x.prodProm, tmDia: x.totalDia, totalDia: x.totalDia, totalSemana: x.totalSemana } : null; }) }] };
+    }
+    var cods = (fe && fe.cosechCodigos && fe.cosechCodigos.length) ? fe.cosechCodigos.map(function(c) { return c.codigo; }) : [], acum = {}, vistos = {};
+    P.items.forEach(function(it) {
+      if (it.t !== 'L' || it.f !== fn) return;
+      Object.keys(it.d || {}).forEach(function(f) {
+        String((it.d[f] || [])[4] || '').split(';').forEach(function(tx) {
+          var a = tx.split(':'); if (!a[0]) return;
+          tercios.forEach(function(t, ti) {
+            if (!enT(f, t)) return;
+            var x = (acum[a[0]] = acum[a[0]] || {})[ti] = acum[a[0]][ti] || { dias: 0, hT: 0, ton: 0, hayTon: false }, kv = a[0] + '|' + ti + '|' + f;
+            if (!vistos[kv]) { vistos[kv] = 1; x.dias++; }
+            x.hT += +a[1] || 0; if (a[3] !== undefined && a[3] !== '') { x.ton += +a[3] || 0; x.hayTon = true; }
+          });
+        });
+      });
+    });
+    var orden = cods.concat(Object.keys(acum).filter(function(c) { return cods.indexOf(c) < 0; }).sort());
+    var filas = orden.filter(function(c) { return acum[c]; }).map(function(c) {
+      var reg = modelosCosech.find(function(mm) { return mm.codigo === c; }) || null, e = reg ? edadCosechadora(reg, zafra) : null;
+      return { codigo: c, anio: anioOperacion(e), porTercio: tercios.map(function(t, ti) {
+        var x = acum[c][ti]; if (!x || !(x.hT > 0)) return null;
+        var hp = x.hT / x.dias, pp = x.hayTon ? x.ton / x.hT : (sub[ti] ? sub[ti].prodProm : 0);
+        return { horasProm: hp, prodProm: pp, tmDia: x.hayTon ? x.ton / x.dias : hp * pp, totalDia: 0, totalSemana: 0 };
+      }) };
+    });
+    return { frenteNombre: fn, manual: false, nUnidades: filas.length, filas: filas, sub: sub };
+  }).filter(Boolean);
+  if (!frentesData.length) return null;
+  var bloques = tercios.map(function(periodo, idx) {
+    var sn = 0, hT = 0, ton = 0, nMaq = 0, totalDia = 0, totalSemana = 0;
+    frentesData.forEach(function(fd) {
+      var x = fd.sub[idx]; if (!x) return;
+      totalDia += x.totalDia; totalSemana += x.totalSemana;
+      if (!fd.manual) { sn += x.sn; hT += x.hT; ton += x.ton; nMaq += x.nMaq; }
+    });
+    var resumen = { nMaq: nMaq, horasProm: sn > 0 ? hT / sn : 0, prodProm: hT > 0 ? ton / hT : 0, tmDiaProm: sn > 0 ? ton / sn : 0, totalDia: totalDia, totalSemana: totalSemana };
+    var diasMol = planMolienda.filter(function(d) { return d.zafra === zafra && d.fecha >= periodo.desde && d.fecha <= periodo.hasta; });
+    var planFabricaProm = diasMol.length ? diasMol.reduce(function(a, d) { return a + (d.ton || 0); }, 0) / diasMol.length : null;
+    return { periodo: periodo, resumen: resumen, planFabricaProm: planFabricaProm };
+  });
+  var backup = (getBackupCodigos(zafra) || []).map(function(codigo) { var m = modelosCosech.find(function(mm) { return mm.codigo === codigo; }); return { codigo: codigo, modelo: m ? m.nombre : '' }; });
+  return { tercios: tercios, frentesData: frentesData, bloques: bloques, backup: backup };
+}
+function calcCapacidadFrentePorTercioPlan(zafra) {
   var tercios = getTerciosZafra(zafra);
   if (!tercios) return null;
   var lotesZafra = planItems.filter(function(p) { return p.zafra === zafra; });
@@ -15224,7 +15306,7 @@ function renderCapacidadFrentePorTercio(zafra) {
   if (!data) { el.innerHTML = '<div class="alert alert-info"><i class="ti ti-info-circle"></i><span>No hay lotes planificados para esta zafra.</span></div>'; return; }
 
   var n = data.tercios.length;
-  var h = '<p style="font-size:12px;color:var(--text2);margin-bottom:14px">Horas/Día y TM/Hora son el promedio de los lotes activos de cada frente en el período, ponderado por días. TM/Día se calcula igual que la hoja de referencia (Horas/Día × TM/Hora). Los frentes manuales (de personas, ej. K11) se muestran como un solo bloque con su capacidad total — no tienen "cosechadoras" que desglosar y no se cuentan en el total de máquinas del resumen. Se recalcula solo con cada ajuste al plan.</p>';
+  var h = '<p style="font-size:12px;color:var(--text2);margin-bottom:14px">Sale del programa simulado (el mismo de «Día a día» y del Resumen por frente de Seguimiento). Cada máquina: Horas/Día = horas efectivas de trabajo (corte + maniobras + ralentí) por día que trabajó, TM/Hora = t ÷ horas, TM/Día = t por día que trabajó. El <b>subtotal</b> de cada frente usa horas-máquina y máquinas-día de sus días de corte; Total por Día = toneladas ÷ días de corte; por Semana = ×7. «General» es toda la zafra. Los frentes manuales (de personas, ej. K11) se muestran como un solo bloque con su capacidad total — no tienen "cosechadoras" que desglosar y no se cuentan en el total de máquinas del resumen. Se recalcula solo con cada ajuste al plan.</p>';
   h += '<div style="overflow-x:auto"><table style="font-size:11px"><thead>';
   h += '<tr><th rowspan="2" style="vertical-align:bottom">Frente</th><th rowspan="2" style="vertical-align:bottom">Cosech./<br>Alzadora</th>' +
     data.tercios.map(function(t) { return '<th colspan="5" style="text-align:center;border-left:1px solid var(--border)">' + t.nombre + '<br><span style="font-weight:400;color:var(--text3)">(' + t.desde + ' a ' + t.hasta + ')</span></th>'; }).join('') + '</tr>';
@@ -15235,7 +15317,7 @@ function renderCapacidadFrentePorTercio(zafra) {
     h += '<tr><td colspan="' + (2 + n * 5) + '" style="color:var(--text3);text-align:center;padding:10px">Sin actividad planificada</td></tr>';
   }
   data.frentesData.forEach(function(fd) {
-    var nFilas = fd.filas.length;
+    var nFilas = fd.filas.length, conSub = !fd.manual && fd.sub;
     fd.filas.forEach(function(fila, i) {
       h += '<tr>';
       h += '<td>' + (i === 0 ? '<strong>' + fd.frenteNombre + '</strong>' + (fd.manual ? ' <span style="color:var(--text3);font-size:10px">(manual)</span>' : '') : '') + '</td>';
@@ -15243,20 +15325,33 @@ function renderCapacidadFrentePorTercio(zafra) {
       fila.porTercio.forEach(function(pt, ti) {
         if (!pt) {
           h += '<td style="border-left:1px solid var(--border);color:var(--text3)">–</td><td>–</td><td>–</td>';
-          if (i === 0) h += '<td rowspan="' + nFilas + '" style="color:var(--text3)">–</td><td rowspan="' + nFilas + '" style="color:var(--text3)">–</td>';
+          if (conSub) h += '<td></td><td></td>';
+          else if (i === 0) h += '<td rowspan="' + nFilas + '" style="color:var(--text3)">–</td><td rowspan="' + nFilas + '" style="color:var(--text3)">–</td>';
           return;
         }
         h += '<td style="border-left:1px solid var(--border)">' + pt.horasProm.toFixed(1) + '</td>';
         h += '<td>' + pt.prodProm.toFixed(1) + '</td>';
         h += '<td>' + Math.round(pt.tmDia).toLocaleString() + (fd.manual ? ' <span style="color:var(--text3);font-size:10px">(total)</span>' : '') + '</td>';
-        // Total por Día / Total por Semana: UNA vez por frente (fusionada), no se repite por cada código
-        if (i === 0) {
+        if (conSub) h += '<td></td><td></td>';   // el total del frente va en su fila de subtotal
+        else if (i === 0) {   // frente manual: un solo bloque
           h += '<td rowspan="' + nFilas + '" style="font-weight:600">' + Math.round(pt.totalDia).toLocaleString() + '</td>';
           h += '<td rowspan="' + nFilas + '" style="font-weight:600">' + Math.round(pt.totalSemana).toLocaleString() + '</td>';
         }
       });
       h += '</tr>';
     });
+    if (conSub) {
+      h += '<tr style="font-weight:600;background:var(--bg2);border-top:1px solid var(--border)"><td colspan="2">Subtotal ' + fd.frenteNombre + '</td>';
+      fd.sub.forEach(function(x) {
+        if (!x) { h += '<td style="border-left:1px solid var(--border);color:var(--text3)">–</td><td>–</td><td>–</td><td>–</td><td>–</td>'; return; }
+        h += '<td style="border-left:1px solid var(--border)" title="Horas efectivas de trabajo por máquina y día = horas-máquina ÷ máquinas-día">' + x.horasProm.toFixed(1) + '<div style="font-weight:400;font-size:9px;color:var(--text3)">' + x.nMaq.toFixed(1) + ' máq</div></td>' +
+          '<td title="Toneladas ÷ horas-máquina de trabajo">' + x.prodProm.toFixed(1) + '</td>' +
+          '<td title="Toneladas por máquina y día = toneladas ÷ máquinas-día">' + Math.round(x.tmDia).toLocaleString() + '</td>' +
+          '<td title="Toneladas por día de corte del frente">' + Math.round(x.totalDia).toLocaleString() + '</td>' +
+          '<td>' + Math.round(x.totalSemana).toLocaleString() + '</td>';
+      });
+      h += '</tr>';
+    }
   });
 
   h += '</tbody><tfoot>';
