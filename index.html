@@ -5261,8 +5261,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.28', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.29', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.29', '2026-11-06', 'Resultados: el aviso de cobertura sube debajo del comparativo Plan vs Fábrica e incluye el desfase fin de cosecha vs molienda; se quita el segundo aviso'],
   ['1.28', '2026-11-06', 'Resultados: Cumplimiento diario justo después del comparativo Plan vs Fábrica (clic en la barra = día, todas las fechas con [+] de ajuste sugerido); Análisis de horas y Detalle por campo colapsados'],
   ['1.27', '2026-11-06', 'Resultados: se quitan los resúmenes de Productividad (frente completo / por cosechadora) y de Costo total equipos / Costo por tonelada'],
   ['1.26', '2026-11-06', 'Resultados: resumen general con hectáreas, TCH, horas efectivas de trabajo, TM/h y TM/máquina/día de las cosechadoras'],
@@ -14764,7 +14765,16 @@ function calcular() {
   // Capacidad de frente por tercio: justo después de «Toneladas y hectáreas programadas por semana»
   html += '<div class="card" style="margin-bottom:16px"><div class="card-title">Capacidad de frente por tercio</div><div id="capacidad-tercio-content"></div></div>';
   // (Se quitaron los resúmenes «Productividad» y «Costo total equipos / Costo por tonelada»: el resumen general de arriba ya trae TM/h y TM/máquina/día de las cosechadoras.)
-  if (totalMolienda > 0) html += '<div class="alert ' + (cob >= 100 ? 'alert-ok' : 'alert-warn') + '" style="margin-bottom:16px"><i class="ti ti-' + (cob >= 100 ? 'circle-check' : 'alert-triangle') + '"></i><span>Los campos cubren el <strong>' + cob + '%</strong> de la demanda planificada (' + Math.round(totalMolienda / 1000) + 'k ton en ' + diasZafra + ' días).</span></div>';
+  // Si el plan de cosecha termina DESPUÉS del plan de molienda, se avisa dentro de este mismo comentario (ya no hay un segundo aviso aparte)
+  var finDesfaseTxt = '';
+  (function() {
+    var pI = filtroZafraRes ? planItems.filter(function(p) { return p.zafra === filtroZafraRes; }) : planItems, mI = filtroZafraRes ? planMolienda.filter(function(d) { return d.zafra === filtroZafraRes; }) : planMolienda;
+    if (!pI.length || !mI.length) return;
+    var fM = mI.map(function(d) { return d.fecha; }).sort(), fP = pI.map(function(p) { return p.fechaInicio; }).sort();
+    var m0 = fM[0], mN = fM[fM.length - 1], p0 = fP[0], pN = pI.map(function(p) { return p.fechaFin; }).sort().slice(-1)[0];
+    if (m0 <= pN && mN >= p0 && pN > mN) finDesfaseTxt = '<div style="margin-top:4px;color:var(--amber-text)"><i class="ti ti-alert-triangle" style="margin-right:4px"></i>El plan de cosecha ahora termina el <strong>' + pN + '</strong>, pero el plan de molienda solo llega hasta el <strong>' + mN + '</strong>.</div>';
+  })();
+  if (totalMolienda > 0) html += '<!--RES-COB--><div class="alert ' + (cob >= 100 ? 'alert-ok' : 'alert-warn') + '" style="margin-bottom:16px"><i class="ti ti-' + (cob >= 100 ? 'circle-check' : 'alert-triangle') + '"></i><span>Los campos cubren el <strong>' + cob + '%</strong> de la demanda planificada (' + Math.round(totalMolienda / 1000) + 'k ton en ' + diasZafra + ' días).' + finDesfaseTxt + '</span></div><!--/RES-COB-->';
 
   // ── Análisis de capacidad vs demanda: ¿cuántas horas deberían trabajar las máquinas? ──
   var demandaDiariaProm = diasZafra > 0 ? totalMolienda / diasZafra : 0;
@@ -14847,8 +14857,7 @@ function calcular() {
       // la cual comparar, así que "Cumplimiento diario" no los evalúa —
       // dando la falsa impresión de que nada cambió, cuando en realidad
       // hay una porción del plan sin cobertura de demanda para revisar.
-      var diasExtra = Math.round((new Date(plnN+'T00:00:00') - new Date(molN+'T00:00:00')) / 86400000);
-      diagHtml = '<div class="alert alert-warn" style="margin-bottom:16px"><i class="ti ti-alert-triangle"></i><span>El plan de cosecha ahora termina el <strong>' + plnN + '</strong>, pero el plan de molienda solo llega hasta el <strong>' + molN + '</strong> — hay <strong>' + diasExtra + ' día(s)</strong> de cosecha planificada sin ninguna fila de demanda para comparar (por eso no aparecen en "Cumplimiento diario" ni cambian ese indicador). Esto suele pasar tras usar "Ajustar secuencia": la duración real simulada (según máquinas/velocidad/horas) resultó más larga que las fechas que había antes. Ve a <strong>Fábrica</strong> y extiende el plan de molienda hasta esa fecha, o revisa si faltan máquinas/horas para terminar a tiempo.</span></div>';
+      // (El aviso de este caso ahora va dentro del comentario de cobertura, debajo del comparativo Plan vs Fábrica.)
     }
     }
   }
@@ -15290,11 +15299,10 @@ function calcular() {
 
   // Orden: el Cumplimiento diario de demanda va justo después del Comparativo Plan vs Fábrica (o de las tarjetas si ese gráfico no se muestra)
   (function() {
-    var iA = html.indexOf('<!--RES-CUMPL-->'), fB = '<!--/RES-CUMPL-->', iB = html.indexOf(fB);
-    if (iA < 0 || iB < iA) return;
-    var seg = html.slice(iA, iB + fB.length); html = html.slice(0, iA) + html.slice(iB + fB.length);
+    function cortar(ini, fin) { var i = html.indexOf(ini), j = html.indexOf(fin); if (i < 0 || j < i) return ''; var seg = html.slice(i, j + fin.length); html = html.slice(0, i) + html.slice(j + fin.length); return seg; }
+    var cob = cortar('<!--RES-COB-->', '<!--/RES-COB-->'), cum = cortar('<!--RES-CUMPL-->', '<!--/RES-CUMPL-->');
     var iC = html.indexOf('<!--RES-COMP-FIN-->'); if (iC < 0) iC = html.indexOf('<!--RES-CARDS-FIN-->'); if (iC < 0) iC = html.length;
-    html = html.slice(0, iC) + seg + html.slice(iC);
+    html = html.slice(0, iC) + cob + cum + html.slice(iC);
   })();
   document.getElementById('resultado-content').innerHTML = html;
   resCumplRestaurar();
