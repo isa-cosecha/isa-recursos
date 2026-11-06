@@ -2558,6 +2558,14 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
         </div>
       </div>
       <div class="card">
+        <div class="card-title">Comparativo: descarga de los gráficos</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Elige qué botones de descarga aparecen en la esquina de cada gráfico de la página <strong>Comparativo</strong>. Son independientes: puedes dejar solo CSV (los datos del gráfico), solo PNG (la imagen), los dos o ninguno.</p>
+        <div style="display:flex;gap:22px;flex-wrap:wrap;align-items:center;font-size:13px">
+          <label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer"><input type="checkbox" id="ajustes-cmp-csv" onchange="cmpOpcCambiar()" style="width:auto;margin:0"> <i class="ti ti-check" style="color:var(--green-text)"></i> Permitir descargar <strong>CSV</strong></label>
+          <label style="display:inline-flex;align-items:center;gap:7px;cursor:pointer"><input type="checkbox" id="ajustes-cmp-png" onchange="cmpOpcCambiar()" style="width:auto;margin:0"> <i class="ti ti-check" style="color:var(--green-text)"></i> Permitir descargar <strong>PNG</strong></label>
+        </div>
+      </div>
+      <div class="card">
         <div class="card-title">Programa diario para Seguimiento</div>
         <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Publica en la nube lo mismo que muestra «Día a día» (lotes que se cortan cada día, cosechadoras, horas efectivas por máquina, TM/h y toneladas) para que «Programa por frente» de Seguimiento coincida. Se actualiza solo unos segundos después de guardar cualquier cambio del plan, de los campos, de los equipos o de los ajustes (con usuario admin o editor), y también cuando entras con una versión nueva del planificador. El botón solo lo fuerza. Se guarda como documentos <code>progdia_N</code> (admin o editor).</p>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="btn btn-sm" id="ajustes-progdia-btn" onclick="publicarProgDia(true)"><i class="ti ti-cloud-upload"></i> Publicar programa diario ahora</button><span id="ajustes-progdia-estado" style="font-size:12px"></span></div>
@@ -2917,7 +2925,7 @@ function construirDataCompleta() {
     velVPQ: [0,1,2,3].map(function(i) { return fv('vpq-' + i); }),
     velVVV: [0,1,2,3].map(function(i) { return fv('vvv-' + i); }),
     velVVQ: [0,1,2,3].map(function(i) { return fv('vvq-' + i); }),
-    velPctTCH: leerVelPctTCH(), velPctEdad: leerVelPctEdad(), horasMaxEdad: leerTopesHorasEdad(), curvaEdad: leerCurvaEdad(), historicoCompar: historicoCompar, intervalosMtto: intervalosMtto,
+    velPctTCH: leerVelPctTCH(), velPctEdad: leerVelPctEdad(), horasMaxEdad: leerTopesHorasEdad(), curvaEdad: leerCurvaEdad(), historicoCompar: historicoCompar, comparativoOpc: comparativoOpc, intervalosMtto: intervalosMtto,
     camion: {
       carretasInt: fv('e-carretasInterno'), volCarretaInt: fv('e-volCarretaInterno'),
       camIntActivos: fv('e-camIntActivos'), camIntBackup: fv('e-camIntBackup'), camExt: fv('e-camExt'), tCambioCarretas: fv('e-tCambioCarretas'),
@@ -3013,7 +3021,7 @@ function categoriasDeData(d) {
       factoresTrashPorVariedad: d.factoresTrashPorVariedad, factorTrashDefault: d.factorTrashDefault,
       vinculosGeoManual: d.vinculosGeoManual, geoRoutesGuardadas: d.geoRoutesGuardadas,
       cosechIdSeq: d.cosechIdSeq, avIdSeq: d.avIdSeq, frenteIdSeq: d.frenteIdSeq, tandemIdSeq: d.tandemIdSeq, mtIdSeq: d.mtIdSeq,
-      velVPV: d.velVPV, velVPQ: d.velVPQ, velVVV: d.velVVV, velVVQ: d.velVVQ, velPctTCH: d.velPctTCH, velPctEdad: d.velPctEdad, horasMaxEdad: d.horasMaxEdad, curvaEdad: d.curvaEdad, historicoCompar: d.historicoCompar, intervalosMtto: d.intervalosMtto,
+      velVPV: d.velVPV, velVPQ: d.velVPQ, velVVV: d.velVVV, velVVQ: d.velVVQ, velPctTCH: d.velPctTCH, velPctEdad: d.velPctEdad, horasMaxEdad: d.horasMaxEdad, curvaEdad: d.curvaEdad, historicoCompar: d.historicoCompar, comparativoOpc: d.comparativoOpc, intervalosMtto: d.intervalosMtto,
       camion: d.camion, fabrica: d.fabrica,
       planesReferencia: d.planesReferencia, lowboysDisponibles: d.lowboysDisponibles, usarRealEnPlan: d.usarRealEnPlan,
       zafraPorDefecto: d.zafraPorDefecto
@@ -5154,7 +5162,7 @@ function _aplicarDatos(d) {
       pctTCH = {}; PREFIJOS_VEL_TCH.forEach(function(pfx) { var mxs = { vpv: d.velVPV, vpq: d.velVPQ, vvv: d.velVVV, vvq: d.velVVQ }[pfx] || []; pctTCH[pfx] = [null, null, 2, 3].map(function(r, i) { var mn = d.velMinTCH[pfx] ? d.velMinTCH[pfx][i] : null, mx = mxs[i]; return (i >= 2 && mn > 0 && mx > 0) ? Math.min(100, Math.round(mn / mx * 100)) : null; }); });
     }
     ponerVelPctTCH(pctTCH); ponerVelPctEdad(d.velPctEdad); actualizarMinKmTabla();
-    ponerTopesHorasEdad(d.horasMaxEdad); ponerCurvaEdad(d.curvaEdad); if (typeof d.historicoCompar === 'string') historicoCompar = d.historicoCompar; intervalosMtto = d.intervalosMtto || {};
+    ponerTopesHorasEdad(d.horasMaxEdad); ponerCurvaEdad(d.curvaEdad); if (typeof d.historicoCompar === 'string') historicoCompar = d.historicoCompar; if (d.comparativoOpc && typeof d.comparativoOpc === 'object') { comparativoOpc = { csv: d.comparativoOpc.csv !== false, png: d.comparativoOpc.png !== false }; renderCmpOpc(); } intervalosMtto = d.intervalosMtto || {};
     if (d.camion) {
       var c = d.camion;
       var map = {carretasInt:'e-carretasInterno',volCarretaInt:'e-volCarretaInterno',carretasCarr:'e-carretasCarretera',volCarretaCarr:'e-volCarretaCarretera',velInt:'e-velInterno',velCarr:'e-velCarretera',tIngInt:'e-tIngenioInterno',tIngCarr:'e-tIngenioCarretera',tarifaKmCarr:'e-tarifaKmCarretera',costoCamionHoraInterno:'e-costoCamionHoraInterno',costoCarretaHoraInterno:'e-costoCarretaHoraInterno',precioGalonCombustible:'e-precioGalonCombustible',distDesc:'e-distDescarga',velDesc:'e-velDescarga',tDesc:'e-tDescarga',stockPatio:'e-stockPatio',capPatio:'e-capPatio',tasaConsumo:'e-tasaConsumo',basculas:'e-basculas',tPesaje:'e-tPesaje',velTraslado:'e-velTraslado',tTrasladoFijo:'e-tTrasladoFijo',umbralLowboy:'e-umbralLowboy',tSubidaLowboy:'e-tSubidaLowboy',tBajadaLowboy:'e-tBajadaLowboy'};
@@ -5261,8 +5269,10 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.30', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.32', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.32', '2026-11-06', 'Ajustes: casillas independientes para mostrar los botones CSV y PNG de los gráficos del Comparativo'],
+  ['1.31', '2026-11-06', 'Comparativo · proporción por variedad: filtro de semanas (casillas) solo para ese gráfico'],
   ['1.30', '2026-11-06', 'Comparativo: proporción de TM por semana y variedad (plan o zafras reales) con [+] por semana para ver los días'],
   ['1.29', '2026-11-06', 'Resultados: el aviso de cobertura sube debajo del comparativo Plan vs Fábrica e incluye el desfase fin de cosecha vs molienda; se quita el segundo aviso'],
   ['1.28', '2026-11-06', 'Resultados: Cumplimiento diario justo después del comparativo Plan vs Fábrica (clic en la barra = día, todas las fechas con [+] de ajuste sugerido); Análisis de horas y Detalle por campo colapsados'],
@@ -5372,7 +5382,8 @@ function onCurvaEdad() {
   if (a > 0 && a <= 24) curvaEdad.bkMin = a; if (b > 0 && b <= 24) curvaEdad.bkMax = Math.max(b, curvaEdad.bkMin);
   refrescarCurvaEdad(); marcarCambiosVelocidadPendientes();
 }
-var historicoCompar = '';   /* comparativo: histórico agregado del Excel (ver módulo COMPARATIVO); se declara aquí para que la carga de datos lo encuentre */
+var historicoCompar = '';
+var comparativoOpc = { csv: true, png: true };   /* botones de descarga de los gráficos del Comparativo (Ajustes → Comparativo): CSV y PNG se activan por separado */   /* comparativo: histórico agregado del Excel (ver módulo COMPARATIVO); se declara aquí para que la carga de datos lo encuentre */
 var PREFIJOS_VEL_TCH = ['vpv', 'vpq', 'vvv', 'vvq'];
 function valPct(id) { var el = document.getElementById(id), v = el ? parseFloat(el.value) : NaN; return (v > 0 && v <= 100) ? v : null; }
 function leerVelPctTCH() { var o = {}; PREFIJOS_VEL_TCH.forEach(function(pfx) { o[pfx] = [null, null, valPct(pfx + '-pct-2'), valPct(pfx + '-pct-3')]; }); return o; }
@@ -10046,6 +10057,7 @@ function aplicarDefaultZafraSiVacio(sel, cur, zafras) {
 function syncAjustesPage() {
   renderVersionPlanificador();
   renderEstadoProgDia();
+  renderCmpOpc();
   if (typeof syncAjustesSyncCard === 'function') syncAjustesSyncCard();
   var sel = document.getElementById('config-zafra-default');
   if (!sel) return;
@@ -26331,13 +26343,19 @@ function cmpBind() {
   c.addEventListener('mousemove', cmpOnMove); c.addEventListener('mouseleave', function() { if (!_cmpDrag) { cmpTipOcultar(); c.querySelectorAll('svg[data-cid]').forEach(function(s) { cmpResaltar(s, null); }); } });
   c.addEventListener('mousedown', cmpOnDown); c.addEventListener('click', cmpOnClick); window.addEventListener('mouseup', cmpOnUp);
 }
-function cmpRedibujar(cid) { var d = _cmpCharts[cid], w = document.querySelector('[data-cwrap="' + cid + '"]'); if (!d || !w) return; w.innerHTML = d.build(cmpEstado(cid)); cmpTools(cid); var c = document.querySelector('[data-cdrill="' + cid + '"]'), st = cmpEstado(cid); if (c) c.innerHTML = (st.pin !== null && d.drill) ? (d.drill(st.pin) || '') : ''; }
+function cmpRedibujar(cid) { var d = _cmpCharts[cid], w = document.querySelector('[data-cwrap="' + cid + '"]'); if (!d || !w) return; w.innerHTML = d.build(cmpEstado(cid)); cmpTools(cid); var ff = document.querySelector('[data-cfiltro="' + cid + '"]'); if (ff && d.filtro) ff.innerHTML = d.filtro(cmpEstado(cid)); var c = document.querySelector('[data-cdrill="' + cid + '"]'), st = cmpEstado(cid); if (c) c.innerHTML = (st.pin !== null && d.drill) ? (d.drill(st.pin) || '') : ''; }
 function cmpZoomReset(cid) { var st = cmpEstado(cid); st.zoom = null; cmpRedibujar(cid); }
 function cmpCerrarDrill(cid) { cmpEstado(cid).pin = null; var c = document.querySelector('[data-cdrill="' + cid + '"]'); if (c) c.innerHTML = ''; }
 function cmpTools(cid) {
   var el = document.querySelector('[data-ctools="' + cid + '"]'), st = cmpEstado(cid); if (!el) return;
-  el.innerHTML = (st.zoom ? '<button class="btn btn-xs" onclick="cmpZoomReset(\'' + cid + '\')">Restablecer zoom</button> ' : '') + '<button class="btn btn-xs" title="Descargar los datos del gráfico" onclick="cmpCSV(\'' + cid + '\')">CSV</button> <button class="btn btn-xs" title="Descargar la imagen" onclick="cmpPNG(\'' + cid + '\')">PNG</button>';
+  el.innerHTML = (st.zoom ? '<button class="btn btn-xs" onclick="cmpZoomReset(\'' + cid + '\')">Restablecer zoom</button> ' : '') +
+    (comparativoOpc.csv ? '<button class="btn btn-xs" title="Descargar los datos del gráfico" onclick="cmpCSV(\'' + cid + '\')">CSV</button> ' : '') +
+    (comparativoOpc.png ? '<button class="btn btn-xs" title="Descargar la imagen" onclick="cmpPNG(\'' + cid + '\')">PNG</button>' : '');
 }
+// Ajustes → Comparativo: casillas independientes para mostrar los botones CSV y PNG
+function cmpOpcLeer() { var c = document.getElementById('ajustes-cmp-csv'), p = document.getElementById('ajustes-cmp-png'); if (c) comparativoOpc.csv = !!c.checked; if (p) comparativoOpc.png = !!p.checked; }
+function cmpOpcCambiar() { cmpOpcLeer(); if (typeof autoSave === 'function') autoSave(); Object.keys(_cmpCharts || {}).forEach(cmpTools); }
+function renderCmpOpc() { var c = document.getElementById('ajustes-cmp-csv'), p = document.getElementById('ajustes-cmp-png'); if (c) c.checked = comparativoOpc.csv !== false; if (p) p.checked = comparativoOpc.png !== false; }
 function cmpDescargar(nombre, blob) { var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nombre; document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
 function cmpCSV(cid) {
   var d = _cmpCharts[cid]; if (!d || !d.tabla) return; var t = d.tabla();
@@ -26431,11 +26449,21 @@ function cmpSvgApiladas(cats, series, o) {
   });
   return h + '</svg>';
 }
-function cmpVarCambiar(id) { _cmpVarSel = id; var st = cmpEstado('varSem'); st.exp = {}; st.hidden = {}; st.pin = null; cmpRedibujar('varSem'); }
+function cmpVarCambiar(id) { _cmpVarSel = id; var st = cmpEstado('varSem'); st.exp = {}; st.hidden = {}; st.semSel = null; st.pin = null; cmpRedibujar('varSem'); }
+function cmpVarSem(sem, on) {   // marca o desmarca una semana en el gráfico de variedad
+  var d = _cmpCharts.varSem, st = cmpEstado('varSem'), todas = (d && d.semsAll) || []; if (!todas.length) return;
+  if (!st.semSel) { st.semSel = {}; todas.forEach(function(x) { st.semSel[x] = true; }); }
+  if (on) st.semSel[sem] = true; else delete st.semSel[sem];
+  if (st.exp && !on) delete st.exp[sem];
+  if (todas.every(function(x) { return st.semSel[x]; })) st.semSel = null;
+  st.pin = null; cmpTipOcultar(); cmpRedibujar('varSem');
+}
+function cmpVarSemTodas() { var st = cmpEstado('varSem'); st.semSel = null; st.pin = null; cmpRedibujar('varSem'); }
+function cmpVarSemNinguna() { var st = cmpEstado('varSem'); st.semSel = {}; st.exp = {}; st.pin = null; cmpRedibujar('varSem'); }
 function cmpGrafico(cid, titulo, def, nota) {
   var st = cmpEstado(cid); st.pin = null; def.st = st; def.cid = cid; _cmpCharts[cid] = def;
   var svg = def.build(st);
-  return '<div class="card" style="margin-bottom:14px"><div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span>' + titulo + '</span><span data-ctools="' + cid + '" style="white-space:nowrap"></span></div><div data-cwrap="' + cid + '">' + svg + '</div><div data-cdrill="' + cid + '"></div>' + (nota ? '<div style="font-size:11px;color:var(--text3);margin-top:6px">' + nota + '</div>' : '') + '</div>';
+  return '<div class="card" style="margin-bottom:14px"><div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span>' + titulo + '</span><span data-ctools="' + cid + '" style="white-space:nowrap"></span></div>' + (def.filtro ? '<div data-cfiltro="' + cid + '" style="margin:2px 0 8px">' + def.filtro(st) + '</div>' : '') + '<div data-cwrap="' + cid + '">' + svg + '</div><div data-cdrill="' + cid + '"></div>' + (nota ? '<div style="font-size:11px;color:var(--text3);margin-top:6px">' + nota + '</div>' : '') + '</div>';
 }
 function cmpTarjeta(titulo, cuerpo, nota) { return '<div class="card" style="margin-bottom:14px"><div class="card-title">' + titulo + '</div>' + cuerpo + (nota ? '<div style="font-size:11px;color:var(--text3);margin-top:6px">' + nota + '</div>' : '') + '</div>'; }
 function cmpInit() {
@@ -26544,8 +26572,11 @@ function cmpDibujar() {
     var sinDatos = function(S) { return '<div style="padding:18px;color:var(--text3);font-size:12px">' + (S.tipo === 'real' ? 'El histórico cargado no trae la columna «Variedad» por plantío: vuelve a cargar el Excel con «Cargar histórico (Excel)».' : 'No hay toneladas por variedad en esta serie (revisa que los campos tengan variedad).') + '</div>'; };
     var armar = function(st) {
       var S = serieSel(), D = cmpVarDatos(S); if (!D.sems.length) return { S: S, D: D };
+      def.semsAll = D.sems;
+      var semsVis = D.sems.filter(function(sm) { return !st.semSel || st.semSel[sm]; });   // solo las semanas marcadas (afecta únicamente a este gráfico)
+      if (!semsVis.length) return { S: S, D: D, vacio: true };
       var exp = st.exp || {}, cats = [];
-      D.sems.forEach(function(sm) { cats.push({ l: 'S' + sm, tipo: 'sem', sem: sm, ab: !!exp[sm] }); if (exp[sm]) (D.dias[sm] || []).forEach(function(f) { cats.push({ l: f.slice(8) + '/' + f.slice(5, 7), tipo: 'dia', sem: sm, f: f }); }); });
+      semsVis.forEach(function(sm) { cats.push({ l: 'S' + sm, tipo: 'sem', sem: sm, ab: !!exp[sm] }); if (exp[sm]) (D.dias[sm] || []).forEach(function(f) { cats.push({ l: f.slice(8) + '/' + f.slice(5, 7), tipo: 'dia', sem: sm, f: f }); }); });
       var vis = D.vars.filter(function(v) { return !st.hidden[v.lab]; }), todasVis = !vis.length || vis.length === D.vars.length;
       var series = D.vars.map(function(v) { return { label: v.lab, color: v.color, key: v.key, tms: [], pct: [] }; });
       cats.forEach(function(c, i) {
@@ -26556,7 +26587,14 @@ function cmpDibujar() {
       });
       return { S: S, D: D, cats: cats, series: series };
     };
-    def.build = function(st) { var A = def.A = armar(st); if (!A.cats) { def.labels = []; return sinDatos(A.S); } def.labels = A.series.map(function(s) { return s.label; }); return cmpSvgApiladas(A.cats, A.series, { W: W, h: 340, st: st, reg: def, cid: def.cid }); };
+    def.build = function(st) { var A = def.A = armar(st); if (A.vacio) { def.labels = []; return '<div style="padding:18px;color:var(--text3);font-size:12px">Marca al menos una semana en el filtro de arriba.</div>'; } if (!A.cats) { def.labels = []; return sinDatos(A.S); } def.labels = A.series.map(function(s) { return s.label; }); return cmpSvgApiladas(A.cats, A.series, { W: W, h: 340, st: st, reg: def, cid: def.cid }); };
+    def.filtro = function(st) {
+      var D = cmpVarDatos(serieSel()); if (!D.sems.length) return '';
+      var sel = st.semSel, n = sel ? D.sems.filter(function(sm) { return sel[sm]; }).length : D.sems.length;
+      return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:11px;color:var(--text2)"><span style="font-weight:600;margin-right:2px">Semanas:</span>' +
+        D.sems.map(function(sm) { var on = !sel || !!sel[sm]; return '<label style="display:inline-flex;align-items:center;gap:3px;border:1px solid var(--border);border-radius:12px;padding:1px 8px 1px 5px;cursor:pointer;' + (on ? 'background:var(--green-bg);color:var(--green-text)' : 'color:var(--text3)') + '"><input type="checkbox" ' + (on ? 'checked' : '') + ' onchange="cmpVarSem(' + sm + ', this.checked)" style="width:auto;margin:0">S' + sm + '</label>'; }).join('') +
+        '<button class="btn btn-xs" onclick="cmpVarSemTodas()">Todas</button><button class="btn btn-xs" onclick="cmpVarSemNinguna()">Ninguna</button><span style="color:var(--text3)">' + n + ' de ' + D.sems.length + '</span></div>';
+    };
     def.tip = function(i) {
       var A = def.A; if (!A || !A.cats) return ''; var c = A.cats[i];
       var h = '<div style="font-weight:600;margin-bottom:3px">' + (c.tipo === 'sem' ? 'Semana ' + c.sem : 'Día ' + c.f + ' · semana ' + c.sem) + ' · ' + cmpFmtN(c.tot, 0) + ' TM</div>';
