@@ -512,6 +512,13 @@ function fromBase(zafra){
     });
     var ult=lotes[lotes.length-1];
     if(ult&&ult.fechaFin&&colaB.length){var bl=colaB[colaB.length-1].it;if(bl.finExt!=null&&Math.abs(Math.floor(bl.finExt)-ser(ult.fechaFin))>=2)diagD.difPlan.push({fn:fn,plan:ser(ult.fechaFin),motor:bl.finExt});}
+    var pdI=pdIdx(zafra);
+    if(pdI){   /* misma simulación que «Día a día»: llegada = primer evento, fin = último; ops del frente = días con corte desde el corte */
+      its.forEach(function(it){var L=pdI.L[String(it.codigo)];if(!L)return;var a=pdSer(L.i),b=pdSer(L.e);if(a!=null)it.inicioExt=a;if(b!=null)it.finExt=b;});
+      var Ff=pdI.F[fn];
+      if(Ff){var sT=0,sMh=0,sMd=0,sFd=0,b0=Math.floor(fechaBase);Object.keys(Ff.d||{}).forEach(function(f){if(Math.floor(ser(f))<b0)return;var a=Ff.d[f]||[];sT+=+a[3]||0;sMh+=+a[1]||0;sMd+=+a[0]||0;sFd++;});
+        if(sFd>0&&sMd>0&&sMh>0){statsF[fn]={T:sT,mh:sMh,md:sMd,fd:sFd,hrsF:sMh};capacidad[fn]=sT/sFd;}}
+    }
     frentesOut.push({frente:fn,items:its});
     return;
 
@@ -776,8 +783,8 @@ function viewSeguimiento(cs){
    Las columnas marcadas «sin dato» (gris) no existen en la base del planificador; el resto sale de planItems, campos y Ejecución. */
 /* Producto Madurador, Días Aplicación y Ventana Madurador ya salen del Plan de Madurador (v285 del planificador) */
 var PF_SIN_DATO={'Conformación Carretas':'Número de carretas por plantío','Removido':'Plan de removido (SI/NO)','Autoguiado':'Autoguiado (SI/NO)','Autoguiado Total/Parcial':'Cobertura del autoguiado','Pasadiceo':'Pasadiceo (SI/NO)','Observación de Cosecha':'Observación de cosecha por plantío','Evaluaciones':'Plantío en evaluación (SI/NO)'};
-var PF_TIP={'Cosech. nec.':'Cosechadoras que el plan optimizado asigna a este plantío. Rojo = más que la dotación base del frente (refuerzo de backup). Toca el número para ver cuáles son, las horas efectivas por día y el motivo.','Hrs efect. /máq/día':'Horas efectivas de trabajo por máquina y día (corte + maniobras + ralentí). Con el programa del planificador son las de su simulación; sin él, horas/día del frente menos paros de mantenimiento y traslado.','TM/h':'Toneladas por hora de trabajo de una cosechadora en este lote (t ÷ horas-máquina de trabajo; sin multiplicar por las máquinas del frente).','TM/Máq/Día':'Toneladas que corta una máquina por día = TM/h × Hrs efect./máq/día (t ÷ máquinas-día).','Capacidad frente':'Toneladas por día del frente: en cada lote, las que se cortan en él esos días; en los totales, las del frente completo (igual que Día a día). Sin programa del planificador: TM/Máq/Día × máquinas asignadas.'};
-var PF_COLS=['Semana','Sec','Plantío','Variedad','N. Cortes','Área (Ha)','TM Est','TM Real','TCH Est.','TCH Real','Cosech. nec.','Hrs efect. /máq/día','TM/h','TM/Máq/Día','Capacidad frente','Fecha de Corte (Inicio)','Fecha Fin de Corte','Corte/Siembra','Edad Corte','Edad Actual','Dist siembra','Conformación Carretas','Removido','Autoguiado','Autoguiado Total/Parcial','Pasadiceo','Producto Madurador','Días Aplicación','Ventana Madurador','Estatus Plantío','Observación de Cosecha','Evaluaciones'];
+var PF_TIP={'Vel. cosecha':'Velocidad de cosecha en km/h del lote, la misma que muestra «Día a día» del planificador (tabla de velocidades por TCH y antigüedad, o velocidad anterior). En los totales: promedio ponderado por horas de corte.','Cosech. nec.':'Cosechadoras que el plan optimizado asigna a este plantío. Rojo = más que la dotación base del frente (refuerzo de backup). Toca el número para ver cuáles son, las horas efectivas por día y el motivo.','Hrs efect. /máq/día':'Horas efectivas de trabajo por máquina y día (corte + maniobras + ralentí). Con el programa del planificador son las de su simulación; sin él, horas/día del frente menos paros de mantenimiento y traslado.','TM/h':'Toneladas por hora de trabajo de una cosechadora en este lote (t ÷ horas-máquina de trabajo; sin multiplicar por las máquinas del frente).','TM/Máq/Día':'Toneladas que corta una máquina por día = TM/h × Hrs efect./máq/día (t ÷ máquinas-día).','Capacidad frente':'Toneladas por día del frente: en cada lote, las que se cortan en él esos días; en los totales, las del frente completo (igual que Día a día). Sin programa del planificador: TM/Máq/Día × máquinas asignadas.'};
+var PF_COLS=['Semana','Sec','Plantío','Variedad','N. Cortes','Área (Ha)','TM Est','TM Real','TCH Est.','TCH Real','Cosech. nec.','Vel. cosecha','Hrs efect. /máq/día','TM/h','TM/Máq/Día','Capacidad frente','Fecha de Corte (Inicio)','Fecha Fin de Corte','Corte/Siembra','Edad Corte','Edad Actual','Dist siembra','Conformación Carretas','Removido','Autoguiado','Autoguiado Total/Parcial','Pasadiceo','Producto Madurador','Días Aplicación','Ventana Madurador','Estatus Plantío','Observación de Cosecha','Evaluaciones'];
 function pfEstatus(i){return i.estado==='Completo'?'Cosechado':i.estado==='En cosecha'?'Trabajando':'Pendiente';}
 /* ═══ Ventana de madurador ═══
    Media ponderada (por Ha aplicadas) de «Días Madurador a Corte (Plan)», por producto y tenencia, de la zafra elegida.
@@ -920,9 +927,10 @@ function maqModal(i){
    toneladas. Con eso «Programa por frente» coincide con el planificador (lotes del día, cosechadoras, Hrs efect., TM/h, TM/Máq/Día, Capacidad frente).
    Lote: {t:'L',z,f,id,n,d:{fecha:[máq,hTrab,hCorte,ton,'cod:hT:hC;…']}}   Frente: {t:'F',z,f,d:{fecha:[máq distintas,hTrab,hCorte,ton]}}
    Sin esos datos (planificador viejo, sin permiso en Firestore) todo sigue con el cálculo aproximado de siempre. */
-function pdIdx(){
+function pdSer(t){var b=ser(t);if(b==null)return null;var m=/ (\d{2}):(\d{2})/.exec(t||'');return m?b+(+m[1]*60+(+m[2]))/1440:b;}   /* 'AAAA-MM-DD HH:MM' → serie con la hora */
+function pdIdx(zf){
   if(!DB||!DB.progDia||!DB.progDia.length)return null;
-  var z=S.zafra;if(DB._pdI&&DB._pdI.z===z)return DB._pdI.n?DB._pdI:null;
+  var z=zf||S.zafra;if(DB._pdI&&DB._pdI.z===z)return DB._pdI.n?DB._pdI:null;
   var L={},F={},n=0;
   DB.progDia.forEach(function(it){if(!it||it.z!==z)return;if(it.t==='L'){L[String(it.id)]=it;n++;}else if(it.t==='F'){F[it.f]=it;}});
   DB._pdI={z:z,L:L,F:F,n:n};return n?DB._pdI:null;
@@ -938,20 +946,20 @@ function pdQ(i,win){
   var sk=0,sh=0,sc=0,st=0,mx=0;dd.forEach(function(x){sk+=x.k;sh+=x.hT;sc+=x.hC;st+=x.ton;if(x.k>mx)mx=x.k;});
   if(!(sk>0)||!(sh>0))return null;
   var base=baseFrente(S.zafra,it.f);
-  return {pd:true,fn:it.f,dias:dd.length,dd:dd,nec:mx,mPlan:mx,base:base,red:mx>base+0.05,hef:sh/sk,hefC:sc/sk,pu:st/sh,tmmd:st/sk,cap:st/dd.length,ton:st,hT:sh,hC:sc,sk:sk,d0:dd[0].s,d1:dd[dd.length-1].s};
+  return {pd:true,v:(+it.v>0?+it.v:null),vf:it.vf||'tabla',fn:it.f,dias:dd.length,dd:dd,nec:mx,mPlan:mx,base:base,red:mx>base+0.05,hef:sh/sk,hefC:sc/sk,pu:st/sh,tmmd:st/sk,cap:st/dd.length,ton:st,hT:sh,hC:sc,sk:sk,d0:dd[0].s,d1:dd[dd.length-1].s};
 }
 /* Totales (por semana y del frente): SUMAS del programa del planificador, igual que la franja de «Día a día».
    Cosech. = máquinas distintas por día (máximo); Hrs efect. = horas-máq de trabajo ÷ máquinas-día; TM/h = t ÷ horas-máq de trabajo;
    TM/Máq/Día = t ÷ máquinas-día; Capacidad frente = t ÷ días con corte. */
 function pdAgg(rows){
   var P=pdIdx();if(!P)return null;
-  var ton=0,hT=0,hC=0,fd={};
-  rows.forEach(function(x){var q=x.q;if(!q||!q.pd)return;ton+=q.ton;hT+=q.hT;hC+=q.hC;q.dd.forEach(function(d){fd[q.fn+'|'+d.f]=1;});});
+  var ton=0,hT=0,hC=0,fd={},vs=0,vh=0;
+  rows.forEach(function(x){var q=x.q;if(!q||!q.pd)return;ton+=q.ton;hT+=q.hT;hC+=q.hC;if(q.v>0&&q.hC>0){vs+=q.v*q.hC;vh+=q.hC;}q.dd.forEach(function(d){fd[q.fn+'|'+d.f]=1;});});
   var sn=0,days={},nec={};
   Object.keys(fd).forEach(function(kk){var p=kk.split('|'),F=P.F[p[0]],a=F&&F.d&&F.d[p[1]],n=a?(+a[0]||0):0;sn+=n;days[p[1]]=1;if(n>(nec[p[0]]||0))nec[p[0]]=n;});
   var nd=Object.keys(days).length,ns=0;Object.keys(nec).forEach(function(f){ns+=nec[f];});
   if(!(hT>0)||!(sn>0))return null;
-  return {nec:ns,hef:hT/sn,tmh:ton/hT,tmmd:ton/sn,cap:nd?ton/nd:null};
+  return {nec:ns,hef:hT/sn,tmh:ton/hT,tmmd:ton/sn,cap:nd?ton/nd:null,vel:vh>0?vs/vh:null};
 }
 function maqModalPD(i,win){
   var q=pdQ(i,win);if(!q)return '';
@@ -993,8 +1001,9 @@ function viewPrograma(cs,P){
   var zPasada=finZ>0&&Math.floor(finZ)<hoy;
   var VG=vmGrupos(),vmI=vmIdxLote();
   var filas=F.items.map(function(i){
-    var est=pfEstatus(i),sem=(z0!=null&&i.fechaProg!=null)?semanaDe(i.fechaProg,z0):null;
-    var edadCorte=(i.fechaUlt!=null&&i.fechaProg!=null)?Math.floor(i.fechaProg)-Math.floor(i.fechaUlt):null,edad=null;
+    var fIni=(PDx&&i.inicio!=null)?i.inicio:i.fechaProg;   /* con el programa del planificador: la fecha de inicio de Día a día */
+    var est=pfEstatus(i),sem=(z0!=null&&fIni!=null)?semanaDe(fIni,z0):null;
+    var edadCorte=(i.fechaUlt!=null&&fIni!=null)?Math.floor(fIni)-Math.floor(i.fechaUlt):null,edad=null;
     if(i.fechaUlt!=null){
       /* con fecha real de corte: real − Corte/Siembra; sin dato real en una zafra ya cortada: la misma Edad Corte; zafra en curso: hasta hoy (como el Excel) */
       if(i.fechaReal!=null&&(est==='Cosechado'||zPasada))edad=Math.floor(i.fechaReal-i.fechaUlt);
@@ -1005,7 +1014,7 @@ function viewPrograma(cs,P){
   }).filter(function(x){return S.pfEst[x.est];});
   /* orden: semana, luego la secuencia del plan (orden del frente) */
   var orden={},ok=function(i){return (i._fr||'')+'|'+i.codigo;};F.items.forEach(function(i,k){orden[ok(i)]=k;});
-  filas.sort(function(a,b){return (a.sem==null?1e9:a.sem)-(b.sem==null?1e9:b.sem)||orden[ok(a.i)]-orden[ok(b.i)];});
+  filas.sort(function(a,b){return (a.sem==null?1e9:a.sem)-(b.sem==null?1e9:b.sem)||(PDx?((a.i.inicio==null?1e9:a.i.inicio)-(b.i.inicio==null?1e9:b.i.inicio)):0)||orden[ok(a.i)]-orden[ok(b.i)];});
   var grupos=[],g=null;
   filas.forEach(function(x){if(!g||g.sem!==x.sem){g={sem:x.sem,filas:[]};grupos.push(g);}g.filas.push(x);});
   function sub(fs){var ha=0,te=0,tr=0,sr=0;fs.forEach(function(x){ha+=x.i.exist||0;te+=x.i.tonPlan;tr+=x.i.tonReal;sr+=(x.i.exist>0?x.i.tonReal/x.i.exist:0);});
@@ -1013,11 +1022,11 @@ function viewPrograma(cs,P){
     fs.forEach(function(x){var q=x.q;if(!q)return;n++;a.nec+=q.nec;a.hef+=q.hef;a.tmh+=q.pu;a.tmmd+=q.pu*q.hef;a.cap+=q.pu*q.mAsig*q.hef;});
     var A=PDx?pdAgg(fs):null;
     return {ha:ha,te:te,tr:tr,tchE:ha>0?te/ha:null,tchR:fs.length?sr/fs.length:null,
-      nec:A?A.nec:(PDx?null:(n?a.nec/n:null)),hef:A?A.hef:(PDx?null:(n?a.hef/n:null)),tmh:A?A.tmh:(PDx?null:(n?a.tmh/n:null)),tmmd:A?A.tmmd:(PDx?null:(n?a.tmmd/n:null)),cap:A?A.cap:(PDx?null:(n?a.cap/n:null))};}
+      nec:A?A.nec:(PDx?null:(n?a.nec/n:null)),hef:A?A.hef:(PDx?null:(n?a.hef/n:null)),tmh:A?A.tmh:(PDx?null:(n?a.tmh/n:null)),tmmd:A?A.tmmd:(PDx?null:(n?a.tmmd/n:null)),cap:A?A.cap:(PDx?null:(n?a.cap/n:null)),vel:A?A.vel:null};}
   var nd='<td class="sd">—</td>',cn=function(v,d){return '<td>'+fN(v,d)+'</td>';};
   var cols=PF_COLS.filter(function(c){return S.pfSD||!PF_SIN_DATO[c];}),nCols=cols.length;
   /* promedios simples de los plantíos del grupo: Cosech. nec., Hrs efect., TM/h, TM/Máq/Día y Capacidad frente */
-  var avgC=function(o){var tt=PDx?'Suma del programa simulado del planificador (igual que Día a día)':'Promedio de los plantíos';return '<td title="'+tt+'">'+fN(o.nec,PDx?0:1)+'</td><td title="'+tt+'">'+fN(o.hef,1)+'</td><td title="'+tt+'">'+fN(o.tmh,1)+'</td><td title="'+tt+'">'+fN(o.tmmd,0)+'</td><td title="'+tt+'">'+fN(o.cap,0)+'</td><td colspan="'+(nCols-15)+'"></td>';};
+  var avgC=function(o){var tt=PDx?'Suma del programa simulado del planificador (igual que Día a día)':'Promedio de los plantíos';return '<td title="'+tt+'">'+fN(o.nec,PDx?0:1)+'</td><td title="'+tt+'">'+(o.vel>0?fN(o.vel,1):'')+'</td><td title="'+tt+'">'+fN(o.hef,1)+'</td><td title="'+tt+'">'+fN(o.tmh,1)+'</td><td title="'+tt+'">'+fN(o.tmmd,0)+'</td><td title="'+tt+'">'+fN(o.cap,0)+'</td><td colspan="'+(nCols-16)+'"></td>';};
   var body='';
   grupos.forEach(function(gr){
     gr.filas.forEach(function(x,k){var i=x.i,C={},q=x.q,mo=MOT[S.zafra+'|'+i.codigo];
@@ -1032,10 +1041,11 @@ function viewPrograma(cs,P){
         C['Cosech. nec.']='<td class="mq'+(rojo?' mq-red':'')+'" data-act="maqwhy" data-cod="'+esc(i.codigo)+'" title="Plan optimizado: '+q.mPlan+' · base del frente: '+q.base+(rojo?' · toca para ver qué máquinas son y por qué':' · toca para ver el detalle')+'"><b>'+q.nec+'</b>'+(mo?'<span class="mq-n" title="Con motivo guardado">💬</span>':'')+'</td>';
         C['Hrs efect. /máq/día']='<td title="Ventana '+fD(q.d0)+'–'+fD(q.d1)+' ('+q.dias+' d)">'+fN(q.hef,1)+'</td>';}
       else{C['Cosech. nec.']=nd;C['Hrs efect. /máq/día']=nd;}
+      C['Vel. cosecha']=(q&&q.pd&&q.v>0)?'<td style="white-space:nowrap" title="Velocidad de cosecha del lote: la misma de Día a día ('+(q.vf==='anterior'?'velocidad anterior':'tabla de velocidades')+')">'+fN(q.v,1)+' <span style="color:var(--muted);font-size:10px">'+(q.vf==='anterior'?'ant.':'tabla')+'</span></td>':nd;
       if(q){C['TM/h']=cn(q.pu,1);C['TM/Máq/Día']=cn(q.pu*q.hef,0);C['Capacidad frente']=cn(q.pd?q.cap:q.pu*q.mAsig*q.hef,0);}
       else{C['TM/h']=nd;C['TM/Máq/Día']=nd;C['Capacidad frente']=nd;}
-      C['Fecha de Corte (Inicio)']='<td>'+(i.fechaProg!=null?fD(i.fechaProg)+'/'+String(dOf(i.fechaProg).getUTCFullYear()).slice(2):'—')+'</td>';
-      C['Fecha Fin de Corte']='<td title="Fecha de fin programada en el plan del lote">'+(i.finProg!=null?fD(i.finProg)+'/'+String(dOf(i.finProg).getUTCFullYear()).slice(2):'—')+'</td>';
+      C['Fecha de Corte (Inicio)']=(PDx&&i.inicio!=null)?'<td title="Primer evento de cosecha de la simulación del planificador (igual que F. inicio de Día a día): '+fHM(i.inicio)+'">'+fD(i.inicio)+'/'+String(dOf(i.inicio).getUTCFullYear()).slice(2)+' <span style="color:var(--muted);font-size:10px">'+fHM(i.inicio)+'</span></td>':'<td>'+(i.fechaProg!=null?fD(i.fechaProg)+'/'+String(dOf(i.fechaProg).getUTCFullYear()).slice(2):'—')+'</td>';
+      C['Fecha Fin de Corte']=(PDx&&i.fin!=null)?'<td title="Último evento de cosecha de la simulación del planificador (igual que F. fin estimado de Día a día): '+fHM(i.fin)+'">'+fD(i.fin)+'/'+String(dOf(i.fin).getUTCFullYear()).slice(2)+' <span style="color:var(--muted);font-size:10px">'+fHM(i.fin)+'</span></td>':'<td title="Fecha de fin programada en el plan del lote">'+(i.finProg!=null?fD(i.finProg)+'/'+String(dOf(i.finProg).getUTCFullYear()).slice(2):'—')+'</td>';
       C['Corte/Siembra']='<td>'+(i.fechaUlt!=null?fD(i.fechaUlt)+'/'+String(dOf(i.fechaUlt).getUTCFullYear()).slice(2):'—')+'</td>';
       C['Edad Corte']='<td>'+(x.edadCorte!=null?'<span class="ed '+edadCls(x.edadCorte)+'">'+fN(x.edadCorte)+'</span>':'—')+'</td>';
       C['Edad Actual']='<td>'+(x.edad!=null?'<span class="ed '+edadCls(x.edad)+'">'+fN(x.edad)+'</span>':'—')+'</td>';

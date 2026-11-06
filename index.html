@@ -2533,7 +2533,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
       </div>
       <div class="card">
         <div class="card-title">Programa diario para Seguimiento</div>
-        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Publica en la nube lo mismo que muestra «Día a día» (lotes que se cortan cada día, cosechadoras, horas efectivas por máquina, TM/h y toneladas) para que «Programa por frente» de Seguimiento coincida. Se actualiza solo unos segundos después de cada cambio del plan o de los ajustes (admin y editor); este botón lo fuerza. Requiere que las reglas de Firestore permitan los documentos <code>progdia_N</code>.</p>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Publica en la nube lo mismo que muestra «Día a día» (lotes que se cortan cada día, cosechadoras, horas efectivas por máquina, TM/h y toneladas) para que «Programa por frente» de Seguimiento coincida. Se actualiza solo unos segundos después de cada cambio del plan o de los ajustes (admin y editor); este botón lo fuerza. Se guarda como documentos <code>progdia_N</code> (admin o editor).</p>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="btn btn-sm" id="ajustes-progdia-btn" onclick="publicarProgDia(true)"><i class="ti ti-cloud-upload"></i> Publicar programa diario ahora</button><span id="ajustes-progdia-estado" style="font-size:12px"></span></div>
       </div>
       <div id="ajustes-version" style="margin:14px 4px 6px;font-size:10px;color:var(--text3);line-height:1.5"></div>
@@ -3143,8 +3143,8 @@ function fbPublicarSelloCompleto() {
    (cosechadoras que participan, horas efectivas de trabajo y de corte por máquina, toneladas), para que ambos coincidan.
    · Se calcula unos segundos después del último cambio de plan o de ajustes (invalidarSimCache → pdProgramar) y se escribe en
      planificador_compartido/progdia_N con su sello. Solo roles admin/editor. Es solo escritura: este planificador no la escucha.
-   · Reglas de Firestore: agregar «progdia» a la expresión docId.matches(...) de planificador_compartido (ver firestore.rules).
-   Formato de cada ítem: lote { t:'L', z, f, id, n, d:{ 'AAAA-MM-DD': [máquinas, hTrabajo(máq-h), hCorte(máq-h), ton, 'cod:hT:hC;…'] } }
+   · Reglas de Firestore: con «allow write: if puedeEditar()» en planificador_compartido ya se permite (no hace falta cambiarlas).
+   Formato de cada ítem: lote { t:'L', z, f, id, n, i:'AAAA-MM-DD HH:MM' (inicio), e:'…' (fin), v:km/h, vf:'tabla'|'anterior', d:{ 'AAAA-MM-DD': [máquinas, hTrabajo(máq-h), hCorte(máq-h), ton, 'cod:hT:hC;…'] } }
                           frente { t:'F', z, f, d:{ 'AAAA-MM-DD': [máquinas distintas, hTrabajo, hCorte, ton] } } */
 var _pdTimer = null, _pdCalculando = false, _pdFirma = null, _pdPartesPrev = 0;
 var _pdEstado = { ts: null, items: 0, kb: 0, zafras: [], msg: 'Todavía no se ha publicado en esta sesión.', tipo: '' };
@@ -3163,6 +3163,26 @@ function construirProgDiaZafra(z) {
     it.d[fecha] = [o.maqs.length, r2(o.hTrab), r2(o.hCorte), r1(o.ton), o.maqs.map(function(m) { return m.codigo + ':' + r2(m.hT) + ':' + r2(m.h); }).join(';')];
     var kf = fr + '|' + fecha, f = fd[kf] = fd[kf] || { codes: {}, hT: 0, hC: 0, ton: 0 };
     o.maqs.forEach(function(m) { f.codes[m.codigo] = 1; }); f.hT += o.hTrab; f.hC += o.hCorte; f.ton += o.ton;
+  });
+  // Inicio, fin y velocidad de cada lote: EXACTAMENTE como en «Día a día» (primer/último evento no-traslado de la simulación; velocidad de tabla o anterior del campo)
+  var evS = simularEventosPorFrente(z), iniL = {}, finL = {};
+  var fmtDt = function(dt) { return dt && dt.fecha ? dt.fecha + ' ' + (dt.hora || '00:00') : null; };
+  Object.keys(evS).forEach(function(fn) { Object.keys(evS[fn]).forEach(function(f) { evS[fn][f].forEach(function(ev) {
+    if (ev.tipo === 'traslado' || !ev.dtIni) return;
+    var key = fn + '|' + ev.lote;
+    if (!iniL[key] || ev.minIni < iniL[key].m) iniL[key] = { m: ev.minIni, t: fmtDt(ev.dtIni) };
+    if (!finL[key] || ev.minFin > finL[key].m) finL[key] = { m: ev.minFin, t: fmtDt(ev.dtFin) };
+  }); }); });
+  Object.keys(iniL).forEach(function(key) {
+    var j = key.indexOf('|'), fn = key.slice(0, j), lote = key.slice(j + 1);
+    var pi = planItems.find(function(p) { return p.zafra === z && p.frenteNombre === fn && p.campoNombre === lote; }); if (!pi) return;
+    var it = lotes[pi.id] || (lotes[pi.id] = { t: 'L', z: z, f: fn, id: pi.id, n: lote, d: {} });
+    it.i = iniL[key].t; it.e = finL[key] ? finL[key].t : null;
+    var cL = campos.find(function(ca) { return ca.nombre === lote; });
+    if (cL && !frenteEsManual(frentes.find(function(ff) { return ff.nombre === fn; }))) {
+      var vv = cL.velFuente === 'anterior' ? parseFloat(cL.velAnterior) : calcTiempos(cL).vel;
+      if (vv > 0) { it.v = r2(vv); it.vf = cL.velFuente === 'anterior' ? 'anterior' : 'tabla'; }
+    }
   });
   var frs = {};
   Object.keys(fd).forEach(function(kf) { var p = kf.split('|'), o = frs[p[0]] = frs[p[0]] || { t: 'F', z: z, f: p[0], d: {} }, x = fd[kf]; o.d[p[1]] = [Object.keys(x.codes).length, r2(x.hT), r2(x.hC), r1(x.ton)]; });
@@ -3195,7 +3215,7 @@ function publicarProgDia(manual) {
           _pdEstado = { ts: new Date().toLocaleTimeString('es'), items: items.length, kb: kb, zafras: zs, msg: 'Publicado: ' + items.length + ' registros (' + kb + ' KB) de ' + zs.join(', ') + '.', tipo: 'ok' };
         } else {
           var perm = errores.some(function(e) { return e && e.code === 'permission-denied'; });
-          _pdEstado.msg = perm ? 'Sin permiso en Firestore: agrega «progdia» a la expresión docId.matches(...) de planificador_compartido en las reglas (ver firestore.rules) y publícalas.' : 'No se pudo guardar en la nube (' + (errores[0] && errores[0].code || 'error') + ').';
+          _pdEstado.msg = perm ? 'Sin permiso en Firestore: solo admin y editor pueden publicar (o las reglas de planificador_compartido no permiten escribir progdia_N).' : 'No se pudo guardar en la nube (' + (errores[0] && errores[0].code || 'error') + ').';
           _pdEstado.tipo = 'err';
         }
         fin();
@@ -5191,8 +5211,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.13', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.14', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.14', '2026-11-06', 'Programa diario publicado: agrega inicio/fin y velocidad de cada lote (igual que Día a día) para Seguimiento'],
   ['1.13', '2026-11-06', 'Publica el programa diario simulado (categoría progdia) para que Seguimiento coincida con Día a día'],
   ['1.12', '2026-11-06', 'Día a día: horas efectivas de TRABAJO por lote y máquina (cada máquina suma su jornada del día) y resumen del frente con base de trabajo'],
   ['1.11', '2026-11-06', 'Día a día: el resumen del frente cuadra (Hrs efect. corte × TM/h de corte = TM/máq/día) y muestra también las horas y el TM/h de trabajo'],
