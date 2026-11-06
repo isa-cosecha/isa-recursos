@@ -347,6 +347,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
     <button class="nav-item" onclick="showPage('equipos')" data-page="equipos"><i class="ti ti-settings-2"></i> Equipos</button>
     <button class="nav-item" onclick="showPage('fabrica')" data-page="fabrica"><i class="ti ti-building-factory-2"></i> Fábrica</button>
     <button class="nav-item" onclick="showPage('labores')" data-page="labores"><i class="ti ti-flame"></i> Quema y madurador</button>
+    <button class="nav-item" onclick="showPage('cerrados')" data-page="cerrados"><i class="ti ti-archive"></i> Plantíos cerrados</button>
     <hr class="nav-divider">
     <div class="nav-label">Operación</div>
     <button class="nav-item" onclick="showPage('planificacion')" data-page="planificacion"><i class="ti ti-calendar-stats"></i> Planificación</button>
@@ -1243,6 +1244,32 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
     </div>
 
     <!-- DÍA A DÍA -->
+    <!-- PLANTÍOS CERRADOS (histórico en la base de datos) -->
+    <div id="page-cerrados" class="page">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:10px">
+        <div class="page-title" style="margin:0">Plantíos cerrados</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-sm btn-primary" id="cer-btn-importar" onclick="document.getElementById('cer-file').click()"><i class="ti ti-upload"></i> Cargar Excel</button>
+          <input type="file" id="cer-file" accept=".xlsx,.xls" style="display:none" onchange="cerImportar(this)">
+          <button class="btn btn-sm" onclick="cerDescargarCSV()" title="Descarga los plantíos que se ven con los filtros actuales"><i class="ti ti-download"></i> Descargar CSV</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Histórico de plantíos cosechados por zafra (archivo «Histórico plantíos cerrados (cosechados)»). Se guarda en la <strong>base de datos compartida</strong>: todos los usuarios lo ven y la página <strong>Comparativo</strong> lee de aquí. Al cargar un Excel se reemplazan las zafras que trae el archivo; las demás se conservan.</p>
+      <div id="cer-estado" style="font-size:12px;margin-bottom:10px"></div>
+      <div id="cer-resumen"></div>
+      <div class="card" id="cer-filtros" style="display:none">
+        <div class="card-title">Detalle de plantíos</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+          <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">Zafra</label><select id="cer-f-zafra" onchange="cerFiltroCambio()" style="margin:0;width:120px"></select></div>
+          <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">Frente</label><select id="cer-f-frente" onchange="cerFiltroCambio()" style="margin:0;width:100px"></select></div>
+          <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">Tenencia</label><select id="cer-f-tenencia" onchange="cerFiltroCambio()" style="margin:0;width:140px"></select></div>
+          <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">Variedad</label><select id="cer-f-variedad" onchange="cerFiltroCambio()" style="margin:0;width:150px"></select></div>
+          <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">Buscar plantío o código</label><input type="text" id="cer-f-buscar" oninput="cerFiltroCambio()" placeholder="Filtrar…" style="margin:0;width:190px"></div>
+        </div>
+        <div id="cer-tabla"></div>
+      </div>
+    </div>
+
     <!-- COMPARATIVO VS ZAFRAS ANTERIORES -->
     <div id="page-comparativo" class="page">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
@@ -1254,8 +1281,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
           <select id="cmp-base" onchange="cmpRender()" style="margin:0;width:230px"><option value="sim">Inicio simulado (programa optimizado)</option><option value="plan">Fecha de inicio del plan</option></select>
           <label style="margin:0;font-size:13px;color:var(--text2)">Detalle por tenencia:</label>
           <select id="cmp-det" onchange="cmpDibujar()" style="margin:0;width:160px"></select>
-          <button class="btn btn-sm" onclick="document.getElementById('cmp-file').click()"><i class="ti ti-upload"></i> Cargar histórico (Excel)</button>
-          <input type="file" id="cmp-file" accept=".xlsx,.xls" style="display:none" onchange="cmpImportarExcel(this)">
+          <button class="btn btn-sm" onclick="showPage('cerrados')" title="El histórico se administra en Datos maestros"><i class="ti ti-archive"></i> Plantíos cerrados</button>
         </div>
       </div>
       <div class="card" style="margin-bottom:14px"><div id="cmp-estado" style="font-size:12px;margin-bottom:8px"></div><div id="cmp-series"></div></div>
@@ -2619,7 +2645,7 @@ const firebaseConfig = {
 
 // Colección raíz — todos los documentos del plan compartido viven aquí
 const FB_COLECCION = 'planificador_compartido';
-const FB_DOCS = ['campos','plan','molienda','equipos','ejecucion','geodata','vialidad','labores'];
+const FB_DOCS = ['campos','plan','molienda','equipos','ejecucion','geodata','vialidad','labores','cerrados'];
 
 let fbApp = null, fbAuth = null, fbDb = null;
 let fbListeners = [];          // listeners onSnapshot activos, para poder desconectar al salir
@@ -2925,7 +2951,7 @@ function construirDataCompleta() {
     velVPQ: [0,1,2,3].map(function(i) { return fv('vpq-' + i); }),
     velVVV: [0,1,2,3].map(function(i) { return fv('vvv-' + i); }),
     velVVQ: [0,1,2,3].map(function(i) { return fv('vvq-' + i); }),
-    velPctTCH: leerVelPctTCH(), velPctEdad: leerVelPctEdad(), horasMaxEdad: leerTopesHorasEdad(), curvaEdad: leerCurvaEdad(), historicoCompar: historicoCompar, comparativoOpc: comparativoOpc, intervalosMtto: intervalosMtto,
+    velPctTCH: leerVelPctTCH(), velPctEdad: leerVelPctEdad(), horasMaxEdad: leerTopesHorasEdad(), curvaEdad: leerCurvaEdad(), plantiosCerrados: plantiosCerrados, comparativoOpc: comparativoOpc, intervalosMtto: intervalosMtto,
     camion: {
       carretasInt: fv('e-carretasInterno'), volCarretaInt: fv('e-volCarretaInterno'),
       camIntActivos: fv('e-camIntActivos'), camIntBackup: fv('e-camIntBackup'), camExt: fv('e-camExt'), tCambioCarretas: fv('e-tCambioCarretas'),
@@ -2963,9 +2989,9 @@ function construirDataCompleta() {
    de tamaño (ya implementado) sigue protegiendo al usuario. ══════════ */
 const FB_MAX_PARTES = 50; // hasta 50 documentos físicos por categoría (~35 MB de margen) — el shapefile con miles de polígonos necesita más partes que los datos tabulares
 // Categoría → nombre del campo array grande que se debe repartir en partes
-const FB_ARRAY_GRANDE = { campos: 'campos', plan: 'planItems', molienda: 'planMolienda', geodata: 'geoFeatures', labores: 'laboresPlan', vialidad: 'viaSegs', progdia: 'progDiaItems' };
+const FB_ARRAY_GRANDE = { campos: 'campos', plan: 'planItems', molienda: 'planMolienda', geodata: 'geoFeatures', labores: 'laboresPlan', vialidad: 'viaSegs', progdia: 'progDiaItems', cerrados: 'plantiosCerrados' };
 // Máximo de documentos físicos por categoría. "labores" (plan de quema + madurador, ~0.4 MB) necesita pocos: así no se agregan 50 escuchas más.
-const FB_MAX_PARTES_CAT = { labores: 8, vialidad: 4, progdia: 6 };
+const FB_MAX_PARTES_CAT = { labores: 8, vialidad: 4, progdia: 6, cerrados: 8 };
 function fbMaxPartes(cat) { return FB_MAX_PARTES_CAT[cat] || FB_MAX_PARTES; }
 /* Límite real de Firestore: 1 MiB (1,048,576 bytes) por documento. Se
    usa un margen conservador (~700 KB) por PARTE, ya que Firestore cuenta
@@ -3021,7 +3047,7 @@ function categoriasDeData(d) {
       factoresTrashPorVariedad: d.factoresTrashPorVariedad, factorTrashDefault: d.factorTrashDefault,
       vinculosGeoManual: d.vinculosGeoManual, geoRoutesGuardadas: d.geoRoutesGuardadas,
       cosechIdSeq: d.cosechIdSeq, avIdSeq: d.avIdSeq, frenteIdSeq: d.frenteIdSeq, tandemIdSeq: d.tandemIdSeq, mtIdSeq: d.mtIdSeq,
-      velVPV: d.velVPV, velVPQ: d.velVPQ, velVVV: d.velVVV, velVVQ: d.velVVQ, velPctTCH: d.velPctTCH, velPctEdad: d.velPctEdad, horasMaxEdad: d.horasMaxEdad, curvaEdad: d.curvaEdad, historicoCompar: d.historicoCompar, comparativoOpc: d.comparativoOpc, intervalosMtto: d.intervalosMtto,
+      velVPV: d.velVPV, velVPQ: d.velVPQ, velVVV: d.velVVV, velVVQ: d.velVVQ, velPctTCH: d.velPctTCH, velPctEdad: d.velPctEdad, horasMaxEdad: d.horasMaxEdad, curvaEdad: d.curvaEdad, comparativoOpc: d.comparativoOpc, intervalosMtto: d.intervalosMtto,
       camion: d.camion, fabrica: d.fabrica,
       planesReferencia: d.planesReferencia, lowboysDisponibles: d.lowboysDisponibles, usarRealEnPlan: d.usarRealEnPlan,
       zafraPorDefecto: d.zafraPorDefecto
@@ -3031,6 +3057,8 @@ function categoriasDeData(d) {
       realIdSeq: d.realIdSeq, paroIdSeq: d.paroIdSeq, balanceIdSeq: d.balanceIdSeq
     },
     geodata: { geoFeatures: d.geoFeatures },
+    // Plantíos cerrados (histórico): filas con los textos en diccionario (cerradosDic va en la parte 0)
+    cerrados: (function() { var c = cerCodificar(d.plantiosCerrados || []); return { plantiosCerrados: c.rows, cerradosDic: c.dic }; })(),
     // Plan de quema + plan de madurador: un solo arreglo grande (cada fila lleva tipo 'Q' o 'M'); la ficha de versiones va en la parte 0.
     labores: { laboresPlan: (d.planMadurador || []).map(function(r) { return Object.assign({ tipo: 'M' }, r); }).concat((d.planQuema || []).map(function(r) { return Object.assign({ tipo: 'Q' }, r); })), laboresMeta: d.laboresMeta || {} },
     vialidad: { viaNodos: d.viaNodos, viaAristas: d.viaAristas, viaSegs: d.viaSegs, viaVersion: d.viaVersion, ingenioCoord: d.ingenioCoord, viaDistCache: d.viaDistCache, viaIngenioCache: d.viaIngenioCache, viaPuenteCache: d.viaPuenteCache }
@@ -3304,6 +3332,7 @@ function guardarEnFirestore(dataOpc) {
   var firmas = {}, cambiadas = [];
   FB_DOCS.forEach(function(nombreCat) {
     if (nombreCat === 'labores' && !labHayDatos()) return;   // hasta que se cargue el primer plan no se crea nada en la nube
+    if (nombreCat === 'cerrados' && !_cerradosEditado) return;   // solo se escribe cuando alguien carga o borra plantíos cerrados (nunca un arreglo vacío por no haber llegado aún de la nube)
     firmas[nombreCat] = firmaTexto(JSON.stringify(categorias[nombreCat]));
     if (fbFirmaCat[nombreCat] !== firmas[nombreCat]) cambiadas.push(nombreCat);
   });
@@ -4211,6 +4240,7 @@ function showPage(id) {
   if (id === 'mapa')      { initMapaPage(); }
   if (id === 'historico') { renderHistorico(); }
   if (id === 'comparativo') { cmpInit(); }
+  if (id === 'cerrados') { renderCerrados(); }
   if (id === 'ejecucion') { syncExecSelects(); syncParoSelects(); renderRealRecords(); renderParoRecords(); renderBalanceRecords(); renderExecKPIs(); showExecTab(execTabActual||'registro'); showRegSubtab('prod'); }
   // "Resultados" (Cumplimiento diario, Análisis de horas, etc.) era la
   // ÚNICA página que NO se recalculaba sola al entrar — se quedaba
@@ -4926,7 +4956,7 @@ function saveAll() {
   // ── Capa 1: localStorage (respaldo local/offline, rápido) ──
   // Sin los geodatos (el shapefile pesa ≈12 MB): con ellos la copia superaba el límite del navegador (~5 MB) y fallaba
   // en silencio, dejando SIN respaldo local. Los geodatos viven en la nube y se pueden volver a cargar del shapefile.
-  try { var dataLocal = Object.assign({}, data); delete dataLocal.geoFeatures; localStorage.setItem(STORAGE_KEY, JSON.stringify(dataLocal)); } catch(e) {}
+  try { var dataLocal = Object.assign({}, data); delete dataLocal.geoFeatures; delete dataLocal.plantiosCerrados; localStorage.setItem(STORAGE_KEY, JSON.stringify(dataLocal)); } catch(e) {}
   // ── Capa 2: Firestore (compartido en tiempo real con otros usuarios) ──
   // Si fbAplicandoRemoto es true, significa que ESTE guardado fue
   // disparado por datos que acaban de llegar de Firestore (otro
@@ -5004,6 +5034,7 @@ function _cargarDesdeLocalStorage() {
 function _aplicarDatos(d) {
   try {
     var d = d;
+    if (Array.isArray(d.plantiosCerrados)) { plantiosCerrados = d.cerradosDic ? cerDecodificar(d.plantiosCerrados, d.cerradosDic) : d.plantiosCerrados; _cerradosVer++; }
     campos = d.campos || [];
     // Plan de quema / madurador: solo se reemplaza si el dato vino en el objeto (un JSON viejo o un guardado aún no devuelto por la nube no lo borran)
     if (d.planMadurador !== undefined || d.planQuema !== undefined || d.laboresMeta !== undefined) {
@@ -5162,7 +5193,7 @@ function _aplicarDatos(d) {
       pctTCH = {}; PREFIJOS_VEL_TCH.forEach(function(pfx) { var mxs = { vpv: d.velVPV, vpq: d.velVPQ, vvv: d.velVVV, vvq: d.velVVQ }[pfx] || []; pctTCH[pfx] = [null, null, 2, 3].map(function(r, i) { var mn = d.velMinTCH[pfx] ? d.velMinTCH[pfx][i] : null, mx = mxs[i]; return (i >= 2 && mn > 0 && mx > 0) ? Math.min(100, Math.round(mn / mx * 100)) : null; }); });
     }
     ponerVelPctTCH(pctTCH); ponerVelPctEdad(d.velPctEdad); actualizarMinKmTabla();
-    ponerTopesHorasEdad(d.horasMaxEdad); ponerCurvaEdad(d.curvaEdad); if (typeof d.historicoCompar === 'string') historicoCompar = d.historicoCompar; if (d.comparativoOpc && typeof d.comparativoOpc === 'object') { comparativoOpc = { csv: d.comparativoOpc.csv !== false, png: d.comparativoOpc.png !== false }; renderCmpOpc(); } intervalosMtto = d.intervalosMtto || {};
+    ponerTopesHorasEdad(d.horasMaxEdad); ponerCurvaEdad(d.curvaEdad); if (d.comparativoOpc && typeof d.comparativoOpc === 'object') { comparativoOpc = { csv: d.comparativoOpc.csv !== false, png: d.comparativoOpc.png !== false }; renderCmpOpc(); } intervalosMtto = d.intervalosMtto || {};
     if (d.camion) {
       var c = d.camion;
       var map = {carretasInt:'e-carretasInterno',volCarretaInt:'e-volCarretaInterno',carretasCarr:'e-carretasCarretera',volCarretaCarr:'e-volCarretaCarretera',velInt:'e-velInterno',velCarr:'e-velCarretera',tIngInt:'e-tIngenioInterno',tIngCarr:'e-tIngenioCarretera',tarifaKmCarr:'e-tarifaKmCarretera',costoCamionHoraInterno:'e-costoCamionHoraInterno',costoCarretaHoraInterno:'e-costoCarretaHoraInterno',precioGalonCombustible:'e-precioGalonCombustible',distDesc:'e-distDescarga',velDesc:'e-velDescarga',tDesc:'e-tDescarga',stockPatio:'e-stockPatio',capPatio:'e-capPatio',tasaConsumo:'e-tasaConsumo',basculas:'e-basculas',tPesaje:'e-tPesaje',velTraslado:'e-velTraslado',tTrasladoFijo:'e-tTrasladoFijo',umbralLowboy:'e-umbralLowboy',tSubidaLowboy:'e-tSubidaLowboy',tBajadaLowboy:'e-tBajadaLowboy'};
@@ -5269,8 +5300,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.32', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.33', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.33', '2026-11-06', 'Datos maestros: Plantíos cerrados (histórico en la base de datos, compartido); el Comparativo lee de ahí y ya no sube archivo'],
   ['1.32', '2026-11-06', 'Ajustes: casillas independientes para mostrar los botones CSV y PNG de los gráficos del Comparativo'],
   ['1.31', '2026-11-06', 'Comparativo · proporción por variedad: filtro de semanas (casillas) solo para ese gráfico'],
   ['1.30', '2026-11-06', 'Comparativo: proporción de TM por semana y variedad (plan o zafras reales) con [+] por semana para ver los días'],
@@ -5382,7 +5414,7 @@ function onCurvaEdad() {
   if (a > 0 && a <= 24) curvaEdad.bkMin = a; if (b > 0 && b <= 24) curvaEdad.bkMax = Math.max(b, curvaEdad.bkMin);
   refrescarCurvaEdad(); marcarCambiosVelocidadPendientes();
 }
-var historicoCompar = '';
+var plantiosCerrados = [], _cerradosVer = 0, _cerradosEditado = false;   /* Datos maestros → Plantíos cerrados: histórico en la base de datos (categoría «cerrados»); lo lee el Comparativo */
 var comparativoOpc = { csv: true, png: true };   /* botones de descarga de los gráficos del Comparativo (Ajustes → Comparativo): CSV y PNG se activan por separado */   /* comparativo: histórico agregado del Excel (ver módulo COMPARATIVO); se declara aquí para que la carga de datos lo encuentre */
 var PREFIJOS_VEL_TCH = ['vpv', 'vpq', 'vvv', 'vvq'];
 function valPct(id) { var el = document.getElementById(id), v = el ? parseFloat(el.value) : NaN; return (v > 0 && v <= 100) ? v : null; }
@@ -26078,15 +26110,162 @@ function svgBarChart(datos, valueKey, opts) {
 }
 
 /* ── Render de la pestaña Histórico ── */
+/* ══ PLANTÍOS CERRADOS (Datos maestros) ═════════════════════════════════════════════════════════════════════════════
+   Histórico de plantíos cosechados por zafra (Excel «Histórico plantíos cerrados (cosechados)»). Vive en la base de datos compartida
+   (categoría «cerrados», en partes de ~700 KB como el plan): todos los usuarios lo ven y el Comparativo lo lee de aquí.
+   Campos por plantío: z zafra · c código · pr propietario · p plantío · v variedad · n N° cortes · h ha · t TM · kg KgAz/Ton ·
+   te TM estimadas · he TCH estimada · f fecha de corte · s semana de zafra · tc T/Corte · e edad · tx textura · rg riego ·
+   tn tenencia · ds distancia de surco · rn región · md madurador · fr frente. TCH, THA, tercio y Edad×TM se calculan (no se guardan). */
+var _cerPag = 0, _cerCodCache = null;   // (plantiosCerrados, _cerradosVer y _cerradosEditado se declaran arriba, junto a las variables del estado)
+var CER_STR = ['z', 'pr', 'p', 'v', 'tc', 'tx', 'rg', 'tn', 'ds', 'rn', 'md', 'fr'];   // textos que se guardan en diccionario (ocupa ~60% menos)
+function cerCodificar(rows) {
+  if (_cerCodCache && _cerCodCache.ver === _cerradosVer && _cerCodCache.n === rows.length) return _cerCodCache.v;
+  var dic = {}, idx = {}; CER_STR.forEach(function(k) { dic[k] = []; idx[k] = {}; });
+  var out = rows.map(function(r) {
+    var o = {};
+    Object.keys(r).forEach(function(k) {
+      if (idx[k]) { var v = r[k] === null || r[k] === undefined ? '' : String(r[k]); if (idx[k][v] === undefined) { idx[k][v] = dic[k].length; dic[k].push(v); } o[k] = idx[k][v]; }
+      else if (r[k] !== undefined) o[k] = r[k];
+    });
+    return o;
+  });
+  var v = { rows: out, dic: dic }; _cerCodCache = { ver: _cerradosVer, n: rows.length, v: v }; return v;
+}
+function cerDecodificar(rows, dic) {
+  return (rows || []).map(function(r) { var o = {}; Object.keys(r).forEach(function(k) { o[k] = (dic && dic[k]) ? dic[k][r[k]] : r[k]; }); return o; });
+}
+function cerNormTc(x) { return String(x == null ? '' : x).trim().toLowerCase().indexOf('man') === 0 ? 'Manual' : 'Mecanizado'; }
+function cerPuedeEditar() { return typeof fbRolActual === 'undefined' || fbRolActual !== 'visor'; }
+// Matriz de la hoja → plantíos. Función pura. Obligatorias: Zafra, Ha, Ton Metrica y Fecha de Corte; el resto es opcional.
+function cerParseMatriz(m) {
+  var hi = -1, i;
+  for (i = 0; i < m.length && i < 30; i++) { var n = (m[i] || []).map(cmpNorm); if (n.indexOf('zafra') >= 0 && (n.indexOf('tonmetrica') >= 0 || n.indexOf('tm') >= 0)) { hi = i; break; } }
+  if (hi < 0) throw new Error('No encontré la fila de encabezados (Zafra, Ha, Ton Metrica, Fecha de Corte…).');
+  var H = m[hi].map(cmpNorm), col = function() { for (var k = 0; k < arguments.length; k++) { var x = H.indexOf(arguments[k]); if (x >= 0) return x; } return -1; };
+  var C = { z: col('zafra'), c: col('codigo'), pr: col('propietario'), p: col('plantio'), v: col('variedad'), n: col('nocortes', 'cortes'), h: col('ha', 'hectareas'), t: col('tonmetrica', 'tm'), kg: col('kgazton'), te: col('tonestimadas'), he: col('tchestimada'), f: col('fechadecorte', 'fecha'), s: col('semana'), tc: col('tcorte'), e: col('edad'), tx: col('textura'), rg: col('riego'), tn: col('tenencia'), ds: col('distanciasurco'), rn: col('region'), md: col('madurador'), fr: col('frentecorte', 'frente') };
+  if (C.z < 0 || C.h < 0 || C.t < 0 || C.f < 0) throw new Error('Faltan columnas obligatorias: Zafra, Ha, Ton Metrica y Fecha de Corte.');
+  var num = function(v) { var x = parseFloat(v); return isNaN(x) ? null : x; }, str = function(v) { return v == null ? '' : String(v).trim(); };
+  var rows = [], omitidas = 0, z0 = {};
+  for (i = hi + 1; i < m.length; i++) {
+    var r = m[i] || [], z = str(r[C.z]), ha = num(r[C.h]), tm = num(r[C.t]), f = cmpFechaISO(r[C.f]);
+    if (!z || ha === null || tm === null || !f) { omitidas++; continue; }
+    var d = cmpDia(f); if (z0[z] === undefined || d < z0[z]) z0[z] = d;
+    var g = function(k) { return C[k] >= 0 ? r[C[k]] : null; };
+    rows.push({ z: z, c: num(g('c')) === null ? 0 : Math.round(num(g('c'))), pr: str(g('pr')), p: str(g('p')), v: str(g('v')), n: Math.round(num(g('n')) || 0), h: Math.round(ha * 1000) / 1000, t: Math.round(tm * 100) / 100, kg: Math.round((num(g('kg')) || 0) * 100) / 100, te: Math.round((num(g('te')) || 0) * 10) / 10, he: Math.round((num(g('he')) || 0) * 10) / 10, f: f, s: C.s >= 0 ? Math.round(num(g('s')) || 0) : 0, tc: cerNormTc(g('tc')), e: num(g('e')) === null ? null : Math.round(num(g('e'))), tx: str(g('tx')), rg: str(g('rg')), tn: str(g('tn')), ds: str(g('ds')), rn: str(g('rn')), md: str(g('md')), fr: str(g('fr')) });
+  }
+  if (!rows.length) throw new Error('El archivo no tiene filas con zafra, hectáreas, toneladas y fecha de corte.');
+  rows.forEach(function(x) { if (!(x.s >= 1)) x.s = cmpSemana(x.f, z0[x.z]); });   // semana de zafra si el archivo no la trae
+  return { rows: rows, omitidas: omitidas, zafras: Array.from(new Set(rows.map(function(x) { return x.z; }))).sort() };
+}
+function cerImportar(input) {
+  var f = input.files && input.files[0]; if (!f) return;
+  var st = document.getElementById('cer-estado'); if (st) st.textContent = 'Leyendo ' + f.name + '…';
+  var rd = new FileReader();
+  rd.onload = function(e) {
+    try {
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      var res = cerParseMatriz(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null, blankrows: false }));
+      var pisan = res.zafras.filter(function(z) { return plantiosCerrados.some(function(r) { return r.z === z; }); });
+      if (!confirm('Se cargarán ' + res.rows.length.toLocaleString() + ' plantíos de ' + res.zafras.join(', ') + '.' + (pisan.length ? '\n\nReemplazan los datos actuales de: ' + pisan.join(', ') + '.' : '') + '\n\nSe guardan en la base de datos y los verán TODOS los usuarios. ¿Continuar?')) { if (st) st.textContent = ''; input.value = ''; return; }
+      plantiosCerrados = plantiosCerrados.filter(function(r) { return res.zafras.indexOf(r.z) < 0; }).concat(res.rows).sort(function(a, b) { return String(a.z).localeCompare(String(b.z)) || String(a.f).localeCompare(String(b.f)); });
+      _cerradosVer++; _cerradosEditado = true; _cerPag = 0;
+      if (typeof autoSave === 'function') autoSave();
+      renderCerrados();
+      var st2 = document.getElementById('cer-estado'); if (st2) st2.innerHTML = '<span style="color:var(--green-text)">Cargados ' + res.rows.length.toLocaleString() + ' plantíos de ' + res.zafras.join(', ') + (res.omitidas ? ' · ' + res.omitidas + ' fila(s) omitida(s) por datos incompletos' : '') + '. Guardado en la base de datos.</span>';
+    } catch (err) { var st3 = document.getElementById('cer-estado'); if (st3) st3.innerHTML = '<span style="color:var(--red-text)">No se pudo leer el Excel: ' + cmpEsc(err && err.message ? err.message : err) + '</span>'; }
+    input.value = '';
+  };
+  rd.readAsArrayBuffer(f);
+}
+function cerEliminarZafra(z) {
+  if (!cerPuedeEditar()) return;
+  var n = plantiosCerrados.filter(function(r) { return r.z === z; }).length;
+  if (!n || !confirm('¿Eliminar los ' + n.toLocaleString() + ' plantíos cerrados de la zafra ' + z + '?\n\nSe borran de la base de datos para TODOS los usuarios.')) return;
+  plantiosCerrados = plantiosCerrados.filter(function(r) { return r.z !== z; });
+  _cerradosVer++; _cerradosEditado = true; _cerPag = 0;
+  if (typeof autoSave === 'function') autoSave();
+  renderCerrados();
+}
+function cerFiltrados() {
+  var g = function(id) { var e = document.getElementById(id); return e ? e.value : ''; }, q = cmpNorm(g('cer-f-buscar'));
+  var z = g('cer-f-zafra'), fr = g('cer-f-frente'), tn = g('cer-f-tenencia'), va = g('cer-f-variedad');
+  return plantiosCerrados.filter(function(r) {
+    if (z && r.z !== z) return false; if (fr && r.fr !== fr) return false; if (tn && r.tn !== tn) return false; if (va && cmpVarKey(r.v) !== va) return false;
+    if (q && cmpNorm(r.p + ' ' + r.c).indexOf(q) < 0) return false;
+    return true;
+  });
+}
+function cerDescargarCSV() {
+  var l = cerFiltrados(); if (!l.length) return;
+  var cab = ['Zafra', 'Código', 'Propietario', 'Plantío', 'Variedad', 'NO Cortes', 'Ha', 'TCH', 'Ton Metrica', 'KgAz/Ton', 'THA', 'Ton Estimadas', 'TCH Estimada', 'Fecha de Corte', 'Tercio', 'Semana', 'T/Corte', 'Edad', 'Textura', 'Riego', 'TENENCIA', 'DISTANCIA SURCO', 'Region', 'Madurador', 'Frente Corte', 'Edad * TM'];
+  var q = function(v) { v = v === null || v === undefined ? '' : String(v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  var filas = l.map(function(r) { var tch = r.h > 0 ? r.t / r.h : 0; return [r.z, r.c, r.pr, r.p, r.v, r.n, r.h, Math.round(tch * 1000) / 1000, r.t, r.kg, Math.round(r.kg * tch / 10) / 100, r.te, r.he, r.f, cmpTercioDe(r.f, r.z), r.s, r.tc, r.e === null ? '' : r.e, r.tx, r.rg, r.tn, r.ds, r.rn, r.md, r.fr, r.e === null ? '' : Math.round(r.e * r.t * 100) / 100]; });
+  cmpDescargar('plantios-cerrados.csv', new Blob(['\ufeff' + [cab].concat(filas).map(function(f) { return f.map(q).join(','); }).join('\n')], { type: 'text/csv;charset=utf-8' }));
+}
+function cerPagina(d) { _cerPag = Math.max(0, _cerPag + d); renderCerradosTabla(); }
+function renderCerradosTabla() {
+  var cont = document.getElementById('cer-tabla'); if (!cont) return;
+  var l = cerFiltrados(), PAG = 200, np = Math.max(1, Math.ceil(l.length / PAG)); if (_cerPag >= np) _cerPag = np - 1;
+  var ini = _cerPag * PAG, vis = l.slice(ini, ini + PAG), n1 = function(v, d) { return cmpFmtN(v, d); };
+  var h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;color:var(--text2)"><span>' + l.length.toLocaleString() + ' plantío(s) · mostrando ' + (l.length ? ini + 1 : 0) + '–' + (ini + vis.length) + '</span><span><button class="btn btn-xs" onclick="cerPagina(-1)" ' + (_cerPag <= 0 ? 'disabled' : '') + '>‹ Anterior</button> Página ' + (_cerPag + 1) + ' de ' + np + ' <button class="btn btn-xs" onclick="cerPagina(1)" ' + (_cerPag >= np - 1 ? 'disabled' : '') + '>Siguiente ›</button></span></div>';
+  h += '<div class="table-wrap" style="max-height:520px;overflow:auto"><table class="thead-fijo" style="font-size:12px"><thead><tr><th>Zafra</th><th>Código</th><th>Plantío</th><th>Variedad</th><th>Cortes</th><th>Ha</th><th>TM</th><th>TCH</th><th>Fecha corte</th><th>Tercio</th><th>Sem.</th><th>Edad</th><th>Tenencia</th><th>Frente</th><th>T/Corte</th></tr></thead><tbody>';
+  vis.forEach(function(r) { h += '<tr><td>' + cmpEsc(r.z) + '</td><td>' + r.c + '</td><td>' + cmpEsc(r.p) + '</td><td>' + cmpEsc(r.v) + '</td><td>' + r.n + '</td><td>' + n1(r.h, 2) + '</td><td>' + n1(r.t, 1) + '</td><td>' + n1(r.h > 0 ? r.t / r.h : null, 1) + '</td><td style="white-space:nowrap">' + r.f + '</td><td>' + cmpTercioDe(r.f, r.z) + '</td><td>' + r.s + '</td><td>' + (r.e === null ? '–' : r.e) + '</td><td>' + cmpEsc(r.tn) + '</td><td>' + cmpEsc(r.fr) + '</td><td>' + cmpEsc(r.tc) + '</td></tr>'; });
+  if (!vis.length) h += '<tr><td colspan="15" style="text-align:center;color:var(--text3);padding:14px">Sin plantíos con esos filtros.</td></tr>';
+  cont.innerHTML = h + '</tbody></table></div>';
+}
+function renderCerrados() {
+  var el = document.getElementById('cer-resumen'); if (!el) return;
+  var edit = cerPuedeEditar(), ib = document.getElementById('cer-btn-importar'); if (ib) ib.style.display = edit ? '' : 'none';
+  var st = document.getElementById('cer-estado');
+  if (!plantiosCerrados.length) {
+    el.innerHTML = '<div class="alert alert-info"><i class="ti ti-info-circle"></i><span>No hay plantíos cerrados cargados.' + (edit ? ' Usa <strong>Cargar Excel</strong> con el archivo «Histórico plantíos cerrados (cosechados)»: se guarda en la base de datos y lo verán todos los usuarios.' : ' Pídele a un editor que cargue el archivo.') + '</span></div>';
+    var fl0 = document.getElementById('cer-filtros'); if (fl0) fl0.style.display = 'none'; var t0 = document.getElementById('cer-tabla'); if (t0) t0.innerHTML = ''; return;
+  }
+  var fl = document.getElementById('cer-filtros'); if (fl) fl.style.display = '';
+  var porZ = {}, tot = { n: 0, h: 0, t: 0 };
+  plantiosCerrados.forEach(function(r) { var a = porZ[r.z] || (porZ[r.z] = { n: 0, h: 0, t: 0, et: 0, te: 0, f0: r.f, f1: r.f }); a.n++; a.h += r.h; a.t += r.t; if (r.e !== null) { a.et += r.e * r.t; a.te += r.t; } if (r.f < a.f0) a.f0 = r.f; if (r.f > a.f1) a.f1 = r.f; tot.n++; tot.h += r.h; tot.t += r.t; });
+  var zs = Object.keys(porZ).sort();
+  var h = '<div class="grid4" style="margin-bottom:14px"><div class="metric-card"><div class="metric-label">Zafras</div><div class="metric-value">' + zs.length + '</div><div class="metric-unit">' + zs[0] + ' → ' + zs[zs.length - 1] + '</div></div><div class="metric-card"><div class="metric-label">Plantíos</div><div class="metric-value">' + tot.n.toLocaleString() + '</div><div class="metric-unit">cortes cerrados</div></div><div class="metric-card"><div class="metric-label">Hectáreas</div><div class="metric-value">' + Math.round(tot.h).toLocaleString() + '</div><div class="metric-unit">ha</div></div><div class="metric-card"><div class="metric-label">Toneladas</div><div class="metric-value">' + Math.round(tot.t).toLocaleString() + '</div><div class="metric-unit">TM · TCH ' + cmpFmtN(tot.h > 0 ? tot.t / tot.h : null, 1) + '</div></div></div>';
+  h += '<div class="card" style="margin-bottom:14px"><div class="card-title">Resumen por zafra</div><div style="overflow-x:auto"><table style="font-size:12px"><thead><tr><th>Zafra</th><th>Plantíos</th><th>Ha</th><th>TM</th><th>TCH</th><th>Edad (pond. TM)</th><th>Primer corte</th><th>Último corte</th>' + (edit ? '<th></th>' : '') + '</tr></thead><tbody>';
+  zs.forEach(function(z) { var a = porZ[z]; h += '<tr><td><strong>' + cmpEsc(z) + '</strong></td><td>' + a.n.toLocaleString() + '</td><td>' + cmpFmtN(a.h, 1) + '</td><td>' + cmpFmtN(a.t, 0) + '</td><td>' + cmpFmtN(a.h > 0 ? a.t / a.h : null, 1) + '</td><td>' + cmpFmtN(a.te > 0 ? a.et / a.te : null, 0) + '</td><td>' + a.f0 + '</td><td>' + a.f1 + '</td>' + (edit ? '<td><button class="btn btn-xs btn-danger" onclick="cerEliminarZafra(\'' + cmpEsc(z) + '\')" title="Eliminar esta zafra de la base de datos"><i class="ti ti-trash"></i></button></td>' : '') + '</tr>'; });
+  el.innerHTML = h + '</tbody></table></div></div>';
+  // filtros (se conservan los valores elegidos)
+  var cur = {}; ['cer-f-zafra', 'cer-f-frente', 'cer-f-tenencia', 'cer-f-variedad'].forEach(function(id) { var e = document.getElementById(id); cur[id] = e ? e.value : ''; });
+  var uniq = function(k) { return Array.from(new Set(plantiosCerrados.map(function(r) { return r[k]; }).filter(Boolean))).sort(function(a, b) { return String(a).localeCompare(String(b), 'es', { numeric: true }); }); };
+  var opt = function(l, sel, lab) { return '<option value="">Todos</option>' + l.map(function(v) { return '<option value="' + cmpEsc(lab ? v.k : v) + '"' + ((lab ? v.k : v) === sel ? ' selected' : '') + '>' + cmpEsc(lab ? v.l : v) + '</option>'; }).join(''); };
+  var vm = {}; plantiosCerrados.forEach(function(r) { var k = cmpVarKey(r.v); if (k && !vm[k]) vm[k] = r.v; });
+  var varL = Object.keys(vm).sort().map(function(k) { return { k: k, l: vm[k] }; });
+  var set = function(id, html) { var e = document.getElementById(id); if (e) e.innerHTML = html; };
+  set('cer-f-zafra', opt(uniq('z'), cur['cer-f-zafra'])); set('cer-f-frente', opt(uniq('fr'), cur['cer-f-frente'])); set('cer-f-tenencia', opt(uniq('tn'), cur['cer-f-tenencia'])); set('cer-f-variedad', opt(varL, cur['cer-f-variedad'], true));
+  renderCerradosTabla();
+}
+var _cerBuscarT = null;
+function cerFiltroCambio() { clearTimeout(_cerBuscarT); _cerBuscarT = setTimeout(function() { _cerPag = 0; renderCerradosTabla(); }, 250); }
+
 /* ══ COMPARATIVO VS ZAFRAS ANTERIORES ═══════════════════════════════════════════════════════════════════════════════
-   Histórico: se carga una vez desde el Excel «Histórico plantíos cerrados (cosechados)» y se guarda AGREGADO (zafra, tenencia, tercio, semana)
-   dentro de los datos del planificador (campo historicoCompar de «equipos»), así lo ven todos los usuarios sin cargarlo de nuevo.
+   Histórico: sale de Datos maestros → Plantíos cerrados (base de datos compartida; ya no se sube archivo desde aquí). Se agrega al vuelo
+   por (zafra, tenencia, tercio, semana) en cmpHist().
    Definiciones (validadas contra los gráficos del Excel): TCH = ΣTM ÷ ΣHa · Edad = ΣEdad×TM ÷ ΣTM (ponderada por toneladas) ·
    tercios: hasta el 10-ene, hasta el 10-mar y el resto · Administrado = Propio/Alquilado · semana de zafra: la misma de Seguimiento. */
 var _cmpSel = null, _cmpUltimo = null, _cmpResizeT = null;
 var CMP_COLORES = { '2021-2022': '#BFBFBF', '2022-2023': '#8497B0', '2023-2024': '#70AD47', '2024-2025': '#5B9BD5', '2025-2026': '#FFC000' };
 var CMP_COLOR_PLAN_ANT = '#ED7D31', CMP_COLOR_PLAN = '#1F4E79';
-function cmpHist() { try { var o = historicoCompar ? JSON.parse(historicoCompar) : null; return (o && Array.isArray(o.filas) && o.filas.length) ? o : null; } catch (e) { return null; } }
+var _cmpHistCache = null;
+function cmpHist() {   // agregado (zafra, tenencia, tercio, semana) de los Plantíos cerrados de la base de datos
+  if (!plantiosCerrados.length) return null;
+  if (_cmpHistCache && _cmpHistCache.ver === _cerradosVer) return _cmpHistCache.v;
+  var agg = {}, zs = {};
+  plantiosCerrados.forEach(function(r) {
+    if (!r.z || !r.f || !isFinite(r.t) || !isFinite(r.h)) return;
+    var ten = cmpTenCodigo(r.tn), ter = cmpTercioDe(r.f, r.z), sem = r.s >= 1 ? r.s : 1, k = r.z + '|' + ten + '|' + ter + '|' + sem;
+    var a = agg[k] || (agg[k] = { z: r.z, ten: ten, ter: ter, sem: sem, ha: 0, tm: 0, etm: 0, tmEd: 0 });
+    a.ha += r.h; a.tm += r.t; if (r.e !== null && r.e !== undefined && isFinite(r.e)) { a.etm += r.e * r.t; a.tmEd += r.t; }
+    zs[r.z] = 1;
+  });
+  var filas = Object.keys(agg).sort().map(function(k) { var a = agg[k]; return [a.z, a.ten, a.ter, a.sem, a.ha, a.tm, a.etm, a.tmEd]; });
+  var v = { filas: filas, n: plantiosCerrados.length, zafras: Object.keys(zs).sort() };
+  _cmpHistCache = { ver: _cerradosVer, v: v }; return v;
+}
 function cmpNorm(t) { return String(t == null ? '' : t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ''); }
 function cmpTenCodigo(t) { var n = cmpNorm(t); return n.indexOf('prov') === 0 ? 'P' : (n.indexOf('admin') === 0 || n === 'propio' || n === 'alquilado') ? 'A' : 'O'; }
 function cmpDia(str) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(str || ''); return m ? Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) : null; }
@@ -26099,58 +26278,6 @@ function cmpFechaISO(v) {
   if (v instanceof Date) return new Date(v.getTime() - v.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   var s = String(v).trim(), m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s); if (m) return m[1] + '-' + m[2] + '-' + m[3];
   m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s); return m ? m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2) : null;
-}
-// Matriz de la hoja → registros agregados por (zafra, tenencia, tercio, semana). Función pura (se prueba aparte).
-function cmpParseMatriz(m) {
-  var hi = -1, i;
-  for (i = 0; i < m.length && i < 30; i++) { var n = (m[i] || []).map(cmpNorm); if (n.indexOf('zafra') >= 0 && (n.indexOf('tonmetrica') >= 0 || n.indexOf('tm') >= 0)) { hi = i; break; } }
-  if (hi < 0) throw new Error('No encontré la fila de encabezados (Zafra, Ha, Ton Metrica, Fecha de Corte, TENENCIA…).');
-  var H = m[hi].map(cmpNorm), col = function() { for (var k = 0; k < arguments.length; k++) { var x = H.indexOf(arguments[k]); if (x >= 0) return x; } return -1; };
-  var cVar = col('variedad'), cZ = col('zafra'), cHa = col('ha', 'hectareas'), cTM = col('tonmetrica', 'tm'), cF = col('fechadecorte', 'fecha'), cTen = col('tenencia'), cTer = col('tercio'), cSem = col('semana'), cEd = col('edad'), cEt = col('edadtm');
-  if (cZ < 0 || cHa < 0 || cTM < 0 || cF < 0) throw new Error('Faltan columnas obligatorias: Zafra, Ha, Ton Metrica y Fecha de Corte.');
-  var rows = [], omitidas = 0, z0 = {};
-  for (i = hi + 1; i < m.length; i++) {
-    var r = m[i] || [], z = r[cZ] == null ? '' : String(r[cZ]).trim(), ha = parseFloat(r[cHa]), tm = parseFloat(r[cTM]), f = cmpFechaISO(r[cF]);
-    if (!z || isNaN(ha) || isNaN(tm) || !f) { omitidas++; continue; }
-    var ed = cEd >= 0 ? parseFloat(r[cEd]) : NaN, etm = cEt >= 0 ? parseFloat(r[cEt]) : (isNaN(ed) ? NaN : ed * tm);
-    rows.push({ va: cVar >= 0 ? String(r[cVar] == null ? '' : r[cVar]).trim() : null, z: z, ha: ha, tm: tm, f: f, ten: cTen >= 0 ? cmpTenCodigo(r[cTen]) : 'O', ter: cTer >= 0 ? parseInt(r[cTer], 10) : null, sem: cSem >= 0 ? parseInt(r[cSem], 10) : null, etm: etm });
-    var d = cmpDia(f); if (z0[z] === undefined || d < z0[z]) z0[z] = d;
-  }
-  if (!rows.length) throw new Error('El archivo no tiene filas con zafra, hectáreas, toneladas y fecha de corte.');
-  var agg = {}, sinEdad = 0, vn = [], vIdx = {}, vagg = {};
-  rows.forEach(function(r) {
-    var ter = (r.ter >= 1 && r.ter <= 3) ? r.ter : cmpTercioDe(r.f, r.z), sem = (r.sem >= 1) ? r.sem : cmpSemana(r.f, z0[r.z]), k = r.z + '|' + r.ten + '|' + ter + '|' + sem;
-    var a = agg[k] || (agg[k] = { z: r.z, ten: r.ten, ter: ter, sem: sem, ha: 0, tm: 0, etm: 0 });
-    a.ha += r.ha; a.tm += r.tm; if (isNaN(r.etm)) sinEdad++; else a.etm += r.etm;
-    if (r.va !== null && r.tm > 0) {   // variedad por (fecha, semana): la semana del Excel no siempre es función de la fecha, por eso se guarda el par
-      var vk = cmpVarKey(r.va || 'Sin variedad'); if (vIdx[vk] === undefined) { vIdx[vk] = vn.length; vn.push(r.va || 'Sin variedad'); }
-      var kd = r.f.slice(2, 4) + r.f.slice(5, 7) + r.f.slice(8, 10) + '/' + sem, zz = vagg[r.z] || (vagg[r.z] = {}), dd = zz[kd] || (zz[kd] = {});
-      dd[vIdx[vk]] = (dd[vIdx[vk]] || 0) + r.tm;
-    }
-  });
-  var vd = {};
-  Object.keys(vagg).forEach(function(z) { vd[z] = Object.keys(vagg[z]).sort().map(function(kd) { return kd + ':' + Object.keys(vagg[z][kd]).map(function(i) { return i + '=' + Math.round(vagg[z][kd][i] * 10) / 10; }).join(','); }).join(';'); });
-  var rd = function(v, d) { var p = Math.pow(10, d); return Math.round(v * p) / p; };
-  var filas = Object.keys(agg).sort().map(function(k) { var a = agg[k]; return [a.z, a.ten, a.ter, a.sem, rd(a.ha, 3), rd(a.tm, 2), rd(a.etm, 1)]; });
-  return { vn: vn, vd: vd, filas: filas, n: rows.length, omitidas: omitidas, sinEdad: sinEdad, zafras: Array.from(new Set(rows.map(function(r) { return r.z; }))).sort() };
-}
-function cmpImportarExcel(input) {
-  var f = input.files && input.files[0]; if (!f) return;
-  var st = document.getElementById('cmp-estado'); if (st) st.textContent = 'Leyendo ' + f.name + '…';
-  var rd = new FileReader();
-  rd.onload = function(e) {
-    try {
-      var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-      var res = cmpParseMatriz(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null, blankrows: false }));
-      historicoCompar = JSON.stringify({ v: 1, arch: f.name, fecha: new Date().toISOString(), n: res.n, filas: res.filas, vn: res.vn, vd: res.vd });
-      if (typeof autoSave === 'function') autoSave();
-      _cmpSel = null; cmpInit();
-      var msg = 'Histórico cargado: ' + res.n.toLocaleString() + ' plantíos de ' + res.zafras.join(', ') + (res.omitidas ? ' · ' + res.omitidas + ' fila(s) omitida(s) por datos incompletos' : '') + (res.sinEdad ? ' · ' + res.sinEdad + ' sin edad' : '') + '.';
-      var st2 = document.getElementById('cmp-estado'); if (st2) st2.innerHTML = '<span style="color:var(--green-text)">' + msg + '</span>';
-    } catch (err) { var st3 = document.getElementById('cmp-estado'); if (st3) st3.innerHTML = '<span style="color:var(--red-text)">No se pudo leer el Excel: ' + (err && err.message ? err.message : err) + '</span>'; }
-    input.value = '';
-  };
-  rd.readAsArrayBuffer(f);
 }
 // Registros del plan de una zafra (lotes del planificador). base 'sim' = fecha de inicio SIMULADA del programa optimizado; 'plan' = fecha de inicio del plan
 function cmpRecsPlan(z, base) {
@@ -26171,7 +26298,7 @@ function cmpRecsPlan(z, base) {
 function cmpSeries(zPlan, base) {
   var out = [], H = cmpHist(), zAnt = cmpZafraAnterior(zPlan);
   if (H) Array.from(new Set(H.filas.map(function(r) { return r[0]; }))).sort().forEach(function(z) {
-    out.push({ id: z, label: z, color: CMP_COLORES[z] || '#999999', tipo: 'real', zafra: z, recs: H.filas.filter(function(r) { return r[0] === z; }).map(function(r) { return { ten: r[1], ter: r[2], sem: r[3], ha: r[4], tm: r[5], etm: r[6], tmEd: r[5] }; }) });
+    out.push({ id: z, label: z, color: CMP_COLORES[z] || '#999999', tipo: 'real', zafra: z, recs: H.filas.filter(function(r) { return r[0] === z; }).map(function(r) { return { ten: r[1], ter: r[2], sem: r[3], ha: r[4], tm: r[5], etm: r[6], tmEd: r[7] }; }) });
   });
   [[zAnt, zAnt + ' Plan', CMP_COLOR_PLAN_ANT, 'planAnt', 'plan'], [zPlan, zPlan + ' Plan', CMP_COLOR_PLAN, 'plan', base]].forEach(function(x) {
     if (!x[0]) return; var recs = cmpRecsPlan(x[0], x[4]);
@@ -26387,19 +26514,20 @@ var CMP_VAR_COLORES = { CG02163: '#70AD47', CGMEX1026315: '#5B9BD5', CP001101: '
 var CMP_VAR_PALETA = ['#7030A0', '#00A3A3', '#C00000', '#7F7F7F', '#2E75B6', '#BF9000', '#9E480E', '#D6459C'];
 function cmpVarKey(n) { return String(n == null ? '' : n).toUpperCase().replace(/[^A-Z0-9]/g, ''); }
 function cmpVarColor(k) { if (CMP_VAR_COLORES[k]) return CMP_VAR_COLORES[k]; var h = 0; for (var i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) >>> 0; return CMP_VAR_PALETA[h % CMP_VAR_PALETA.length]; }
-function cmpHistVar(z) {   // variedad por día y semana de una zafra real, decodificada del Excel cargado
-  var H = cmpHist(); if (!H || !H.vd || !H.vd[z]) return [];
-  var sig = String(historicoCompar).length; if (!_cmpVarHistCache || _cmpVarHistCache.sig !== sig) _cmpVarHistCache = { sig: sig };
+function cmpHistVar(z) {   // variedad por día y semana de una zafra real (de los Plantíos cerrados)
+  if (_cmpVarHistCache && _cmpVarHistCache.ver !== _cerradosVer) _cmpVarHistCache = null;
+  if (!_cmpVarHistCache) _cmpVarHistCache = { ver: _cerradosVer };
   if (_cmpVarHistCache[z]) return _cmpVarHistCache[z];
-  var nombres = H.vn || [], out = [];
-  String(H.vd[z]).split(';').forEach(function(e) {
-    if (!e) return; var p = e.split(':'), a = p[0].split('/'), yy = a[0], f = '20' + yy.slice(0, 2) + '-' + yy.slice(2, 4) + '-' + yy.slice(4, 6), sem = parseInt(a[1], 10);
-    (p[1] || '').split(',').forEach(function(x) { var q = x.split('='), lab = nombres[parseInt(q[0], 10)] || 'Sin variedad'; out.push({ f: f, sem: sem, k: cmpVarKey(lab), lab: lab, tm: parseFloat(q[1]) || 0 }); });
+  var m = {};
+  plantiosCerrados.forEach(function(r) {
+    if (r.z !== z || !(r.t > 0)) return;
+    var lab = r.v || 'Sin variedad', k = cmpVarKey(lab), kk = r.f + '|' + r.s + '|' + k, o = m[kk] || (m[kk] = { f: r.f, sem: r.s, k: k, lab: lab, tm: 0 });
+    o.tm += r.t;
   });
-  return (_cmpVarHistCache[z] = out);
+  return (_cmpVarHistCache[z] = Object.keys(m).map(function(kk) { return m[kk]; }));
 }
 function cmpVarDatos(s) {
-  var ck = s.id + '|' + (s.recs ? s.recs.length : 0) + '|' + String(historicoCompar).length;
+  var ck = s.id + '|' + (s.recs ? s.recs.length : 0) + '|' + _cerradosVer;
   if (_cmpVarCache[ck]) return _cmpVarCache[ck];
   var porSem = {}, porDia = {}, lab = {}, tot = {};
   var add = function(sem, f, vk, vl, tm) {
@@ -26472,7 +26600,7 @@ function cmpInit() {
   selZ.innerHTML = zs.map(function(z) { return '<option value="' + z + '">' + z + '</option>'; }).join('');
   selZ.value = zs.indexOf(cur) >= 0 ? cur : (zs[zs.length - 1] || '');
   var H = cmpHist(), st = document.getElementById('cmp-estado');
-  if (st && !/Leyendo|No se pudo|Histórico cargado/.test(st.textContent)) st.innerHTML = H ? '<span style="color:var(--text2)">Histórico: ' + Array.from(new Set(H.filas.map(function(r) { return r[0]; }))).sort().join(', ') + ' · ' + (H.n || 0).toLocaleString() + ' plantíos · ' + cmpEsc(H.arch || '') + ' · ' + String(H.fecha || '').slice(0, 10) + '</span>' : '<span style="color:var(--amber-text)">Sin histórico cargado: usa «Cargar histórico (Excel)».</span>';
+  if (st) st.innerHTML = H ? '<span style="color:var(--text2)">Histórico (Datos maestros → Plantíos cerrados): ' + H.zafras.join(', ') + ' · ' + H.n.toLocaleString() + ' plantíos, de la base de datos compartida.</span>' : '<span style="color:var(--amber-text)">Sin histórico: cárgalo en <a href="#" onclick="showPage(\'cerrados\');return false">Datos maestros → Plantíos cerrados</a>.</span>';
   cmpRender();
 }
 function cmpToggleSerie(id, on) { if (_cmpSel) _cmpSel[id] = !!on; cmpDibujar(); }
@@ -26496,7 +26624,7 @@ function cmpDibujar() {
   var todas = U.todas, zPlan = U.zPlan, base = U.base;
   var chk = document.getElementById('cmp-series');
   if (chk) chk.innerHTML = todas.map(function(s) { return '<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin-right:12px"><input type="checkbox" ' + (_cmpSel[s.id] ? 'checked' : '') + ' onchange="cmpToggleSerie(\'' + s.id + '\', this.checked)" style="width:auto;margin:0"><span style="width:10px;height:10px;background:' + s.color + ';border-radius:2px;display:inline-block"></span>' + cmpEsc(s.label) + '</label>'; }).join('');
-  if (!todas.length) { out.innerHTML = '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>Sin series: carga el histórico (Excel) o registra el plan de la zafra.</span></div>'; return; }
+  if (!todas.length) { out.innerHTML = '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>Sin series: carga los Plantíos cerrados (Datos maestros) o registra el plan de la zafra.</span></div>'; return; }
   var planSel = todas.filter(function(s) { return s.tipo === 'plan'; })[0];
   if (!planSel) { out.innerHTML = '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>La zafra ' + zPlan + ' no tiene lotes con área en el plan.</span></div>'; return; }
   var sel = todas.filter(function(s) { return _cmpSel[s.id]; });
@@ -26569,7 +26697,7 @@ function cmpDibujar() {
     var cid = 'varSem', def = { labels: [] };
     if (!_cmpVarSel || !todas.some(function(s) { return s.id === _cmpVarSel; })) _cmpVarSel = planSel.id;
     var serieSel = function() { return todas.filter(function(s) { return s.id === _cmpVarSel; })[0] || planSel; };
-    var sinDatos = function(S) { return '<div style="padding:18px;color:var(--text3);font-size:12px">' + (S.tipo === 'real' ? 'El histórico cargado no trae la columna «Variedad» por plantío: vuelve a cargar el Excel con «Cargar histórico (Excel)».' : 'No hay toneladas por variedad en esta serie (revisa que los campos tengan variedad).') + '</div>'; };
+    var sinDatos = function(S) { return '<div style="padding:18px;color:var(--text3);font-size:12px">' + (S.tipo === 'real' ? 'Esta zafra no tiene variedad en Datos maestros → Plantíos cerrados.' : 'No hay toneladas por variedad en esta serie (revisa que los campos tengan variedad).') + '</div>'; };
     var armar = function(st) {
       var S = serieSel(), D = cmpVarDatos(S); if (!D.sems.length) return { S: S, D: D };
       def.semsAll = D.sems;
