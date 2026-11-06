@@ -5206,10 +5206,14 @@ function cosechadorasDelFrente(frente, zafra) {
   var mc = frente.modeloCosech ? (modelosCosech.find(function(x) { return x.id === frente.modeloCosech.id; }) || frente.modeloCosech) : null;
   return mc ? [mc] : [];
 }
-// Si no es null, getVelTablaTrabajo() usa la antigüedad de ESTA máquina (en vez del promedio del frente). Solo para reportes por máquina.
-var _velMaqForzada = null;
-// Productividad (TM/h) de un lote si lo cortara solo esa cosechadora según su antigüedad (tabla de velocidad). Misma ruta de cálculo que la caché de productividad.
-function prodLoteConMaquina(p, reg) {
+/* ── RENDIMIENTO POR MÁQUINA (fuente única: simulador, Logística y Capacidad por tercio) ──
+   TM/h de una máquina en un lote = el lote recalculado con la velocidad que le corresponde a SU antigüedad (tabla «Mínimo según la
+   antigüedad»); horas de una máquina en un día de jornada H = su tope por tramo o, con la curva activa, H × (1 + % de su año de operación).
+   El frente rinde la SUMA de sus máquinas: el simulador usa factorFrenteMaquinas() = Σ(TM/h_i × horas_i) ÷ (N × TM/h del lote × H). */
+var _velMaqForzada = null;   // si no es null, getVelTablaTrabajo() usa la antigüedad de ESTA máquina (en vez del promedio del frente)
+var _prodMaqCache = {}, _hayVelEdad = null;
+function hayVelEdadCfg() { if (_hayVelEdad === null) _hayVelEdad = leerVelPctEdad().some(function(r) { return r.some(function(v) { return v; }); }); return _hayVelEdad; }
+function prodLoteConMaquina(p, reg) {   // cálculo directo (misma ruta que recalcularCacheProd); reg=null → promedio del frente
   var campoBase = campos.find(function(c) { return c.id === p.campoId || c.nombre === p.campoNombre; });
   if (!campoBase) return null;
   campoBase = conAreaPlan(campoBase, p);
@@ -5217,6 +5221,27 @@ function prodLoteConMaquina(p, reg) {
   var ca = (tch !== campoBase.tch || nMaq !== campoBase.nCosechadoras) ? Object.assign({}, campoBase, { tch: tch, nCosechadoras: nMaq }) : campoBase;
   _velMaqForzada = reg;
   try { var t = calcTiempos(ca); return t ? t.productividad : null; } finally { _velMaqForzada = null; }
+}
+function prodMaqLote(p, reg) {   // TM/h con caché; reg=null → TM/h del lote promediando las máquinas del frente
+  if (!p) return 0;
+  var usa = !!(reg && hayVelEdadCfg() && edadCosechadora(reg, p.zafra) !== null && !(p.tch > 105));
+  var k = p.id + '|' + p.frenteNombre + '|' + (p.nCosechadoras || '') + '|' + (usa ? (reg.codigo || reg.id) : '*');
+  if (!_prodMaqCache.hasOwnProperty(k)) { var v = prodLoteConMaquina(p, usa ? reg : null); _prodMaqCache[k] = (v > 0) ? v : (getProdFromCache(p) || 0); }
+  return _prodMaqCache[k];
+}
+function horasMaquinaDia(reg, zafra, H) {   // horas efectivas de una máquina en un día de jornada H
+  if (curvaEdad.activa) return Math.min(24, H * factoresCurvaMaq(reg, zafra).h);
+  var t = topeHorasMaquina(reg, zafra); return t ? Math.min(H, t) : H;
+}
+// Multiplicador del TM/h del lote para el simulador (día de jornada H): Σ(TM/h_i × horas_i) ÷ (N × TM/h del lote × H)
+function factorFrenteMaquinas(zafra, frenteNombre, p, H) {
+  if (!p || !hayVelEdadCfg()) return factorTopeHorasFrente(zafra, frenteNombre, H);   // sin velocidad por máquina: solo horas (curva o topes)
+  var fe = getFrenteEfectivo(zafra, frenteNombre); if (!fe || frenteEsManual(fe)) return 1;
+  var maqs = cosechadorasDelFrente(fe, zafra); if (!maqs.length) return 1;
+  var base = prodMaqLote(p, null); if (!(base > 0) || !(H > 0)) return factorTopeHorasFrente(zafra, frenteNombre, H);
+  var suma = 0;
+  maqs.forEach(function(m) { suma += (prodMaqLote(p, m) / base) * horasMaquinaDia(m, zafra, H); });
+  return Math.max(0.05, Math.min(2, suma / (maqs.length * H)));
 }
 // Velocidad de TRABAJO de la tabla para un lote: máximo del rango × % mínimo (si está definido); si no, el máximo.
 function getVelTablaTrabajo(c) {
@@ -9598,8 +9623,6 @@ function calcCapacidadFrentePorTercio(zafra) {
 
   // Para cada período (incluido "General"), calcula horas/prod promedio (ponderado por días
   // activos) de un conjunto de lotes de un frente dentro de ese rango de fechas.
-  var _prodMaqCache = {};
-  function prodMaq(p, reg) { var k = p.id + '|' + (reg.codigo || reg.id); if (!_prodMaqCache.hasOwnProperty(k)) { var v = prodLoteConMaquina(p, reg); _prodMaqCache[k] = (v > 0) ? v : (getProdFromCache(p) || 0); } return _prodMaqCache[k]; }
   function calcPeriodoFrente(lotesFrente, periodo, reg) {
     // BUG CORREGIDO: antes se usaba el horasMeta BASE del lote, multiplicado por los días de
     // superposición de un solo tirón — eso ignoraba por completo los ajustes del optimizador
@@ -9612,10 +9635,11 @@ function calcCapacidadFrentePorTercio(zafra) {
       var desde = p.fechaInicio > periodo.desde ? p.fechaInicio : periodo.desde;
       var hasta = p.fechaFin < periodo.hasta ? p.fechaFin : periodo.hasta;
       if (desde > hasta) return;
-      var prod = (reg ? prodMaq(p, reg) : getProdFromCache(p)) || 0;
+      var prod = (reg ? prodMaqLote(p, reg) : getProdFromCache(p)) || 0;
       var cur = new Date(desde + 'T00:00:00'), fin = new Date(hasta + 'T00:00:00');
       while (cur <= fin) {
-        sumaHoras += resolverHorasDelDia(p, formatFechaLocal(cur));
+        var Hd = resolverHorasDelDia(p, formatFechaLocal(cur));
+        sumaHoras += reg ? horasMaquinaDia(reg, zafra, Hd) : Hd;   // horas de ESA máquina ese día (tope por tramo o curva por año de operación)
         sumaProd  += prod;
         pesoTotal++;
         cur.setDate(cur.getDate() + 1);
@@ -9675,19 +9699,16 @@ function calcCapacidadFrentePorTercio(zafra) {
     // Con las horas por antigüedad activas, cada máquina tiene sus propias Horas/Día (media del lote × su factor); el TM/Hora es el del frente
     // (ya incluye la antigüedad vía la tabla de velocidad) y el total del frente es la SUMA de sus máquinas. Sin la curva: todas iguales, como siempre.
     var regsFrente = cosechadorasDelFrente(fe, zafra);
-    var hayVelEdad = leerVelPctEdad().some(function(r) { return r.some(function(v) { return v; }); });   // hay mínimos por antigüedad configurados
     var filas = codigosMostrar.map(function(codigo) {
       var reg = (codigo && codigo !== '–') ? (modelosCosech.find(function(mm) { return mm.codigo === codigo; }) || null) : (regsFrente[0] || null);
       var edadM = reg ? edadCosechadora(reg, zafra) : null;
-      var fm = curvaEdad.activa ? factoresCurvaMaq(reg, zafra) : { h: 1 };
-      // TM/Hora propio de la máquina: el lote recalculado con la velocidad que le corresponde a SU antigüedad (tabla de mínimos). Sin año de inicio o sin tabla: el del frente.
-      var ptsM = (hayVelEdad && reg && edadM !== null) ? tercios.map(function(periodo) { return calcPeriodoFrente(lotesFrente, periodo, reg); }) : porTercioFrente;
+      // Misma fuente que el simulador: TM/h de la máquina (velocidad según su antigüedad) y sus horas efectivas del día
+      var ptsM = reg ? tercios.map(function(periodo) { return calcPeriodoFrente(lotesFrente, periodo, reg); }) : porTercioFrente;
       return {
         codigo: codigo, anio: anioOperacion(edadM),
         porTercio: ptsM.map(function(pt) {
           if (!pt) return null;
-          var hh = Math.min(24, pt.horasProm * fm.h);
-          return { horasProm: hh, prodProm: pt.prodProm, tmDia: hh * pt.prodProm, totalDia: 0, totalSemana: 0 };
+          return { horasProm: pt.horasProm, prodProm: pt.prodProm, tmDia: pt.horasProm * pt.prodProm, totalDia: 0, totalSemana: 0 };
         })
       };
     });
@@ -12818,7 +12839,8 @@ function simularFrente(lotesFrente, fechaLimite, real) {
       tonRestante:      ton,
       areaTotal:        areaLote,
       tch:              tch,
-      prodUnit:         prod,   // (el tope de horas por antigüedad se aplica día por día, abajo)
+      prodUnit:         prod,   // (el rendimiento por máquina —velocidad y horas por antigüedad— se aplica día por día, abajo)
+      _plan:            p,
       maqActivas:       maqDelLote,
       maqActivasBase:   p.nCosechadoras || nMaqTotal, // valor base SIN overrides, para resetear cuando un día no tiene ajuste propio
       horasMetaRangos:  p.horasMetaRangos || null,
@@ -12840,8 +12862,8 @@ function simularFrente(lotesFrente, fechaLimite, real) {
     var base = l.prodUnit;
     Object.defineProperty(l, 'prodUnit', { configurable: true, enumerable: true,
       get: function() {
-        var d = (typeof diaNum === 'number') ? diaNum : 0, H = horasDelDia(d, l), k = l.zafra + '|' + l.frenteNombre + '|' + H;
-        if (!_memoTope.hasOwnProperty(k)) _memoTope[k] = factorTopeHorasFrente(l.zafra, l.frenteNombre, H);
+        var d = (typeof diaNum === 'number') ? diaNum : 0, H = horasDelDia(d, l), k = l.zafra + '|' + l.frenteNombre + '|' + (l._plan ? l._plan.id : '') + '|' + H;
+        if (!_memoTope.hasOwnProperty(k)) _memoTope[k] = factorFrenteMaquinas(l.zafra, l.frenteNombre, l._plan, H);
         return base * _memoTope[k];
       },
       set: function(v) { base = v; } });
@@ -18456,7 +18478,7 @@ function ejecutarAnalizador() {
 var _prodCache = {}; // key: campo.nombre -> {productividad, tTrabajoH, tCosechaH, tManiobrasH}
 
 function recalcularCacheProd() {
-  _prodCache = {};
+  _prodCache = {}; _prodMaqCache = {}; _hayVelEdad = null;
   // Entradas por CAMPO genérico (nombre/id) — se conservan como
   // respaldo para consultas que no traen un planItem concreto (ej.
   // previews de formularios antes de que el lote exista en el plan).
@@ -25853,7 +25875,8 @@ function logCalcularCosechadoras(data, dias, zafraOpt) {
     // toneladas por máquina: tiempo disponible × velocidad relativa según su antigüedad (rango de TCH del lote)
     var tonMaq = maqs.map(function() { return 0; });
     g.cos.forEach(function(c) {
-      var r = c.plan ? rangoTablaVel(c.plan.tch) : 2, pcts = maqs.map(function(x) { return (r <= 1 && x.edad !== null) ? valPct('vel-edad-' + r + '-' + tramoEdadCosech(x.edad)) : null; });
+      // TM/h relativo de cada máquina en ESTE lote: el mismo cálculo por máquina que usa el simulador
+      var baseP = c.plan ? prodMaqLote(c.plan, null) : 0, pcts = maqs.map(function(x) { return (baseP > 0 && x.reg && x.edad !== null && hayVelEdadCfg()) ? prodMaqLote(c.plan, x.reg) / baseP : null; });
       var conocidos = pcts.filter(function(v) { return v; }), prom = conocidos.length ? conocidos.reduce(function(s, v) { return s + v; }, 0) / conocidos.length : 1;
       var pesos = maqs.map(function(x, i) { return (x.asignH || 0) * (pcts[i] || prom); }), sp = pesos.reduce(function(s, v) { return s + v; }, 0);
       if (sp > 0) pesos.forEach(function(w, i) { tonMaq[i] += c.ton * w / sp; });
