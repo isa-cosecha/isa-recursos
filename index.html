@@ -2531,6 +2531,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
           <span id="vel-tch-pendiente" style="display:none;font-size:12px;color:var(--amber-text)"><i class="ti ti-alert-triangle" style="margin-right:4px"></i>Hay cambios sin aplicar — no afectan los cálculos hasta que presiones "Aplicar cambios"</span>
         </div>
       </div>
+      <div id="ajustes-version" style="margin:14px 4px 6px;font-size:10px;color:var(--text3);line-height:1.5"></div>
 </div>
 
   </main>
@@ -5109,6 +5110,25 @@ function marcarCambiosVelocidadPendientes() {
 // Rangos 0–70 y 71–105 TCH: % según la antigüedad de cada cosechadora del frente (0–3, más de 3 a 5, más de 5 años).
 // Si el frente tiene máquinas de distinta antigüedad se usa el PROMEDIO de sus %: cortan el lote en paralelo, así
 // que el tiempo es distancia ÷ suma de velocidades = distancia ÷ (n × velocidad promedio).
+/* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
+   Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
+   ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
+var PLANIFICADOR_VERSION = { v: '1.8', fecha: '2026-11-06' };
+var PLANIFICADOR_HISTORIAL = [
+  ['1.8', '2026-11-06', 'Nota de versión al final de Ajustes'],
+  ['1.7', '2026-11-06', 'Rendimiento por máquina en el simulador (TM/h por antigüedad + horas por año de operación), Logística y Capacidad por tercio'],
+  ['1.6', '2026-11-06', 'Capacidad por tercio: TM/h por máquina según la tabla de velocidad por antigüedad'],
+  ['1.5', '2026-11-06', 'Horas efectivas por años de operación: se quita el ajuste de TM/h (ya está en la velocidad)'],
+  ['1.4', '2026-11-06', 'Equilibrar cierre: barra de progreso con % y comparación con el cálculo anterior'],
+  ['1.3', '2026-11-06', 'Normalizar a la media de la flota (ejemplo en vivo) y una fila por máquina en Capacidad por tercio'],
+  ['1.2', '2026-11-06', 'Backups entre 8 y 10 h/día y reparto por máquina en Logística'],
+  ['1.1', '2026-11-06', 'Curva de rendimiento por años de operación (Año 1 a 10) en Ajustes']
+];
+function renderVersionPlanificador() {
+  var el = document.getElementById('ajustes-version'); if (!el) return;
+  var h = PLANIFICADOR_HISTORIAL.slice(0, 8).map(function(x) { return 'v' + x[0] + ' · ' + x[1] + ' · ' + x[2]; }).join('\n');
+  el.innerHTML = '<span title="' + h.replace(/"/g, '&quot;') + '">Versión del planificador: <strong>v' + PLANIFICADOR_VERSION.v + '</strong> · ' + PLANIFICADOR_VERSION.fecha + ' · ' + PLANIFICADOR_HISTORIAL[0][2] + '</span>';
+}
 /* ── HORAS EFECTIVAS POR AÑOS DE OPERACIÓN (Año 1…10) ──
    Año de operación = antigüedad al inicio de la zafra + 1 (de Año 10 en adelante se usa el Año 10).
    hrs[]: % sobre las horas efectivas medias por máquina y día. El TM/h por antigüedad NO se toca aquí: ya está en la velocidad de avance
@@ -9770,6 +9790,7 @@ function aplicarDefaultZafraSiVacio(sel, cur, zafras) {
 
 /* ── Página Ajustes ── */
 function syncAjustesPage() {
+  renderVersionPlanificador();
   if (typeof syncAjustesSyncCard === 'function') syncAjustesSyncCard();
   var sel = document.getElementById('config-zafra-default');
   if (!sel) return;
