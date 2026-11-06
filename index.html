@@ -5261,8 +5261,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.27', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.28', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.28', '2026-11-06', 'Resultados: Cumplimiento diario justo después del comparativo Plan vs Fábrica (clic en la barra = día, todas las fechas con [+] de ajuste sugerido); Análisis de horas y Detalle por campo colapsados'],
   ['1.27', '2026-11-06', 'Resultados: se quitan los resúmenes de Productividad (frente completo / por cosechadora) y de Costo total equipos / Costo por tonelada'],
   ['1.26', '2026-11-06', 'Resultados: resumen general con hectáreas, TCH, horas efectivas de trabajo, TM/h y TM/máquina/día de las cosechadoras'],
   ['1.25', '2026-11-06', 'Capacidad por tercio: cosechadoras ordenadas por año (nuevas primero) y por nombre'],
@@ -14578,6 +14579,7 @@ function calcular() {
   html += '<button class="btn btn-sm btn-primary" onclick="mostrarOptimizacionPlan()" title="Analiza la demanda vs. la capacidad planificada y sugiere ajustes, mostrando el impacto en costos de cada estrategia"><i class="ti ti-adjustments"></i> Optimización completa del plan</button>';
   html += '</div></div>';
 
+  html += '<!--RES-CARDS-FIN-->';
   // ── Gráfico comparativo "Plan vs Fábrica" por semana ── Muestra la
   // demanda planificada (Fábrica) contra la producción real simulada
   // (misma fuente que Día a día/Cumplimiento) — y, si el usuario guardó
@@ -14633,6 +14635,7 @@ function calcular() {
     }
   }
 
+  html += '<!--RES-COMP-FIN-->';
   // ── Toneladas y hectáreas PROGRAMADAS POR SEMANA, por frente ──
   // Usa la simulación real (misma que Día a Día) para saber cuánto se
   // produce cada día, agrupado por semana-zafra (miércoles a martes).
@@ -14768,9 +14771,10 @@ function calcular() {
   var capVsDemanda = analizarCapacidadVsDemanda(RC, demandaDiariaProm);
   html += '<div class="card" style="margin-bottom:16px">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">';
-  html += '<div class="card-title" style="margin:0">Análisis: horas necesarias para cumplir la demanda de fábrica</div>';
+  html += '<div class="card-title" style="margin:0;cursor:pointer" onclick="resToggle(\'analisis\')"><span class="res-car" id="res-car-analisis" style="font-family:monospace;font-weight:700;color:var(--green-text);margin-right:6px">' + (_resAbiertos.analisis ? '[−]' : '[+]') + '</span>Análisis: horas necesarias para cumplir la demanda de fábrica</div>';
   html += '<button class="btn btn-sm" onclick="exportarAnalisisHorasPorSemanaCSV()"><i class="ti ti-download"></i> Exportar CSV (detalle por semana)</button>';
   html += '</div>';
+  html += '<div id="res-col-analisis" style="display:' + (_resAbiertos.analisis ? '' : 'none') + ';margin-top:8px">';
   if (!capVsDemanda) {
     html += '<div class="alert alert-info"><i class="ti ti-info-circle"></i><span>Define un plan de molienda diaria en <strong>Fábrica</strong> para ver este análisis.</span></div>';
   } else {
@@ -14806,6 +14810,7 @@ function calcular() {
     });
     html += '</tbody></table></div>';
   }
+  html += '</div>';   // cierra el contenido colapsable
   html += '</div>';
 
   // ── Cumplimiento diario ──
@@ -14847,6 +14852,7 @@ function calcular() {
     }
     }
   }
+  html += '<!--RES-CUMPL-->';
   html += diagHtml;
 
   // ── Diagnóstico de IDs: detectar planItems sin campo correspondiente ──
@@ -14910,7 +14916,7 @@ function calcular() {
       var pctCapped = Math.min(d.pct, 150);
       var color = d.pct >= 100 ? '#1D9E75' : d.pct >= 70 ? '#BA7517' : d.pct > 0 ? '#E24B4A' : '#d6dae1';
       var tooltip = d.fecha + ': ' + Math.round(d.produccion).toLocaleString() + ' / ' + d.demanda.toLocaleString() + ' ton (' + Math.round(d.pct) + '%) — ' + d.nCampos + ' campo(s) activo(s)';
-      html += '<div title="' + tooltip + '" style="flex:1;background:' + color + ';position:relative;min-width:2px;cursor:pointer"></div>';
+      html += '<div data-cufecha="' + d.fecha + '" onclick="resCumplSel(\'' + d.fecha + '\')" title="' + tooltip + ' · clic para ver el día" style="flex:1;background:' + color + ';position:relative;min-width:2px;cursor:pointer"></div>';
     });
     html += '</div>';
 
@@ -14921,16 +14927,18 @@ function calcular() {
     html += '<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:12px;height:12px;background:#d6dae1;border-radius:2px;display:inline-block"></span>Sin campos activos</span>';
     html += '</div>';
 
+    // Controles: clic en una fecha de la barra = ese día; «Mostrar todas las fechas» = tabla completa (cada fecha con [+] para ver el ajuste sugerido)
+    html += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><button class="btn btn-sm" id="res-cumpl-btn-todas" onclick="resCumplTodas()">Mostrar todas las fechas</button><button class="btn btn-sm" id="res-cumpl-btn-exp" onclick="cuExpandirTodo(true)" style="display:none">[+] Abrir todos los ajustes</button><button class="btn btn-sm" id="res-cumpl-btn-pleg" onclick="cuExpandirTodo(false)" style="display:none">[−] Plegar todos</button><span style="font-size:11px;color:var(--text3)">Clic en una fecha de la barra para ver ese día y su ajuste sugerido</span></div>';
+    html += '<div id="res-cumpl-dia"></div>';
+    html += '<div id="res-cumpl-tabla" style="display:none">';
     // Tabla detalle diario
     html += '<div class="table-wrap" style="max-height:420px;overflow-y:auto">';
-    html += '<table class="thead-fijo"><thead><tr>';
-    html += '<th>Fecha</th><th>Día</th><th>Demanda</th><th>Producción estimada</th>';
-    html += '<th title="Stock acumulado al final del día = stock de ayer + producción − demanda (no baja de 0)">Stock en patio</th>';
-    html += '<th title="(Producción de hoy + stock de ayer) / demanda">Cumplimiento</th><th>Barra</th><th title="Cosechadoras activas ese día, sumando todos los frentes">Máquinas</th><th>Campos activos</th>';
-    html += '<th title="Ajuste específico para ESTE día — no un promedio de la zafra">Ajuste sugerido HOY</th><th>Obs.</th>';
-    html += '</tr></thead><tbody>';
+    var cuHead = '<thead><tr><th>Fecha</th><th>Día</th><th>Demanda</th><th>Producción estimada</th><th title="Stock acumulado al final del día = stock de ayer + producción − demanda (no baja de 0)">Stock en patio</th><th title="(Producción de hoy + stock de ayer) / demanda">Cumplimiento</th><th>Barra</th><th title="Cosechadoras activas ese día, sumando todos los frentes">Máquinas</th><th>Campos activos</th></tr></thead>';
+    var CUD = window._resCumpl = { main: {}, aj: {}, obs: {}, head: cuHead };
+    html += '<table class="thead-fijo">' + cuHead + '<tbody>';
     var DIAS_SEM = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
     cumplimiento.forEach(function(d) {
+      var hSave = html; html = '';   // la fila se arma aparte: fila principal + ajuste sugerido (se despliega con [+])
       var dt = new Date(d.fecha + 'T00:00:00');
       var nd = dt.getDay();
       var esFinde = (nd === 0 || nd === 6);
@@ -14939,8 +14947,8 @@ function calcular() {
       var colorBg = d.pct >= 100 ? '#1D9E75' : d.pct >= 70 ? '#BA7517' : d.pct > 0 ? '#E24B4A' : '#d6dae1';
       var barraPct = maxPct > 0 ? Math.min(100, (d.produccion / (maxPct > 0 ? planMolienda.reduce(function(mx,x){return Math.max(mx,x.ton);},0) : d.demanda)) * 100) : 0;
       var iconoCumpl = d.pct >= 100 ? '<i class="ti ti-circle-check" style="color:var(--green-text);margin-right:3px"></i>' : d.pct >= 70 ? '<i class="ti ti-alert-triangle" style="color:var(--amber-text);margin-right:3px"></i>' : d.pct > 0 ? '<i class="ti ti-x" style="color:var(--red-text);margin-right:3px"></i>' : '<i class="ti ti-minus" style="color:var(--text3);margin-right:3px"></i>';
-      html += '<tr' + (esFinde ? ' style="background:var(--bg2)"' : '') + '>';
-      html += '<td><strong>' + d.fecha + '</strong>' + (d.esReal ? ' <span class="badge badge-green" style="font-size:9px" title="Día con datos reales registrados en Ejecución">real</span>' : '') + '</td>';
+      html += '<tr data-cuf="' + d.fecha + '" style="cursor:pointer;' + (esFinde ? 'background:var(--bg2)' : '') + '" onclick="cuToggle(\'' + d.fecha + '\')" title="Clic para ver el ajuste sugerido de este día">';
+      html += '<td style="white-space:nowrap"><span class="cu-car" style="font-family:monospace;font-weight:700;color:var(--green-text);margin-right:6px">[+]</span><strong>' + d.fecha + '</strong>' + (d.esReal ? ' <span class="badge badge-green" style="font-size:9px" title="Día con datos reales registrados en Ejecución">real</span>' : '') + '</td>';
       html += '<td><span class="badge ' + (esFinde ? 'badge-amber' : 'badge-gray') + '">' + DIAS_SEM[nd] + '</span></td>';
       html += '<td>' + d.demanda.toLocaleString() + ' ton</td>';
       html += '<td><strong style="color:' + colorTxt + '">' + Math.round(d.produccion).toLocaleString() + ' ton</strong></td>';
@@ -14962,7 +14970,7 @@ function calcular() {
       }
       html += '</td>';
       // Ajuste sugerido para ESTE día específico
-      html += '<td style="max-width:320px">';
+      var mainRowHtml = html; html = '';
       if (!d.ajuste) {
         html += '<span style="color:var(--text3);font-size:11px">' + (pct >= 100 ? '✓ sin ajuste necesario' : '–') + '</span>';
       } else if (d.ajuste.sobreCumplimiento) {
@@ -15023,9 +15031,9 @@ function calcular() {
           html += '<div style="font-size:10px;color:var(--blue-text);margin-top:3px">💡 Alternativa: activar <strong>' + mejorInactivo.frente + '</strong> (sin actividad hoy, ' + mejorInactivo.nMaquinas + ' máq., ~' + Math.round(mejorInactivo.capacidadPotencialDia).toLocaleString() + ' ton/día de capacidad)' + (cubreTodoElDeficit ? ' — cubriría todo el déficit.' : ' — cubriría parte del déficit.') + '</div>';
         }
       }
-      html += '</td>';
-      html += '<td style="color:var(--text2);font-size:11px">' + (d.obs || '–') + '</td>';
-      html += '</tr>';
+      var ajContent = html; html = hSave;
+      CUD.main[d.fecha] = mainRowHtml + '</tr>'; CUD.aj[d.fecha] = ajContent; CUD.obs[d.fecha] = (d.obs || '—');
+      html += cuFilaHTML(CUD, d.fecha, false);
 
       // Resumen en texto simple del ajuste sugerido, para la exportación CSV
       var ajusteTexto = '';
@@ -15038,13 +15046,14 @@ function calcular() {
         d.campos ? d.campos.join(' | ') : '', ajusteTexto
       ]);
     });
-    html += '</tbody></table></div></div>';
+    html += '</tbody></table></div></div></div>';
   } else if (planMolienda.length && !planItems.length) {
     html += '<div class="alert alert-info" style="margin-bottom:16px"><i class="ti ti-info-circle"></i><span>Tienes un plan de molienda pero no hay campos planificados. Ve a <strong>Planificación</strong> para asignar fechas a los campos.</span></div>';
   } else if (!planMolienda.length) {
     html += '<div class="alert alert-info" style="margin-bottom:16px"><i class="ti ti-info-circle"></i><span>No hay plan de molienda. Ve a <strong>Fábrica</strong> para definir las fechas y toneladas diarias planificadas.</span></div>';
   }
 
+  html += '<!--/RES-CUMPL-->';
   // ── Guardar RC para filtros interactivos ──
   RCdata = RC.map(function(c) {
     // BUG CRÍTICO CORREGIDO: esta búsqueda NO filtraba por zafra — si un
@@ -15257,9 +15266,10 @@ function calcular() {
   // ── Filtros y tabla interactiva ──
   html += '<div class="card" id="res-detalle-card">';
   html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">';
-  html += '<div class="card-title" style="margin:0">Detalle por campo</div>';
+  html += '<div class="card-title" style="margin:0;cursor:pointer" onclick="resToggle(\'detalle\')"><span class="res-car" id="res-car-detalle" style="font-family:monospace;font-weight:700;color:var(--green-text);margin-right:6px">' + (_resAbiertos.detalle ? '[−]' : '[+]') + '</span>Detalle por campo</div>';
   html += '<div style="display:flex;align-items:center;gap:10px"><span id="res-count" style="font-size:12px;color:var(--text2)"></span><button class="btn btn-sm" onclick="exportarDetalleCampoCSV()" title="Descarga el detalle completo con los filtros y el orden actuales"><i class="ti ti-download"></i> Descargar CSV</button></div>';
   html += '</div>';
+  html += '<div id="res-col-detalle" style="display:' + (_resAbiertos.detalle ? '' : 'none') + '">';
   // Filter bar
   html += '<div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr 1fr 1.2fr 1fr auto;gap:8px;margin-bottom:12px;padding:10px 14px;background:var(--bg2);border-radius:var(--radius)">';
   html += '<div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">Buscar lote / finca</label><input type="text" id="res-buscar" placeholder="Filtrar..." style="margin:0" oninput="renderTablaResultados()"></div>';
@@ -15275,15 +15285,73 @@ function calcular() {
   html += '<div style="display:flex;flex-direction:column;justify-content:flex-end"><button class="btn btn-sm" onclick="limpiarFiltrosResultados()" style="margin:0"><i class="ti ti-x"></i> Limpiar</button></div>';
   html += '</div>';
   html += '<div id="res-tabla-wrap"></div>';
+  html += '</div>';   // cierra el contenido colapsable
   html += '</div>';
 
+  // Orden: el Cumplimiento diario de demanda va justo después del Comparativo Plan vs Fábrica (o de las tarjetas si ese gráfico no se muestra)
+  (function() {
+    var iA = html.indexOf('<!--RES-CUMPL-->'), fB = '<!--/RES-CUMPL-->', iB = html.indexOf(fB);
+    if (iA < 0 || iB < iA) return;
+    var seg = html.slice(iA, iB + fB.length); html = html.slice(0, iA) + html.slice(iB + fB.length);
+    var iC = html.indexOf('<!--RES-COMP-FIN-->'); if (iC < 0) iC = html.indexOf('<!--RES-CARDS-FIN-->'); if (iC < 0) iC = html.length;
+    html = html.slice(0, iC) + seg + html.slice(iC);
+  })();
   document.getElementById('resultado-content').innerHTML = html;
+  resCumplRestaurar();
   renderTablaResultados();
   renderCapacidadFrentePorTercio(filtroZafraRes);
 }
 
 /* ── Render: "Capacidad de frente por tercio" — al final de Resultados ── */
 // Horas efectivas de trabajo, TM/h y TM/máq/día de los frentes de MÁQUINAS (sin manuales) desde el programa simulado; rango {inicio,fin} opcional (semana filtrada)
+/* ── Resultados: Cumplimiento diario (clic en la barra = día; todas las fechas con [+] para el ajuste sugerido) y bloques colapsables ── */
+var _resAbiertos = {}, _resCumplSel = null, _resCumplTodas = false, _cuAbiertos = {};
+function resToggle(id) {
+  var ab = !_resAbiertos[id]; _resAbiertos[id] = ab;
+  var c = document.getElementById('res-col-' + id); if (c) c.style.display = ab ? '' : 'none';
+  var k = document.getElementById('res-car-' + id); if (k) k.textContent = ab ? '[−]' : '[+]';
+}
+function cuFilaHTML(D, f, panel) {
+  var main = D.main[f]; if (!main) return '';
+  var ab = panel || !!_cuAbiertos[f];
+  var tr = main.replace('>[+]<', ab ? '>[−]<' : '>[+]<');
+  if (panel) tr = tr.replace(/ onclick="[^"]*"/, '').replace('cursor:pointer;', '').replace(/ title="Clic para ver el ajuste[^"]*"/, '');
+  var det = '<tr' + (panel ? '' : ' id="cu-aj-' + f + '"') + ' style="display:' + (ab ? '' : 'none') + '"><td colspan="9" style="background:var(--bg2);padding:8px 14px"><div style="display:flex;gap:24px;flex-wrap:wrap"><div style="flex:3;min-width:280px"><div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--text2)">Ajuste sugerido para este día</div>' + D.aj[f] + '</div><div style="flex:1;min-width:160px"><div style="font-size:11px;font-weight:600;margin-bottom:4px;color:var(--text2)">Obs.</div><div style="font-size:11px;color:var(--text2)">' + D.obs[f] + '</div></div></div></td></tr>';
+  return tr + det;
+}
+function cuToggle(f) {
+  _cuAbiertos[f] = !_cuAbiertos[f];
+  var r = document.getElementById('cu-aj-' + f); if (r) r.style.display = _cuAbiertos[f] ? '' : 'none';
+  var k = document.querySelector('#res-cumpl-tabla tr[data-cuf="' + f + '"] .cu-car'); if (k) k.textContent = _cuAbiertos[f] ? '[−]' : '[+]';
+}
+function cuExpandirTodo(ab) {
+  var D = window._resCumpl; if (!D) return;
+  Object.keys(D.main).forEach(function(f) {
+    _cuAbiertos[f] = ab;
+    var r = document.getElementById('cu-aj-' + f); if (r) r.style.display = ab ? '' : 'none';
+    var k = document.querySelector('#res-cumpl-tabla tr[data-cuf="' + f + '"] .cu-car'); if (k) k.textContent = ab ? '[−]' : '[+]';
+  });
+}
+function resCumplSel(f) {
+  var D = window._resCumpl, el = document.getElementById('res-cumpl-dia'); if (!D || !el) return;
+  if (!f || _resCumplSel === f || !D.main[f]) { _resCumplSel = null; el.innerHTML = ''; }
+  else {
+    _resCumplSel = f;
+    el.innerHTML = '<div style="border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:12px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><strong style="font-size:12px">Día ' + f + '</strong><button class="btn btn-xs" onclick="resCumplSel(null)">Cerrar</button></div><div class="table-wrap" style="overflow-x:auto"><table>' + D.head + '<tbody>' + cuFilaHTML(D, f, true) + '</tbody></table></div></div>';
+  }
+  document.querySelectorAll('[data-cufecha]').forEach(function(b) { b.style.outline = (b.getAttribute('data-cufecha') === _resCumplSel) ? '2px solid var(--text)' : ''; b.style.outlineOffset = '-2px'; });
+}
+function resCumplTodas() {
+  _resCumplTodas = !_resCumplTodas;
+  var t = document.getElementById('res-cumpl-tabla'); if (t) t.style.display = _resCumplTodas ? '' : 'none';
+  var b = document.getElementById('res-cumpl-btn-todas'); if (b) b.textContent = _resCumplTodas ? 'Ocultar todas las fechas' : 'Mostrar todas las fechas';
+  ['res-cumpl-btn-exp', 'res-cumpl-btn-pleg'].forEach(function(id) { var x = document.getElementById(id); if (x) x.style.display = _resCumplTodas ? '' : 'none'; });
+}
+function resCumplRestaurar() {
+  var f = _resCumplSel; _resCumplSel = null;
+  _resCumplTodas = !_resCumplTodas; resCumplTodas();   // reaplica el estado guardado a los controles nuevos
+  if (f) resCumplSel(f);
+}
 function resOperativoPrograma(zafra, rango) {
   try {
     var P = ddProgramaZafra(zafra), sn = 0, hT = 0, ton = 0, nMaq = 0;
