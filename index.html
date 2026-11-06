@@ -5261,8 +5261,10 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.25', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.27', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.27', '2026-11-06', 'Resultados: se quitan los resúmenes de Productividad (frente completo / por cosechadora) y de Costo total equipos / Costo por tonelada'],
+  ['1.26', '2026-11-06', 'Resultados: resumen general con hectáreas, TCH, horas efectivas de trabajo, TM/h y TM/máquina/día de las cosechadoras'],
   ['1.25', '2026-11-06', 'Capacidad por tercio: cosechadoras ordenadas por año (nuevas primero) y por nombre'],
   ['1.24', '2026-11-06', 'Capacidad de frente por tercio: debajo de Toneladas y hectáreas por semana, frentes plegados con [+] y columnas más angostas'],
   ['1.23', '2026-11-06', 'Resultados · Comparativo Plan vs Fábrica: al pasar por cada punto se ve el total, el acumulado y las diferencias; la leyenda oculta series'],
@@ -14533,11 +14535,22 @@ function calcular() {
 
   // ── Métricas resumen ──
   var html = htmlBannerReal(filtroZafraRes);
+  // Rendimiento operativo del PROGRAMA SIMULADO (el mismo de Día a día, Capacidad por tercio y Seguimiento): horas efectivas de trabajo, TM/h y TM/máq/día de las cosechadoras
+  var opRes = filtroZafraRes ? resOperativoPrograma(filtroZafraRes, rangoSemanaResActivo) : null;
+  var haRes = RC.reduce(function(s, c) { return s + (c.tch > 0 ? c.tonCampo / c.tch : 0); }, 0), tchRes = haRes > 0 ? totalTon / haRes : null;
+  var tarjeta = function(lab, val, unidad, tip) { return '<div class="metric-card"' + (tip ? ' title="' + tip + '"' : '') + '><div class="metric-label">' + lab + '</div><div class="metric-value">' + val + '</div><div class="metric-unit">' + unidad + '</div></div>'; };
+  var sinOp = filtroZafraRes ? 'sin programa simulado' : 'elige una zafra';
   html += '<div class="grid4" style="margin-bottom:12px">';
-  html += '<div class="metric-card"><div class="metric-label">Total toneladas</div><div class="metric-value">' + Math.round(totalTon).toLocaleString() + '</div><div class="metric-unit">ton caña</div></div>';
-  html += '<div class="metric-card"><div class="metric-label">Cobertura zafra</div><div class="metric-value">' + (totalMolienda > 0 ? cob + '%' : '–') + '</div><div class="metric-unit">' + (totalMolienda > 0 ? 'de ' + Math.round(totalMolienda / 1000) + 'k ton plan' : 'sin plan de molienda') + '</div></div>';
-  html += '<div class="metric-card"><div class="metric-label">Campo más largo</div><div class="metric-value">' + maxH.toFixed(1) + '</div><div class="metric-unit">horas</div></div>';
-  html += '<div class="metric-card"><div class="metric-label">Ton/h promedio</div><div class="metric-value">' + (totalH > 0 ? (totalTon / totalH).toFixed(1) : '–') + '</div><div class="metric-unit">ton/h</div></div></div>';
+  html += tarjeta('Total toneladas', Math.round(totalTon).toLocaleString(), 'ton caña');
+  html += tarjeta('Hectáreas', haRes > 0 ? Math.round(haRes).toLocaleString() : '—', 'ha del plan');
+  html += tarjeta('TCH', tchRes !== null ? tchRes.toFixed(1) : '—', 'ton caña / ha', 'Toneladas ÷ hectáreas del plan');
+  html += '<div class="metric-card"><div class="metric-label">Cobertura zafra</div><div class="metric-value">' + (totalMolienda > 0 ? cob + '%' : '—') + '</div><div class="metric-unit">' + (totalMolienda > 0 ? 'de ' + Math.round(totalMolienda / 1000) + 'k ton plan' : 'sin plan de molienda') + '</div></div></div>';
+  html += '<div class="grid4" style="margin-bottom:12px">';
+  html += tarjeta('Horas efectivas de trabajo', opRes ? opRes.horas.toFixed(1) : '—', opRes ? 'h por máquina y día (corte + maniobras + ralentí)' : sinOp, 'Horas-máquina de trabajo ÷ máquinas-día de los frentes de máquinas');
+  html += tarjeta('TM/h cosechadoras', opRes ? opRes.tmh.toFixed(1) : '—', opRes ? 'ton ÷ horas-máquina de trabajo' : sinOp, 'Rendimiento por hora de trabajo de una cosechadora (misma base que la columna Productividad)');
+  html += tarjeta('TM/máquina/día', opRes ? Math.round(opRes.tmmd).toLocaleString() : '—', opRes ? 'ton ÷ máquinas-día · ' + opRes.nMaq.toFixed(1) + ' máq' : sinOp, 'Toneladas que corta una cosechadora por día = horas efectivas × TM/h');
+  html += tarjeta('Campo más largo', maxH.toFixed(1), 'horas');
+  html += '</div>';
   // Total de días de cosecha (span real del plan) — antes no se mostraba
   // ningún indicador de la duración TOTAL de la zafra en Resultados.
   html += '<div class="grid4" style="margin-bottom:16px">';
@@ -14747,62 +14760,7 @@ function calcular() {
   }
   // Capacidad de frente por tercio: justo después de «Toneladas y hectáreas programadas por semana»
   html += '<div class="card" style="margin-bottom:16px"><div class="card-title">Capacidad de frente por tercio</div><div id="capacidad-tercio-content"></div></div>';
-  // IMPORTANTE (corregido): c.productividad es la tasa "equivalente a UNA
-  // sola máquina" (tonCampo / tTrabajoH, ver calcTiempos — no se divide por
-  // nCosechadoras ahí). El ritmo del FRENTE COMPLETO (todas las cosechadoras
-  // trabajando en paralelo) se obtiene MULTIPLICANDO por nCosechadoras, no
-  // dividiendo. Antes esto estaba invertido.
-  var prodPorCosech = RC.map(function(c){ return c.productividad; });
-  var prodFrenteArr = RC.map(function(c){ return c.productividad * (c.nCosechadoras||1); });
-  var prodPromFrente = prodFrenteArr.reduce(function(s,v){return s+v;},0) / Math.max(1,RC.length);
-  var prodMaxFrente  = Math.max.apply(null, prodFrenteArr);
-  var prodMinFrente  = Math.min.apply(null, prodFrenteArr);
-  var prodPromCosech = prodPorCosech.reduce(function(s,v){return s+v;},0) / Math.max(1,RC.length);
-  var prodMaxCosech  = Math.max.apply(null, prodPorCosech);
-  var prodMinCosech  = Math.min.apply(null, prodPorCosech);
-  // Lote con max/min productividad por frente
-  var idxMax = prodFrenteArr.indexOf(prodMaxFrente);
-  var idxMin = prodFrenteArr.indexOf(prodMinFrente);
-  var loteMax = RC[idxMax] ? RC[idxMax].nombre : '–';
-  var loteMin = RC[idxMin] ? RC[idxMin].nombre : '–';
-
-  html += '<div style="background:var(--bg2);border-radius:var(--radius);padding:12px 16px;margin-bottom:12px">';
-  html += '<div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">' +
-    'Productividad — <span style="color:var(--text2);font-weight:400">"Por cosechadora" es la tasa equivalente a una sola máquina trabajando el lote. ' +
-    '"Frente completo" es esa misma tasa multiplicada por la cantidad de cosechadoras trabajando en paralelo.</span></div>';
-  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr) 2px repeat(3,1fr);gap:8px;align-items:stretch">';
-  // Frente completo
-  html += '<div class="metric-card" style="background:var(--blue-bg)">' +
-    '<div class="metric-label" style="color:var(--blue-text)">Prom. frente completo</div>' +
-    '<div class="metric-value" style="color:var(--blue-text)">' + prodPromFrente.toFixed(1) + '</div>' +
-    '<div class="metric-unit">ton/h · frente</div></div>';
-  html += '<div class="metric-card" style="background:var(--green-bg)">' +
-    '<div class="metric-label" style="color:var(--green-text)">Máx. frente completo</div>' +
-    '<div class="metric-value" style="color:var(--green-text)">' + prodMaxFrente.toFixed(1) + '</div>' +
-    '<div class="metric-unit">ton/h · lote: ' + loteMax + '</div></div>';
-  html += '<div class="metric-card" style="background:var(--amber-bg)">' +
-    '<div class="metric-label" style="color:var(--amber-text)">Mín. frente completo</div>' +
-    '<div class="metric-value" style="color:var(--amber-text)">' + prodMinFrente.toFixed(1) + '</div>' +
-    '<div class="metric-unit">ton/h · lote: ' + loteMin + '</div></div>';
-  // Divisor visual
-  html += '<div style="background:var(--border);border-radius:2px"></div>';
-  // Por cosechadora
-  html += '<div class="metric-card">' +
-    '<div class="metric-label">Prom. por cosechadora</div>' +
-    '<div class="metric-value">' + prodPromCosech.toFixed(1) + '</div>' +
-    '<div class="metric-unit">ton/h · cosechadora</div></div>';
-  html += '<div class="metric-card" style="background:var(--green-bg)">' +
-    '<div class="metric-label" style="color:var(--green-text)">Máx. por cosechadora</div>' +
-    '<div class="metric-value" style="color:var(--green-text)">' + prodMaxCosech.toFixed(1) + '</div>' +
-    '<div class="metric-unit">ton/h · cosechadora</div></div>';
-  html += '<div class="metric-card" style="background:var(--amber-bg)">' +
-    '<div class="metric-label" style="color:var(--amber-text)">Mín. por cosechadora</div>' +
-    '<div class="metric-value" style="color:var(--amber-text)">' + prodMinCosech.toFixed(1) + '</div>' +
-    '<div class="metric-unit">ton/h · cosechadora</div></div>';
-  html += '</div></div>';
-  html += '<div class="grid2" style="margin-bottom:16px">';
-  html += '<div class="metric-card" style="background:var(--green-bg)"><div class="metric-label" style="color:var(--green-text)">Costo total equipos</div><div class="metric-value" style="color:var(--green-text)">$' + Math.round(totalCosto).toLocaleString() + '</div><div class="metric-unit">cosechadoras + autovolteos</div></div>';
-  html += '<div class="metric-card" style="background:var(--green-bg)"><div class="metric-label" style="color:var(--green-text)">Costo por tonelada</div><div class="metric-value" style="color:var(--green-text)">$' + costoXton.toFixed(2) + '</div><div class="metric-unit">$/ton cosechada</div></div></div>';
+  // (Se quitaron los resúmenes «Productividad» y «Costo total equipos / Costo por tonelada»: el resumen general de arriba ya trae TM/h y TM/máquina/día de las cosechadoras.)
   if (totalMolienda > 0) html += '<div class="alert ' + (cob >= 100 ? 'alert-ok' : 'alert-warn') + '" style="margin-bottom:16px"><i class="ti ti-' + (cob >= 100 ? 'circle-check' : 'alert-triangle') + '"></i><span>Los campos cubren el <strong>' + cob + '%</strong> de la demanda planificada (' + Math.round(totalMolienda / 1000) + 'k ton en ' + diasZafra + ' días).</span></div>';
 
   // ── Análisis de capacidad vs demanda: ¿cuántas horas deberían trabajar las máquinas? ──
@@ -15325,6 +15283,19 @@ function calcular() {
 }
 
 /* ── Render: "Capacidad de frente por tercio" — al final de Resultados ── */
+// Horas efectivas de trabajo, TM/h y TM/máq/día de los frentes de MÁQUINAS (sin manuales) desde el programa simulado; rango {inicio,fin} opcional (semana filtrada)
+function resOperativoPrograma(zafra, rango) {
+  try {
+    var P = ddProgramaZafra(zafra), sn = 0, hT = 0, ton = 0, nMaq = 0;
+    Object.keys(P.F).forEach(function(fn) {
+      var F = P.F[fn]; if (F.man) return;
+      var sF = 0, hF = 0, tF = 0, nd = 0;
+      Object.keys(F.d || {}).forEach(function(f) { if (rango && (f < rango.inicio || f > rango.fin)) return; var a = F.d[f]; if (!(+a[3] > 0)) return; sF += +a[0] || 0; hF += +a[1] || 0; tF += +a[3] || 0; nd++; });
+      if (nd > 0 && sF > 0 && hF > 0) { sn += sF; hT += hF; ton += tF; nMaq += sF / nd; }
+    });
+    return (sn > 0 && hT > 0) ? { horas: hT / sn, tmh: ton / hT, tmmd: ton / sn, nMaq: nMaq } : null;
+  } catch (e) { console.warn('resOperativoPrograma', e); return null; }
+}
 var _capAbiertos = {};
 function capToggle(id) {
   var ab = !_capAbiertos[id]; _capAbiertos[id] = ab;
