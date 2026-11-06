@@ -5261,8 +5261,10 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.21', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.23', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.23', '2026-11-06', 'Resultados · Comparativo Plan vs Fábrica: al pasar por cada punto se ve el total, el acumulado y las diferencias; la leyenda oculta series'],
+  ['1.22', '2026-11-06', 'Comparativo interactivo: tooltip, leyenda que oculta/resalta series, zoom en líneas, detalle de lotes del plan por clic, CSV/PNG'],
   ['1.21', '2026-11-06', 'Comparativo: gráficos a tamaño real y altura estándar, etiquetas legibles, líneas que unen los puntos'],
   ['1.20', '2026-11-06', 'Nueva sección Comparativo: zafras anteriores (Excel) vs plan optimizado, TCH/Ha/TM por tercio, edad por semana y tenencia'],
   ['1.19', '2026-11-06', 'Capacidad de frente por tercio: desde el programa simulado, con subtotal por frente (coincide con Día a día y Seguimiento); el programa publicado incluye frentes manuales'],
@@ -14609,7 +14611,7 @@ function calcular() {
           : 'Ton por semana-zafra (miércoles a martes). "Plan (actual)" es la producción real simulada ahora mismo — la misma que ves en Día a día. ' +
             (refGuardada ? 'La serie "' + refGuardada.etiqueta + '" es una foto guardada el ' + refGuardada.guardadoEl.split('T')[0] + ', útil para comparar antes/después de optimizar.' : 'Guarda el plan actual como referencia (ej. antes de optimizar) para poder comparar el efecto de un cambio más adelante.')
         ) + '</p>';
-      html += svgLineChartMultiSerie(etiquetasSem, seriesComparativo, { height: 320 });
+      html += svgLineChartMultiSerie(etiquetasSem, seriesComparativo, { height: 320, id: 'resPlanFabrica', unidad: ' ton', titulo: function(et) { return (modoDiario ? 'Día ' : 'Semana ') + et; }, difs: [{ a: 1, b: 0, txt: 'Plan − Fábrica' }].concat(seriesComparativo.length > 2 ? [{ a: 1, b: 2, txt: 'Plan − ' + seriesComparativo[2].nombre }] : []) });
       html += '</div>';
     }
   }
@@ -25855,14 +25857,17 @@ function calcularHistoricoZafras() {
 // que svgBarChart, pensado para el comparativo "Plan vs Fábrica".
 // series: [{ nombre, color, valores: [num|null, ...] }] — valores debe
 // tener la misma longitud que etiquetasX.
+var _mcs = {};   // registro por gráfico (id): datos, opciones y series ocultas
 function svgLineChartMultiSerie(etiquetasX, series, opts) {
   opts = opts || {};
+  var id = opts.id || 'mcs', oculto = (_mcs[id] && _mcs[id].hidden) ? _mcs[id].hidden : {};
   var w = opts.width || 900, h = opts.height || 320;
   var padL = 64, padB = 34, padT = 34, padR = 16;
   var plotW = w - padL - padR, plotH = h - padT - padB;
   var fmt = opts.fmt || function(v){ return Math.round(v).toLocaleString(); };
+  var vis = series.filter(function(s){ return !oculto[s.nombre]; }); if (!vis.length) vis = series;
   var todosVals = [];
-  series.forEach(function(s){ s.valores.forEach(function(v){ if (v !== null && v !== undefined) todosVals.push(v); }); });
+  vis.forEach(function(s){ s.valores.forEach(function(v){ if (v !== null && v !== undefined) todosVals.push(v); }); });
   var maxVal = todosVals.length ? Math.max.apply(null, todosVals) : 1;
   var minVal = todosVals.length ? Math.min.apply(null, todosVals) : 0;
   if (minVal > 0) minVal = 0; // el eje siempre arranca en 0 salvo que haya negativos reales
@@ -25870,11 +25875,13 @@ function svgLineChartMultiSerie(etiquetasX, series, opts) {
   var rango = maxVal - minVal;
   var n = etiquetasX.length;
   var gap = n > 1 ? plotW / (n - 1) : plotW;
+  _mcs[id] = { et: etiquetasX, series: series, opts: opts, hidden: oculto, fmt: fmt, geo: { w: w, h: h, padL: padL, padT: padT, plotW: plotW, plotH: plotH, n: n, gap: gap } };
+  mcsBind();
 
   function xAt(i) { return padL + i * gap; }
   function yAt(v) { return padT + plotH - ((v - minVal) / rango) * plotH; }
 
-  var svg = '<svg viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:auto;display:block" preserveAspectRatio="xMidYMid meet">';
+  var svg = '<svg data-mcs="' + id + '" viewBox="0 0 ' + w + ' ' + h + '" style="width:100%;height:auto;display:block" preserveAspectRatio="xMidYMid meet">';
   // Líneas guía horizontales con etiqueta de valor
   [0, 0.25, 0.5, 0.75, 1].forEach(function(frac) {
     var y = padT + plotH - plotH * frac;
@@ -25888,25 +25895,73 @@ function svgLineChartMultiSerie(etiquetasX, series, opts) {
     if (i % pasoEtiqueta !== 0 && i !== n - 1) return;
     svg += '<text x="' + xAt(i).toFixed(1) + '" y="' + (padT + plotH + 18).toFixed(1) + '" text-anchor="middle" font-size="10" fill="var(--text2)">' + et + '</text>';
   });
+  svg += '<rect x="' + padL + '" y="' + padT + '" width="' + plotW + '" height="' + plotH + '" fill="transparent"/>';
+  svg += '<line class="mcs-cross" x1="0" x2="0" y1="' + padT + '" y2="' + (padT + plotH) + '" stroke="var(--text3)" stroke-width="1" stroke-dasharray="3 3" opacity="0" style="pointer-events:none"/>';
   // Series: línea + puntos
   series.forEach(function(s) {
+    if (oculto[s.nombre] && vis !== series) return;
     var puntos = [];
-    s.valores.forEach(function(v, i) { if (v !== null && v !== undefined) puntos.push([xAt(i), yAt(v)]); });
+    s.valores.forEach(function(v, i) { if (v !== null && v !== undefined) puntos.push([xAt(i), yAt(v), i]); });
     if (puntos.length > 1) {
       var d = 'M ' + puntos.map(function(p){ return p[0].toFixed(1) + ' ' + p[1].toFixed(1); }).join(' L ');
-      svg += '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="2.5"/>';
+      svg += '<path d="' + d + '" fill="none" stroke="' + s.color + '" stroke-width="2.5" style="pointer-events:none"/>';
     }
-    puntos.forEach(function(p){ svg += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3.5" fill="' + s.color + '"/>'; });
+    puntos.forEach(function(p){ svg += '<circle data-i="' + p[2] + '" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3.5" fill="' + s.color + '" style="pointer-events:none"/>'; });
   });
-  // Leyenda
+  // Leyenda (clic = ocultar o mostrar la serie)
   var leyX = padL;
-  series.forEach(function(s) {
+  series.forEach(function(s, si) {
+    var off = !!oculto[s.nombre], anc = 22 + s.nombre.length * 6.5;
+    svg += '<g data-mleg="' + si + '" style="cursor:pointer" opacity="' + (off ? 0.35 : 1) + '"><rect x="' + (leyX - 2) + '" y="' + (padT / 2 - 10).toFixed(1) + '" width="' + anc.toFixed(1) + '" height="20" fill="transparent"/>';
     svg += '<circle cx="' + (leyX+5) + '" cy="' + (padT/2).toFixed(1) + '" r="4.5" fill="' + s.color + '"/>';
-    svg += '<text x="' + (leyX+16) + '" y="' + (padT/2 + 4).toFixed(1) + '" font-size="11" fill="var(--text)">' + s.nombre + '</text>';
-    leyX += 22 + s.nombre.length * 6.5;
+    svg += '<text x="' + (leyX+16) + '" y="' + (padT/2 + 4).toFixed(1) + '" font-size="11" fill="var(--text)"' + (off ? ' text-decoration="line-through"' : '') + '>' + s.nombre + '</text></g>';
+    leyX += anc;
   });
   svg += '</svg>';
   return svg;
+}
+// Interactividad del gráfico: cursor sobre una semana/día = total de cada serie, acumulado y diferencias; clic en la leyenda = ocultar/mostrar serie
+function mcsBind() {
+  if (window._mcsBound) return; window._mcsBound = true;
+  document.addEventListener('mousemove', function(e) {
+    var svg = e.target.closest ? e.target.closest('svg[data-mcs]') : null;
+    if (!svg) { mcsOcultar(); return; }
+    mcsHover(e, svg);
+  });
+  document.addEventListener('click', function(e) {
+    var leg = e.target.closest ? e.target.closest('[data-mleg]') : null; if (!leg) return;
+    var svg = leg.closest('svg[data-mcs]'); if (svg) mcsToggle(svg, parseInt(leg.getAttribute('data-mleg'), 10));
+  });
+}
+function mcsOcultar() { var t = document.getElementById('cmp-tip'); if (t) t.style.display = 'none'; document.querySelectorAll('svg[data-mcs] .mcs-cross').forEach(function(el) { el.setAttribute('opacity', '0'); }); document.querySelectorAll('svg[data-mcs] circle[data-i]').forEach(function(el) { if (el.getAttribute('r') !== '3.5') el.setAttribute('r', '3.5'); }); }
+function mcsToggle(svg, si) {
+  var id = svg.getAttribute('data-mcs'), c = _mcs[id]; if (!c || !c.series[si]) return;
+  var nom = c.series[si].nombre, quedan = c.series.filter(function(s) { return !c.hidden[s.nombre]; });
+  if (c.hidden[nom]) delete c.hidden[nom]; else if (quedan.length > 1) c.hidden[nom] = true;
+  mcsOcultar(); svg.outerHTML = svgLineChartMultiSerie(c.et, c.series, c.opts);
+}
+function mcsHover(e, svg) {
+  var id = svg.getAttribute('data-mcs'), c = _mcs[id]; if (!c) return;
+  if (e.target.closest('[data-mleg]')) { mcsOcultar(); return; }
+  var g = c.geo, r = svg.getBoundingClientRect(), k = g.w / (r.width || g.w), x = (e.clientX - r.left) * k, y = (e.clientY - r.top) * k;
+  if (x < g.padL - 8 || x > g.w - 8 || y < g.padT - 6 || y > g.padT + g.plotH + 6) { mcsOcultar(); return; }
+  var i = g.n > 1 ? Math.max(0, Math.min(g.n - 1, Math.round((x - g.padL) / g.gap))) : 0;
+  var cr = svg.querySelector('.mcs-cross'), cx = g.padL + i * g.gap; if (cr) { cr.setAttribute('x1', cx); cr.setAttribute('x2', cx); cr.setAttribute('opacity', '0.8'); }
+  svg.querySelectorAll('circle[data-i]').forEach(function(el) { el.setAttribute('r', el.getAttribute('data-i') === String(i) ? '6' : '3.5'); });
+  var o = c.opts, u = o.unidad || '', sw = function(col) { return '<span style="display:inline-block;width:9px;height:9px;background:' + col + ';border-radius:50%;margin-right:6px"></span>'; };
+  var h = '<div style="font-weight:600;margin-bottom:3px">' + (o.titulo ? o.titulo(c.et[i]) : c.et[i]) + '</div>';
+  c.series.forEach(function(s) {
+    if (c.hidden[s.nombre]) return;
+    var v = s.valores[i], ac = 0; for (var j = 0; j <= i; j++) if (s.valores[j] !== null && s.valores[j] !== undefined) ac += s.valores[j];
+    h += '<div>' + sw(s.color) + s.nombre + ': <strong>' + ((v === null || v === undefined) ? '–' : c.fmt(v) + u) + '</strong>' + (g.n > 1 && v !== null && v !== undefined ? ' <span style="color:var(--text3)">· acum. ' + c.fmt(ac) + '</span>' : '') + '</div>';
+  });
+  (o.difs || []).forEach(function(d) {
+    var a = c.series[d.a], b = c.series[d.b]; if (!a || !b || c.hidden[a.nombre] || c.hidden[b.nombre]) return;
+    var va = a.valores[i], vb = b.valores[i]; if (va === null || va === undefined || vb === null || vb === undefined) return;
+    var df = va - vb, pc = vb ? df / vb * 100 : null, col = df >= 0 ? '#0a7f4f' : '#c0392b';
+    h += '<div style="margin-top:3px;color:var(--text2)">' + d.txt + ': <strong style="color:' + col + '">' + (df >= 0 ? '+' : '−') + c.fmt(Math.abs(df)) + u + (pc !== null ? ' (' + (df >= 0 ? '+' : '−') + Math.abs(pc).toFixed(1) + '%)' : '') + '</strong></div>';
+  });
+  cmpTipMostrar(h, e.clientX, e.clientY);
 }
 function svgBarChart(datos, valueKey, opts) {
   opts = opts || {};
@@ -26025,7 +26080,7 @@ function cmpRecsPlan(z, base) {
   return items.map(function(p, i) {
     var f = fechas[i], c = campos.find(function(cc) { return cc.id === p.campoId || cc.nombre === p.campoNombre; }) || {}, fc = p.fechaCorte || c.fechaCorte || '';
     var ed = (fc && cmpDia(fc) !== null) ? cmpDia(f) - cmpDia(fc) : null, tm = p.tonCampo || 0;
-    return { ten: cmpTenCodigo(c.tenencia), ter: cmpTercioDe(f, z), sem: cmpSemana(f, z0), ha: p.area || 0, tm: tm, etm: ed !== null ? ed * tm : 0, tmEd: ed !== null ? tm : 0 };
+    return { ten: cmpTenCodigo(c.tenencia), ter: cmpTercioDe(f, z), sem: cmpSemana(f, z0), ha: p.area || 0, tm: tm, etm: ed !== null ? ed * tm : 0, tmEd: ed !== null ? tm : 0, nom: p.campoNombre, fr: p.frenteNombre, f: f, ed: ed };
   });
 }
 function cmpSeries(zPlan, base) {
@@ -26054,61 +26109,189 @@ function cmpEje(lo, hi, maxTicks) {   // eje con pasos redondos (5, 10, 20, 50, 
 }
 function cmpFmtN(v, d) { return (v === null || v === undefined || !isFinite(v)) ? '–' : Number(v).toLocaleString('en-US', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
 function cmpEsc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-function cmpLeyenda(series, W) {
+/* ── Gráficos interactivos ──
+   · Cursor sobre el gráfico: ventana con el valor de TODAS las series de esa categoría/semana (en las líneas, guía vertical).
+   · Leyenda: pasar el cursor resalta la serie; clic la oculta o la muestra (el eje se reajusta).
+   · Líneas: arrastrar sobre el gráfico amplía ese tramo de semanas («Restablecer zoom» vuelve).
+   · Clic en una categoría/semana: abajo aparecen los lotes del PLAN que la forman (frente, fecha, ha, TM, edad); otro clic la cierra.
+   · CSV y PNG de cada gráfico. El estado de cada gráfico (series ocultas, zoom) se conserva al redimensionar. */
+var _cmpCharts = {}, _cmpStates = {}, _cmpDrag = null, _cmpDragMovio = false;
+function cmpEstado(cid) { return _cmpStates[cid] || (_cmpStates[cid] = { hidden: {}, zoom: null, pin: null }); }
+function cmpLeyenda(series, W, st) {
   var x = 8, y = 14, h = '';
-  series.forEach(function(s) { var w = String(s.label).length * 6.4 + 26; if (x + w > W - 8) { x = 8; y += 16; } h += '<rect x="' + x + '" y="' + (y - 8) + '" width="10" height="10" fill="' + s.color + '" rx="2"/><text x="' + (x + 14) + '" y="' + y + '" font-size="11" fill="var(--text2)">' + cmpEsc(s.label) + '</text>'; x += w; });
+  series.forEach(function(s, i) {
+    var w = String(s.label).length * 6.4 + 26; if (x + w > W - 8) { x = 8; y += 16; }
+    var off = st && st.hidden[s.label];
+    h += '<g data-leg="' + i + '" style="cursor:pointer" opacity="' + (off ? 0.35 : 1) + '"><rect x="' + (x - 2) + '" y="' + (y - 11) + '" width="' + w + '" height="15" fill="transparent"/><rect x="' + x + '" y="' + (y - 8) + '" width="10" height="10" fill="' + s.color + '" rx="2"/><text x="' + (x + 14) + '" y="' + y + '" font-size="11" fill="var(--text2)"' + (off ? ' text-decoration="line-through"' : '') + '>' + cmpEsc(s.label) + '</text></g>';
+    x += w;
+  });
   return { svg: h, alto: y + 8 };
 }
-// Barras agrupadas. series: [{label,color,vals:[por categoría],bold,colors:[por categoría]}]; o.W ancho real en px (los textos no se encogen);
-// o.deltas: [{txt,color}] por categoría; o.ymin; o.sep: línea punteada antes de la última categoría. Altura estándar 320.
+// Barras agrupadas. series: [{label,color,vals:[por categoría],bold,colors:[por categoría]}]; o.W ancho real; o.st estado; o.reg recibe la geometría
 function cmpSvgBarras(cats, series, o) {
-  o = o || {}; var W = o.W || 760, H = o.h || 320, mL = 56, mR = 12, soloColores = series.length === 1 && series[0].colors, ley = soloColores ? { svg: '', alto: 0 } : cmpLeyenda(series, W), mB = 46;
-  var gw0 = (W - mL - mR) / cats.length, inner = Math.min(gw0 * 0.8, 70 * series.length), bw = inner / series.length, hor = bw >= 40;   // etiquetas horizontales si caben; si no, verticales
+  o = o || {}; var st = o.st || { hidden: {} }, W = o.W || 760, H = o.h || 320, mL = 56, mR = 12, mB = 46;
+  var soloColores = series.length === 1 && series[0].colors, ley = soloColores ? { svg: '', alto: 0 } : cmpLeyenda(series, W, st);
+  var vis = series.filter(function(s) { return !st.hidden[s.label]; }); if (!vis.length) vis = series;
+  var gw0 = (W - mL - mR) / cats.length, inner = Math.min(gw0 * 0.8, 70 * vis.length), bw = inner / vis.length, hor = bw >= 40;
   var mT = ley.alto + (o.deltas ? 26 : 8) + (hor ? 22 : 54), pw = W - mL - mR, ph = H - mT - mB, vs = [];
-  series.forEach(function(s) { s.vals.forEach(function(v) { if (v !== null && v !== undefined && isFinite(v)) vs.push(v); }); });
+  vis.forEach(function(s) { s.vals.forEach(function(v) { if (v !== null && v !== undefined && isFinite(v)) vs.push(v); }); });
   var mx = Math.max.apply(null, vs.concat([(o.ymin || 0) + 1])), ymin = o.ymin !== undefined ? Math.min(o.ymin, Math.floor((Math.min.apply(null, vs.concat([o.ymin])) - 15) / 10) * 10) : 0;
   var ej = cmpEje(ymin, mx + (mx - ymin) * 0.1, 5); ymin = ej.min; var ymax = ej.max;
-  var Y = function(v) { return mT + ph - (v - ymin) / (ymax - ymin) * ph; }, h = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" style="width:100%;height:auto;display:block;font-family:inherit" role="img">' + ley.svg;
+  if (o.reg) o.reg.geo = { tipo: 'barras', mL: mL, pw: pw, n: cats.length, mT: mT, ph: ph, W: W, H: H };
+  var Y = function(v) { return mT + ph - (v - ymin) / (ymax - ymin) * ph; }, h = '<svg data-cid="' + (o.cid || '') + '" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" style="width:100%;height:auto;display:block;font-family:inherit" role="img">' + ley.svg;
   for (var v = ymin; v <= ymax + 1e-9; v += ej.step) { h += '<line x1="' + mL + '" x2="' + (W - mR) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="var(--border)" stroke-width="0.5"/><text x="' + (mL - 6) + '" y="' + (Y(v) + 4) + '" font-size="11" text-anchor="end" fill="var(--text3)">' + cmpFmtN(v, ej.step < 1 ? 1 : 0) + '</text>'; }
+  h += '<rect class="cmp-hov" x="0" y="' + (mT - 4) + '" width="0" height="' + (ph + 4) + '" fill="var(--text)" opacity="0" style="pointer-events:none"/>';
+  var gwp = pw / cats.length;
   cats.forEach(function(c, gi) {
-    var gx = mL + gi * (pw / cats.length) + ((pw / cats.length) - inner) / 2, gc = mL + gi * (pw / cats.length) + (pw / cats.length) / 2;
-    if (o.sep && gi === cats.length - 1) h += '<line x1="' + (mL + gi * (pw / cats.length)) + '" x2="' + (mL + gi * (pw / cats.length)) + '" y1="' + (mT - 6) + '" y2="' + (mT + ph) + '" stroke="var(--text3)" stroke-dasharray="4 3" stroke-width="1"/>';
+    var gx = mL + gi * gwp + (gwp - inner) / 2, gc = mL + gi * gwp + gwp / 2, pos = 0;
+    if (o.sep && gi === cats.length - 1) h += '<line x1="' + (mL + gi * gwp) + '" x2="' + (mL + gi * gwp) + '" y1="' + (mT - 6) + '" y2="' + (mT + ph) + '" stroke="var(--text3)" stroke-dasharray="4 3" stroke-width="1"/>';
     series.forEach(function(s, si) {
-      var v = s.vals[gi]; if (v === null || v === undefined || !isFinite(v)) return;
-      var y = Y(v), x = gx + si * bw, col = (s.colors && s.colors[gi]) || s.color, txt = cmpFmtN(v, o.dec || 0);
-      h += '<rect x="' + (x + 1) + '" y="' + y + '" width="' + Math.max(bw - 2, 1) + '" height="' + Math.max(mT + ph - y, 0) + '" fill="' + col + '" rx="1"><title>' + cmpEsc(s.label + ' · ' + c + ': ' + txt) + '</title></rect>';
-      var fs = 11, fw = s.bold ? 700 : 500, fc = s.bold ? col : 'var(--text)';
-      h += hor ? '<text x="' + (x + bw / 2) + '" y="' + (y - 5) + '" font-size="' + fs + '" font-weight="' + fw + '" text-anchor="middle" fill="' + fc + '">' + txt + '</text>'
-               : '<text transform="translate(' + (x + bw / 2 + 4) + ',' + (y - 5) + ') rotate(-90)" font-size="' + fs + '" font-weight="' + fw + '" fill="' + fc + '">' + txt + '</text>';
+      if (st.hidden[s.label] && vis !== series) return;
+      var v = s.vals[gi], x = gx + (pos++) * bw; if (v === null || v === undefined || !isFinite(v)) return;
+      var y = Y(v), col = (s.colors && s.colors[gi]) || s.color, txt = cmpFmtN(v, o.dec || 0);
+      h += '<rect data-s="' + si + '" x="' + (x + 1) + '" y="' + y + '" width="' + Math.max(bw - 2, 1) + '" height="' + Math.max(mT + ph - y, 0) + '" fill="' + col + '" rx="1"/>';
+      var fw = s.bold ? 700 : 500, fc = s.bold ? col : 'var(--text)';
+      h += hor ? '<text data-s="' + si + '" x="' + (x + bw / 2) + '" y="' + (y - 5) + '" font-size="11" font-weight="' + fw + '" text-anchor="middle" fill="' + fc + '" style="pointer-events:none">' + txt + '</text>'
+               : '<text data-s="' + si + '" transform="translate(' + (x + bw / 2 + 4) + ',' + (y - 5) + ') rotate(-90)" font-size="11" font-weight="' + fw + '" fill="' + fc + '" style="pointer-events:none">' + txt + '</text>';
     });
-    if (o.deltas && o.deltas[gi]) h += '<text x="' + gc + '" y="' + (ley.alto + 22) + '" font-size="13" font-weight="700" text-anchor="middle" fill="' + o.deltas[gi].color + '">' + o.deltas[gi].txt + '</text>';
-    var sp = String(c).lastIndexOf(' '), l1 = (sp > 0 && String(c).length > 9) ? String(c).slice(0, sp) : String(c), l2 = (sp > 0 && String(c).length > 9) ? String(c).slice(sp + 1) : '';   // «2025-2026 Plan» en dos líneas
-    h += '<text x="' + gc + '" y="' + (H - (l2 ? 24 : 16)) + '" font-size="11" text-anchor="middle" fill="var(--text2)">' + cmpEsc(l1) + (l2 ? '<tspan x="' + gc + '" dy="13">' + cmpEsc(l2) + '</tspan>' : '') + '</text>';
+    if (o.deltas && o.deltas[gi]) h += '<text x="' + gc + '" y="' + (ley.alto + 22) + '" font-size="13" font-weight="700" text-anchor="middle" fill="' + o.deltas[gi].color + '" style="pointer-events:none">' + o.deltas[gi].txt + '</text>';
+    var sp = String(c).lastIndexOf(' '), l1 = (sp > 0 && String(c).length > 9) ? String(c).slice(0, sp) : String(c), l2 = (sp > 0 && String(c).length > 9) ? String(c).slice(sp + 1) : '';
+    h += '<text x="' + gc + '" y="' + (H - (l2 ? 24 : 16)) + '" font-size="11" text-anchor="middle" fill="var(--text2)" style="pointer-events:none">' + cmpEsc(l1) + (l2 ? '<tspan x="' + gc + '" dy="13">' + cmpEsc(l2) + '</tspan>' : '') + '</text>';
   });
   return h + '</svg>';
 }
-// Líneas por semana: une con una línea delgada los puntos consecutivos que tienen dato. series: [{label,color,vals:{semana:valor},labels:bool,pos:'up'|'down',w}]
-function cmpSvgLineas(xs, series, o) {
-  o = o || {}; var W = o.W || 900, H = o.h || 320, mL = 48, mR = 16, ley = cmpLeyenda(series, W), mT = ley.alto + 22, mB = 38, pw = W - mL - mR, ph = H - mT - mB;
-  var vs = []; series.forEach(function(s) { xs.forEach(function(x) { var v = s.vals[x]; if (v !== null && v !== undefined && isFinite(v)) vs.push(v); }); });
+// Líneas por semana (une con línea delgada los puntos con dato). st.zoom=[i0,i1] índices sobre xs0
+function cmpSvgLineas(xs0, series, o) {
+  o = o || {}; var st = o.st || { hidden: {}, zoom: null }, W = o.W || 900, H = o.h || 320, mL = 48, mR = 16, ley = cmpLeyenda(series, W, st), mT = ley.alto + 22, mB = 38, pw = W - mL - mR, ph = H - mT - mB;
+  var i0 = 0, i1 = xs0.length - 1; if (st.zoom) { i0 = Math.max(0, Math.min(st.zoom[0], i1)); i1 = Math.max(i0, Math.min(st.zoom[1], i1)); }
+  var xs = xs0.slice(i0, i1 + 1), vis = series.filter(function(s) { return !st.hidden[s.label]; }); if (!vis.length) vis = series;
+  var vs = []; vis.forEach(function(s) { xs.forEach(function(x) { var v = s.vals[x]; if (v !== null && v !== undefined && isFinite(v)) vs.push(v); }); });
   if (!vs.length) return '<div style="padding:14px;color:var(--text3);font-size:12px">Sin datos para graficar.</div>';
   var ej = (o.ymin !== undefined && o.ymax !== undefined) ? { min: o.ymin, max: o.ymax, step: (o.ymax - o.ymin) / 5 } : cmpEje(Math.min.apply(null, vs) - 6, Math.max.apply(null, vs) + 6, 5), ymin = ej.min, ymax = ej.max;
+  if (o.reg) o.reg.geo = { tipo: 'lineas', mL: mL, pw: pw, n: xs.length, i0: i0, mT: mT, ph: ph, W: W, H: H };
   var X = function(i) { return mL + (xs.length > 1 ? i / (xs.length - 1) : 0.5) * pw; }, Y = function(v) { return mT + ph - (v - ymin) / (ymax - ymin) * ph; };
-  var h = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" style="width:100%;height:auto;display:block;font-family:inherit" role="img">' + ley.svg;
+  var h = '<svg data-cid="' + (o.cid || '') + '" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" style="width:100%;height:auto;display:block;font-family:inherit" role="img">' + ley.svg;
   for (var v = ymin; v <= ymax + 1e-9; v += ej.step) { h += '<line x1="' + mL + '" x2="' + (W - mR) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="var(--border)" stroke-width="0.5"/><text x="' + (mL - 6) + '" y="' + (Y(v) + 4) + '" font-size="11" text-anchor="end" fill="var(--text3)">' + (o.pct ? Math.round(v) + '%' : Math.round(v)) + '</text>'; }
   var paso = xs.length > 24 ? 2 : 1;
   xs.forEach(function(x, i) { if (i % paso === 0) h += '<text x="' + X(i) + '" y="' + (H - 18) + '" font-size="11" text-anchor="middle" fill="var(--text3)">' + x + '</text>'; });
   h += '<text x="' + (mL + pw / 2) + '" y="' + (H - 4) + '" font-size="11" text-anchor="middle" fill="var(--text3)">' + (o.xlab || 'Semana de zafra') + '</text>';
+  h += '<line class="cmp-cross" x1="0" x2="0" y1="' + mT + '" y2="' + (mT + ph) + '" stroke="var(--text3)" stroke-width="1" stroke-dasharray="3 3" opacity="0" style="pointer-events:none"/><rect class="cmp-sel" x="0" y="' + mT + '" width="0" height="' + ph + '" fill="var(--text)" opacity="0" style="pointer-events:none"/>';
   series.forEach(function(s, si) {
+    if (st.hidden[s.label] && vis !== series) return;
     var pts = []; xs.forEach(function(x, i) { var v = s.vals[x]; if (v !== null && v !== undefined && isFinite(v)) pts.push([i, v, x]); });
-    if (pts.length > 1) h += '<polyline points="' + pts.map(function(p) { return X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1); }).join(' ') + '" fill="none" stroke="' + s.color + '" stroke-width="' + (s.w || 1.5) + '" stroke-linejoin="round" stroke-linecap="round"/>';
-    var abajo = s.pos ? s.pos === 'down' : (si % 2 === 1), cada = (pw / Math.max(xs.length - 1, 1)) < 30 ? 2 : 1;   // con poco espacio se rotula uno sí y uno no (el tooltip muestra todos)
+    if (pts.length > 1) h += '<polyline data-s="' + si + '" points="' + pts.map(function(p) { return X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1); }).join(' ') + '" fill="none" stroke="' + s.color + '" stroke-width="' + (s.w || 1.5) + '" stroke-linejoin="round" stroke-linecap="round" style="pointer-events:none"/>';
+    var abajo = s.pos ? s.pos === 'down' : (si % 2 === 1), cada = (pw / Math.max(xs.length - 1, 1)) < 30 ? 2 : 1;
     pts.forEach(function(p, pi) {
-      h += '<circle cx="' + X(p[0]).toFixed(1) + '" cy="' + Y(p[1]).toFixed(1) + '" r="' + (s.labels ? 3 : 2.2) + '" fill="' + s.color + '"><title>' + cmpEsc(s.label + ' · semana ' + p[2] + ': ' + (o.pct ? p[1].toFixed(1) + '%' : p[1].toFixed(0))) + '</title></circle>';
-      if (s.labels && (pi % cada === 0 || pi === pts.length - 1)) h += '<text x="' + X(p[0]).toFixed(1) + '" y="' + (Y(p[1]) + (abajo ? 16 : -8)).toFixed(1) + '" font-size="11" font-weight="600" text-anchor="middle" fill="' + s.color + '">' + (o.pct ? Math.round(p[1]) + '%' : Math.round(p[1])) + '</text>';
+      h += '<circle data-s="' + si + '" cx="' + X(p[0]).toFixed(1) + '" cy="' + Y(p[1]).toFixed(1) + '" r="' + (s.labels ? 3 : 2.2) + '" fill="' + s.color + '" style="pointer-events:none"/>';
+      if (s.labels && (pi % cada === 0 || pi === pts.length - 1)) h += '<text data-s="' + si + '" x="' + X(p[0]).toFixed(1) + '" y="' + (Y(p[1]) + (abajo ? 16 : -8)).toFixed(1) + '" font-size="11" font-weight="600" text-anchor="middle" fill="' + s.color + '" style="pointer-events:none">' + (o.pct ? Math.round(p[1]) + '%' : Math.round(p[1])) + '</text>';
     });
   });
   return h + '</svg>';
+}
+function cmpTip() { var t = document.getElementById('cmp-tip'); if (!t) { t = document.createElement('div'); t.id = 'cmp-tip'; t.style.cssText = 'position:fixed;z-index:9999;pointer-events:none;display:none;background:var(--bg,#fff);color:var(--text,#222);border:1px solid var(--border,#ddd);border-radius:6px;box-shadow:0 4px 14px rgba(0,0,0,.18);padding:8px 10px;font-size:12px;line-height:1.5;max-width:300px'; document.body.appendChild(t); } return t; }
+function cmpTipOcultar() { var t = document.getElementById('cmp-tip'); if (t) t.style.display = 'none'; document.querySelectorAll('#cmp-content .cmp-hov,#cmp-content .cmp-cross').forEach(function(el) { el.setAttribute('opacity', '0'); }); }
+function cmpTipMostrar(html, cx, cy) {
+  var t = cmpTip(); t.innerHTML = html; t.style.display = 'block';
+  var w = t.offsetWidth, h = t.offsetHeight, l = cx + 14, tp = cy + 14;
+  if (l + w > window.innerWidth - 8) l = cx - w - 14; if (tp + h > window.innerHeight - 8) tp = cy - h - 14;
+  t.style.left = Math.max(4, l) + 'px'; t.style.top = Math.max(4, tp) + 'px';
+}
+function cmpResaltar(svg, idx) { svg.querySelectorAll('[data-s]').forEach(function(el) { el.style.opacity = (idx === null || el.getAttribute('data-s') === String(idx)) ? '' : '0.12'; }); }
+function cmpPosicion(e, svg, g) { var r = svg.getBoundingClientRect(), k = g.W / (r.width || g.W); return { x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k }; }
+function cmpIndice(g, x) {
+  if (x < g.mL || x > g.mL + g.pw) return -1;
+  if (g.tipo === 'barras') return Math.min(g.n - 1, Math.floor((x - g.mL) / (g.pw / g.n)));
+  return g.n > 1 ? Math.max(0, Math.min(g.n - 1, Math.round((x - g.mL) / g.pw * (g.n - 1)))) : 0;
+}
+function cmpOnMove(e) {
+  var svg = e.target.closest ? e.target.closest('svg[data-cid]') : null;
+  if (!svg) { if (!_cmpDrag) cmpTipOcultar(); return; }
+  var cid = svg.getAttribute('data-cid'), d = _cmpCharts[cid]; if (!d || !d.geo) return;
+  var leg = e.target.closest('[data-leg]');
+  if (leg) { cmpResaltar(svg, parseInt(leg.getAttribute('data-leg'), 10)); cmpTipOcultar(); return; }
+  cmpResaltar(svg, null);
+  var g = d.geo, p = cmpPosicion(e, svg, g);
+  if (_cmpDrag && _cmpDrag.cid === cid) {
+    _cmpDrag.x1 = Math.max(g.mL, Math.min(g.mL + g.pw, p.x)); if (Math.abs(_cmpDrag.x1 - _cmpDrag.x0) > 4) _cmpDragMovio = true;
+    var sel = svg.querySelector('.cmp-sel'); if (sel) { sel.setAttribute('x', Math.min(_cmpDrag.x0, _cmpDrag.x1)); sel.setAttribute('width', Math.abs(_cmpDrag.x1 - _cmpDrag.x0)); sel.setAttribute('opacity', '0.1'); }
+    return;
+  }
+  var i = (p.y >= g.mT - 8 && p.y <= g.mT + g.ph) ? cmpIndice(g, p.x) : -1;
+  if (i < 0) { cmpTipOcultar(); return; }
+  if (g.tipo === 'barras') { var gw = g.pw / g.n, hv = svg.querySelector('.cmp-hov'); if (hv) { hv.setAttribute('x', g.mL + i * gw); hv.setAttribute('width', gw); hv.setAttribute('opacity', '0.06'); } }
+  else { var cr = svg.querySelector('.cmp-cross'), cx = g.mL + (g.n > 1 ? i / (g.n - 1) : 0.5) * g.pw; if (cr) { cr.setAttribute('x1', cx); cr.setAttribute('x2', cx); cr.setAttribute('opacity', '0.8'); } }
+  var html = d.tip ? d.tip(g.tipo === 'lineas' ? g.i0 + i : i) : ''; if (html) cmpTipMostrar(html, e.clientX, e.clientY); else cmpTipOcultar();
+}
+function cmpOnDown(e) {
+  var svg = e.target.closest ? e.target.closest('svg[data-cid]') : null; if (!svg || e.button) return;
+  var cid = svg.getAttribute('data-cid'), d = _cmpCharts[cid]; if (!d || !d.geo || d.geo.tipo !== 'lineas' || e.target.closest('[data-leg]')) return;
+  var g = d.geo, p = cmpPosicion(e, svg, g); if (p.x < g.mL || p.x > g.mL + g.pw || p.y < g.mT || p.y > g.mT + g.ph) return;
+  _cmpDrag = { cid: cid, x0: p.x, x1: p.x }; _cmpDragMovio = false; e.preventDefault();
+}
+function cmpOnUp() {
+  var dr = _cmpDrag; _cmpDrag = null; if (!dr) return;
+  var d = _cmpCharts[dr.cid]; if (!d || !d.geo) return;
+  var g = d.geo, a = Math.min(dr.x0, dr.x1), b = Math.max(dr.x0, dr.x1);
+  if (_cmpDragMovio && (b - a) > 12 && g.n > 2) {
+    var ia = cmpIndice(g, a), ib = cmpIndice(g, b);
+    if (ib - ia >= 1) { var st = cmpEstado(dr.cid); st.zoom = [g.i0 + ia, g.i0 + ib]; st.pin = null; cmpTipOcultar(); cmpRedibujar(dr.cid); }
+  } else { var svg = document.querySelector('svg[data-cid="' + dr.cid + '"] .cmp-sel'); if (svg) svg.setAttribute('opacity', '0'); }
+}
+function cmpOnClick(e) {
+  if (_cmpDragMovio) { _cmpDragMovio = false; return; }
+  var svg = e.target.closest ? e.target.closest('svg[data-cid]') : null; if (!svg) return;
+  var cid = svg.getAttribute('data-cid'), d = _cmpCharts[cid]; if (!d || !d.geo) return;
+  var leg = e.target.closest('[data-leg]'), st = cmpEstado(cid);
+  if (leg) {
+    var lab = d.labels[parseInt(leg.getAttribute('data-leg'), 10)], quedan = d.labels.filter(function(l) { return !st.hidden[l]; });
+    if (st.hidden[lab]) delete st.hidden[lab]; else if (quedan.length > 1) st.hidden[lab] = true;
+    cmpTipOcultar(); cmpRedibujar(cid); return;
+  }
+  var g = d.geo, p = cmpPosicion(e, svg, g), i = (p.y >= g.mT - 8 && p.y <= g.mT + g.ph) ? cmpIndice(g, p.x) : -1; if (i < 0 || !d.drill) return;
+  var abs = g.tipo === 'lineas' ? g.i0 + i : i, cont = document.querySelector('[data-cdrill="' + cid + '"]'); if (!cont) return;
+  if (st.pin === abs) { st.pin = null; cont.innerHTML = ''; } else { st.pin = abs; cont.innerHTML = d.drill(abs) || ''; }
+}
+function cmpBind() {
+  var c = document.getElementById('cmp-content'); if (!c || c._cmpBound) return; c._cmpBound = true;
+  c.addEventListener('mousemove', cmpOnMove); c.addEventListener('mouseleave', function() { if (!_cmpDrag) { cmpTipOcultar(); c.querySelectorAll('svg[data-cid]').forEach(function(s) { cmpResaltar(s, null); }); } });
+  c.addEventListener('mousedown', cmpOnDown); c.addEventListener('click', cmpOnClick); window.addEventListener('mouseup', cmpOnUp);
+}
+function cmpRedibujar(cid) { var d = _cmpCharts[cid], w = document.querySelector('[data-cwrap="' + cid + '"]'); if (!d || !w) return; w.innerHTML = d.build(cmpEstado(cid)); cmpTools(cid); var c = document.querySelector('[data-cdrill="' + cid + '"]'), st = cmpEstado(cid); if (c) c.innerHTML = (st.pin !== null && d.drill) ? (d.drill(st.pin) || '') : ''; }
+function cmpZoomReset(cid) { var st = cmpEstado(cid); st.zoom = null; cmpRedibujar(cid); }
+function cmpCerrarDrill(cid) { cmpEstado(cid).pin = null; var c = document.querySelector('[data-cdrill="' + cid + '"]'); if (c) c.innerHTML = ''; }
+function cmpTools(cid) {
+  var el = document.querySelector('[data-ctools="' + cid + '"]'), st = cmpEstado(cid); if (!el) return;
+  el.innerHTML = (st.zoom ? '<button class="btn btn-xs" onclick="cmpZoomReset(\'' + cid + '\')">Restablecer zoom</button> ' : '') + '<button class="btn btn-xs" title="Descargar los datos del gráfico" onclick="cmpCSV(\'' + cid + '\')">CSV</button> <button class="btn btn-xs" title="Descargar la imagen" onclick="cmpPNG(\'' + cid + '\')">PNG</button>';
+}
+function cmpDescargar(nombre, blob) { var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nombre; document.body.appendChild(a); a.click(); setTimeout(function() { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+function cmpCSV(cid) {
+  var d = _cmpCharts[cid]; if (!d || !d.tabla) return; var t = d.tabla();
+  var q = function(v) { v = v === null || v === undefined ? '' : String(v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  cmpDescargar('comparativo-' + cid + '.csv', new Blob(['\ufeff' + [t.head].concat(t.rows).map(function(r) { return r.map(q).join(','); }).join('\n')], { type: 'text/csv;charset=utf-8' }));
+}
+function cmpPNG(cid) {
+  var svg = document.querySelector('[data-cwrap="' + cid + '"] svg'); if (!svg) return;
+  var cs = getComputedStyle(document.documentElement), W = svg.viewBox.baseVal.width, H = svg.viewBox.baseVal.height;
+  var txt = svg.outerHTML.replace(/var\((--[a-z0-9-]+)\)/g, function(m, v) { return (cs.getPropertyValue(v) || '').trim() || '#555'; }).replace(/ style="[^"]*"/, '').replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+  var img = new Image(), url = URL.createObjectURL(new Blob([txt], { type: 'image/svg+xml;charset=utf-8' }));
+  img.onload = function() { var c = document.createElement('canvas'); c.width = W * 2; c.height = H * 2; var x = c.getContext('2d'); x.fillStyle = '#ffffff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); c.toBlob(function(b) { if (b) cmpDescargar('comparativo-' + cid + '.png', b); }, 'image/png'); };
+  img.src = url;
+}
+// Lotes del PLAN que forman una categoría/semana (clic en el gráfico)
+function cmpDrillHTML(cid, titulo, recs) {
+  var cab = '<div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px">';
+  if (!recs.length) return cab + '<div style="font-size:12px;color:var(--text3)">' + cmpEsc(titulo) + ': sin lotes del plan en esta selección. <button class="btn btn-xs" onclick="cmpCerrarDrill(\'' + cid + '\')">Cerrar</button></div></div>';
+  var ha = 0, tm = 0, etm = 0, te = 0; recs.forEach(function(r) { ha += r.ha; tm += r.tm; etm += r.etm; te += r.tmEd; });
+  var ord = recs.slice().sort(function(a, b) { return String(a.f).localeCompare(String(b.f)) || String(a.nom).localeCompare(String(b.nom)); }), lim = 300;
+  var h = cab + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px"><strong style="font-size:12px">' + cmpEsc(titulo) + ' · ' + recs.length + ' lote(s) · ' + cmpFmtN(ha, 0) + ' ha · ' + cmpFmtN(tm, 0) + ' TM · TCH ' + cmpFmtN(ha > 0 ? tm / ha : null, 1) + ' · edad ' + cmpFmtN(te > 0 ? etm / te : null, 0) + '</strong><button class="btn btn-xs" onclick="cmpCerrarDrill(\'' + cid + '\')">Cerrar</button></div>';
+  h += '<div style="max-height:260px;overflow:auto"><table style="font-size:11px"><thead><tr><th>Inicio</th><th>Frente</th><th>Lote</th><th>Tenencia</th><th>Ha</th><th>TM</th><th>TCH</th><th>Edad</th></tr></thead><tbody>';
+  ord.slice(0, lim).forEach(function(r) { h += '<tr><td>' + cmpEsc(r.f) + '</td><td>' + cmpEsc(r.fr) + '</td><td>' + cmpEsc(r.nom) + '</td><td>' + (r.ten === 'A' ? 'Administrado' : r.ten === 'P' ? 'Proveedor' : '—') + '</td><td>' + cmpFmtN(r.ha, 1) + '</td><td>' + cmpFmtN(r.tm, 0) + '</td><td>' + cmpFmtN(r.ha > 0 ? r.tm / r.ha : null, 1) + '</td><td>' + (r.ed !== null && r.ed !== undefined ? r.ed : '—') + '</td></tr>'; });
+  return h + '</tbody></table>' + (ord.length > lim ? '<div style="font-size:11px;color:var(--text3);padding:4px">… y ' + (ord.length - lim) + ' lote(s) más</div>' : '') + '</div></div>';
+}
+function cmpGrafico(cid, titulo, def, nota) {
+  var st = cmpEstado(cid); st.pin = null; def.st = st; def.cid = cid; _cmpCharts[cid] = def;
+  var svg = def.build(st);
+  return '<div class="card" style="margin-bottom:14px"><div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span>' + titulo + '</span><span data-ctools="' + cid + '" style="white-space:nowrap"></span></div><div data-cwrap="' + cid + '">' + svg + '</div><div data-cdrill="' + cid + '"></div>' + (nota ? '<div style="font-size:11px;color:var(--text3);margin-top:6px">' + nota + '</div>' : '') + '</div>';
 }
 function cmpTarjeta(titulo, cuerpo, nota) { return '<div class="card" style="margin-bottom:14px"><div class="card-title">' + titulo + '</div>' + cuerpo + (nota ? '<div style="font-size:11px;color:var(--text3);margin-top:6px">' + nota + '</div>' : '') + '</div>'; }
 function cmpInit() {
@@ -26146,7 +26329,6 @@ function cmpDibujar() {
   if (!planSel) { out.innerHTML = '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>La zafra ' + zPlan + ' no tiene lotes con área en el plan.</span></div>'; return; }
   var sel = todas.filter(function(s) { return _cmpSel[s.id]; });
   if (!sel.length) { out.innerHTML = '<div class="alert alert-info"><i class="ti ti-info-circle"></i><span>Marca al menos una serie.</span></div>'; return; }
-  // ancho real de cada tarjeta (px): los gráficos se dibujan a su tamaño, así los textos se ven igual en todos; altura estándar 320
   var B = out.clientWidth || 1100, GAP = 14, PAD = 34, estrecho = B < 760;
   var wF = Math.max(300, Math.floor(B - PAD)), wH = estrecho ? wF : Math.max(300, Math.floor((B - GAP) / 2 - PAD)), w23 = estrecho ? wF : Math.max(300, Math.floor((B - GAP) * 2 / 3 - PAD)), w13 = estrecho ? wF : Math.max(280, Math.floor((B - GAP) / 3 - PAD));
   var grid2 = estrecho ? '1fr' : '1fr 1fr', grid23 = estrecho ? '1fr' : '2fr 1fr', H = 320;
@@ -26154,22 +26336,51 @@ function cmpDibujar() {
   var cats = ['1er Tercio', '2do Tercio', '3er Tercio', 'General'], valsDe = function(id, fn, grupo) { var a = aggs[id][grupo || 'all']; return a.t.map(fn).concat([fn(a.g)]); };
   var ref = todas.filter(function(s) { return s.tipo === 'real' && s.zafra === cmpZafraAnterior(zPlan); })[0];
   var deltas = function(fn, dec) { if (!ref) return null; var p = valsDe(planSel.id, fn), r = valsDe(ref.id, fn); return p.map(function(v, i) { if (v === null || r[i] === null) return null; var d = v - r[i]; return { txt: (d >= 0 ? '+' : '−') + cmpFmtN(Math.abs(d), dec), color: d >= 0 ? '#00B050' : '#E00000' }; }); };
-  var barras = function(fn, W, o, grupo) { return cmpSvgBarras(cats, sel.map(function(s) { return { label: s.label, color: s.color, vals: valsDe(s.id, fn, grupo), bold: s.tipo === 'plan' || s.tipo === 'planAnt' }; }), Object.assign({ sep: true, W: W, h: H }, o || {})); };
+  var fila = function(c, lab, txt) { return '<div><span style="display:inline-block;width:9px;height:9px;background:' + c + ';border-radius:2px;margin-right:6px"></span>' + cmpEsc(lab) + ': <strong>' + txt + '</strong></div>'; };
+  var pista = '<div style="color:var(--text3);font-size:11px;margin-top:4px">Clic: ver los lotes del plan</div>';
+  var r2 = function(v) { return (v === null || v === undefined || !isFinite(v)) ? '' : Math.round(v * 100) / 100; };
   var nota = ref ? 'Δ = ' + planSel.label + ' − ' + ref.label + ' (zafra anterior real). Fechas del plan: ' + (base === 'sim' ? 'inicio simulado del programa optimizado' : 'fecha de inicio del plan') + '.' : 'Carga el histórico para ver la diferencia contra la zafra anterior. Fechas del plan: ' + (base === 'sim' ? 'inicio simulado' : 'inicio del plan') + '.';
-  var h = '<div>';
-  h += cmpTarjeta('Toneladas de caña por hectárea (TCH) por tercio', barras(cmpTch, wF, { dec: 1, deltas: deltas(cmpTch, 2) }), nota);
+  _cmpCharts = {};
+  // barras por tercio (TCH, Ha, TM, edad; con filtro de tenencia opcional)
+  var gBarras = function(cid, titulo, fn, W, o, grupo, dec, nt) {
+    var sr = sel.map(function(s) { return { label: s.label, color: s.color, vals: valsDe(s.id, fn, grupo), bold: s.tipo === 'plan' || s.tipo === 'planAnt' }; }), def = { labels: sr.map(function(x) { return x.label; }) };
+    def.build = function(st) { return cmpSvgBarras(cats, sr, Object.assign({ sep: true, W: W, h: H, st: st, reg: def, cid: def.cid, dec: dec || 0 }, o || {})); };
+    def.tip = function(i) { var h = '<div style="font-weight:600;margin-bottom:3px">' + cats[i] + '</div>'; sr.forEach(function(x) { if (!def.st.hidden[x.label]) h += fila(x.color, x.label, cmpFmtN(x.vals[i], dec || 0)); }); return h + pista; };
+    def.drill = function(i) { return cmpDrillHTML(def.cid, planSel.label + ' · ' + cats[i] + (grupo ? (grupo === 'A' ? ' · Administrado' : ' · Proveedores') : ''), planSel.recs.filter(function(r) { return (i === 3 || r.ter === i + 1) && (!grupo || r.ten === grupo); })); };
+    def.tabla = function() { return { head: ['Categoría'].concat(def.labels), rows: cats.map(function(c, i) { return [c].concat(sr.map(function(x) { return r2(x.vals[i]); })); }) }; };
+    return cmpGrafico(cid, titulo, def, nt);
+  };
+  // líneas por semana
+  var gLineas = function(cid, titulo, xs, sr, W, o, recsDe, fmtTip, nt) {
+    var def = { labels: sr.map(function(x) { return x.label; }) };
+    def.build = function(st) { return cmpSvgLineas(xs, sr, Object.assign({ W: W, h: H, st: st, reg: def, cid: def.cid }, o || {})); };
+    def.tip = function(i) { var h = '<div style="font-weight:600;margin-bottom:3px">Semana ' + xs[i] + '</div>', alguno = false; sr.forEach(function(x) { if (def.st.hidden[x.label]) return; var v = x.vals[xs[i]]; h += fila(x.color, x.label, (v === null || v === undefined || !isFinite(v)) ? '–' : fmtTip(v)); alguno = true; }); return h + pista; };
+    def.drill = function(i) { var rc = recsDe(); if (rc === null) return '<div style="margin-top:10px;font-size:12px;color:var(--text3)">El histórico está agregado por semana: no tiene detalle por lote. <button class="btn btn-xs" onclick="cmpCerrarDrill(\'' + def.cid + '\')">Cerrar</button></div>'; return cmpDrillHTML(def.cid, rc.titulo + ' · semana ' + xs[i], rc.recs.filter(function(r) { return r.sem === xs[i]; })); };
+    def.tabla = function() { return { head: ['Semana'].concat(def.labels), rows: xs.map(function(x) { return [x].concat(sr.map(function(s) { return r2(s.vals[x]); })); }) }; };
+    return cmpGrafico(cid, titulo, def, nt);
+  };
+  var h = '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">Interactivo: cursor = valores de todas las series · clic en la leyenda = ocultar o mostrar · arrastrar sobre una línea = ampliar semanas · clic en un tercio o semana = lotes del plan · CSV y PNG en cada gráfico.</div><div>';
+  h += gBarras('tch', 'Toneladas de caña por hectárea (TCH) por tercio', cmpTch, wF, { deltas: deltas(cmpTch, 2) }, null, 1, nota);
   h += '<div style="display:grid;grid-template-columns:' + grid2 + ';gap:' + GAP + 'px">' +
-    cmpTarjeta('Hectáreas totales', barras(function(a) { return a.ha; }, wH, { deltas: deltas(function(a) { return a.ha; }, 0) })) +
-    cmpTarjeta('Toneladas métricas totales', barras(function(a) { return a.tm; }, wH, { deltas: deltas(function(a) { return a.tm; }, 0) })) + '</div>';
+    gBarras('ha', 'Hectáreas totales', function(a) { return a.ha; }, wH, { deltas: deltas(function(a) { return a.ha; }, 0) }, null, 0) +
+    gBarras('tm', 'Toneladas métricas totales', function(a) { return a.tm; }, wH, { deltas: deltas(function(a) { return a.tm; }, 0) }, null, 0) + '</div>';
   var maxSem = 0; sel.forEach(function(s) { Object.keys(aggs[s.id].all.w).forEach(function(k) { if (+k > maxSem) maxSem = +k; }); });
   var xs = []; for (var i = 1; i <= maxSem; i++) xs.push(i);
+  var srEdad = sel.map(function(s) { var v = {}; xs.forEach(function(x) { v[x] = cmpEdad(aggs[s.id].all.w[x]); }); var pl = s.tipo === 'plan' || s.tipo === 'planAnt'; return { label: s.label, color: s.color, vals: v, labels: pl, pos: s.tipo === 'planAnt' ? 'up' : 'down', w: pl ? 2 : 1.4 }; });
+  var recsPlanSel = function() { return { titulo: planSel.label, recs: planSel.recs }; };
+  // edad general (una barra por serie)
+  var defGen = { labels: sel.map(function(s) { return s.label; }) }, valsGen = sel.map(function(s) { return cmpEdad(aggs[s.id].all.g); });
+  defGen.build = function(st) { return cmpSvgBarras(defGen.labels, [{ label: 'Edad', color: '#888', vals: valsGen, colors: sel.map(function(s) { return s.color; }) }], { ymin: 250, dec: 0, W: w13, h: H, st: st, reg: defGen, cid: defGen.cid }); };
+  defGen.tip = function(i) { return fila(sel[i].color, sel[i].label, cmpFmtN(valsGen[i], 0) + ' días') + ((sel[i].tipo === 'plan' || sel[i].tipo === 'planAnt') ? pista : ''); };
+  defGen.drill = function(i) { return (sel[i].tipo === 'plan' || sel[i].tipo === 'planAnt') ? cmpDrillHTML(defGen.cid, sel[i].label + ' · toda la zafra', sel[i].recs) : ''; };
+  defGen.tabla = function() { return { head: ['Serie', 'Edad (días)'], rows: sel.map(function(s, i) { return [s.label, r2(valsGen[i])]; }) }; };
   h += '<div style="display:grid;grid-template-columns:' + grid23 + ';gap:' + GAP + 'px">' +
-    cmpTarjeta('Edad por semana de zafra (días, ponderada por TM)', cmpSvgLineas(xs, sel.map(function(s) { var v = {}; xs.forEach(function(x) { v[x] = cmpEdad(aggs[s.id].all.w[x]); }); var pl = s.tipo === 'plan' || s.tipo === 'planAnt'; return { label: s.label, color: s.color, vals: v, labels: pl, pos: s.tipo === 'planAnt' ? 'up' : 'down', w: pl ? 2 : 1.4 }; }), { W: w23, h: H })) +
-    cmpTarjeta('Edad general', cmpSvgBarras(sel.map(function(s) { return s.label; }), [{ label: 'Edad', color: '#888', vals: sel.map(function(s) { return cmpEdad(aggs[s.id].all.g); }), colors: sel.map(function(s) { return s.color; }) }], { ymin: 250, dec: 0, W: w13, h: H })) + '</div>';
-  h += cmpTarjeta('Edad por tercio (días)', barras(cmpEdad, wF, { ymin: 250 }));
+    gLineas('edadSem', 'Edad por semana de zafra (días, ponderada por TM)', xs, srEdad, w23, {}, recsPlanSel, function(v) { return v.toFixed(0) + ' días'; }) +
+    cmpGrafico('edadGen', 'Edad general', defGen) + '</div>';
+  h += gBarras('edadTer', 'Edad por tercio (días)', cmpEdad, wF, { ymin: 250 }, null, 0);
   h += '<div style="display:grid;grid-template-columns:' + grid2 + ';gap:' + GAP + 'px">' +
-    cmpTarjeta('<span style="background:#4472C4;color:#fff;padding:2px 10px;border-radius:3px">ADMINISTRADO</span> · edad por tercio', barras(cmpEdad, wH, { ymin: 250 }, 'A')) +
-    cmpTarjeta('<span style="background:#843C0C;color:#fff;padding:2px 10px;border-radius:3px">PROVEEDORES</span> · edad por tercio', barras(cmpEdad, wH, { ymin: 250 }, 'P')) + '</div>';
+    gBarras('edadA', '<span style="background:#4472C4;color:#fff;padding:2px 10px;border-radius:3px">ADMINISTRADO</span> · edad por tercio', cmpEdad, wH, { ymin: 250 }, 'A', 0) +
+    gBarras('edadP', '<span style="background:#843C0C;color:#fff;padding:2px 10px;border-radius:3px">PROVEEDORES</span> · edad por tercio', cmpEdad, wH, { ymin: 250 }, 'P', 0) + '</div>';
   var selDet = document.getElementById('cmp-det'), detId = (selDet && selDet.value) || planSel.id;
   if (selDet) { selDet.innerHTML = todas.map(function(s) { return '<option value="' + s.id + '">' + cmpEsc(s.label) + '</option>'; }).join(''); selDet.value = todas.some(function(s) { return s.id === detId; }) ? detId : planSel.id; detId = selDet.value; }
   var det = todas.filter(function(s) { return s.id === detId; })[0] || planSel;
@@ -26177,13 +26388,15 @@ function cmpDibujar() {
   var xd = []; for (var j = 1; j <= mx; j++) xd.push(j);
   var vA = {}, vP = {}, pA = {}, pP = {}; xd.forEach(function(x) { vA[x] = cmpEdad(dA[x]); vP[x] = cmpEdad(dP[x]); var ta = dA[x] ? dA[x].tm : 0, tp = dP[x] ? dP[x].tm : 0; pA[x] = (ta + tp) > 0 ? ta / (ta + tp) * 100 : null; pP[x] = (ta + tp) > 0 ? tp / (ta + tp) * 100 : null; });
   var lt = function(c, b) { return [{ label: 'ADMINISTRADO', color: '#4472C4', vals: c, labels: true, pos: 'up', w: 2 }, { label: 'PROVEEDORES', color: '#ED7D31', vals: b, labels: true, pos: 'down', w: 2 }]; };
+  var recsDet = function() { return det.tipo === 'real' ? null : { titulo: det.label, recs: det.recs }; };
   h += '<div style="display:grid;grid-template-columns:' + grid2 + ';gap:' + GAP + 'px">' +
-    cmpTarjeta('<span style="color:' + det.color + '">' + cmpEsc(det.label) + '</span> · edad por semana: Administrado vs Proveedores', cmpSvgLineas(xd, lt(vA, vP), { W: wH, h: H })) +
-    cmpTarjeta('<span style="color:' + det.color + '">' + cmpEsc(det.label) + '</span> · proporción de TM por semana', cmpSvgLineas(xd, lt(pA, pP), { W: wH, h: H, pct: true, ymin: 0, ymax: 100 })) + '</div>';
+    gLineas('detEdad', '<span style="color:' + det.color + '">' + cmpEsc(det.label) + '</span> · edad por semana: Administrado vs Proveedores', xd, lt(vA, vP), wH, {}, recsDet, function(v) { return v.toFixed(0) + ' días'; }) +
+    gLineas('detProp', '<span style="color:' + det.color + '">' + cmpEsc(det.label) + '</span> · proporción de TM por semana', xd, lt(pA, pP), wH, { pct: true, ymin: 0, ymax: 100 }, recsDet, function(v) { return v.toFixed(1) + '%'; }) + '</div>';
   var th = '<div style="overflow-x:auto"><table style="font-size:12px"><thead><tr><th>Serie</th><th>Lotes/registros</th><th>Ha</th><th>TM</th><th>TCH</th><th>Edad</th><th>Edad Admin.</th><th>Edad Prov.</th><th>% TM Admin.</th></tr></thead><tbody>';
   sel.forEach(function(s) { var a = aggs[s.id], tA = a.A.g.tm, tP = a.P.g.tm; th += '<tr><td><span style="display:inline-block;width:10px;height:10px;background:' + s.color + ';border-radius:2px;margin-right:6px"></span><strong>' + cmpEsc(s.label) + '</strong></td><td>' + s.recs.length.toLocaleString() + '</td><td>' + cmpFmtN(a.all.g.ha, 0) + '</td><td>' + cmpFmtN(a.all.g.tm, 0) + '</td><td>' + cmpFmtN(cmpTch(a.all.g), 1) + '</td><td>' + cmpFmtN(cmpEdad(a.all.g), 0) + '</td><td>' + cmpFmtN(cmpEdad(a.A.g), 0) + '</td><td>' + cmpFmtN(cmpEdad(a.P.g), 0) + '</td><td>' + ((tA + tP) > 0 ? cmpFmtN(tA / (tA + tP) * 100, 0) + '%' : '–') + '</td></tr>'; });
   h += cmpTarjeta('Resumen numérico', th + '</tbody></table></div>', 'Los registros del histórico están agregados por zafra, tenencia, tercio y semana; los del plan son lotes. Edad ponderada por TM; TCH = ΣTM ÷ ΣHa.');
   out.innerHTML = h + '</div>';
+  cmpBind(); Object.keys(_cmpCharts).forEach(cmpTools);
 }
 window.addEventListener('resize', function() { clearTimeout(_cmpResizeT); _cmpResizeT = setTimeout(function() { var p = document.getElementById('page-comparativo'); if (p && p.classList.contains('active')) cmpDibujar(); }, 250); });
 
