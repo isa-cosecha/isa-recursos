@@ -1254,6 +1254,12 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
           <select id="diadia-fecha" onchange="verDia()" style="margin:0;width:180px">
             <option value="">— selecciona un día —</option>
           </select>
+          <label style="margin:0;font-size:13px;color:var(--text2)">Frente:</label>
+          <select id="diadia-filtro-frente" onchange="verDia()" style="margin:0;width:110px"><option value="">Todos</option></select>
+          <label style="margin:0;font-size:13px;color:var(--text2)">Plantío:</label>
+          <input type="text" id="diadia-filtro-plantio" placeholder="código o nombre" oninput="verDiaDeb()" style="margin:0;width:130px">
+          <button class="btn btn-sm" onclick="ddExpandirTodo(true)" title="Mostrar los plantíos de todos los frentes"><i class="ti ti-chevrons-down"></i></button>
+          <button class="btn btn-sm" onclick="ddExpandirTodo(false)" title="Plegar todos los frentes (solo resumen)"><i class="ti ti-chevrons-up"></i></button>
           <button class="btn btn-sm" onclick="diadiaAnterior()"><i class="ti ti-chevron-left"></i></button>
           <button class="btn btn-sm" onclick="diadiaSiguiente()"><i class="ti ti-chevron-right"></i></button>
           <button class="btn btn-sm btn-primary" onclick="descargarDiaDiaPDF()" id="btn-diadia-pdf"><i class="ti ti-file-type-pdf"></i> Descargar PDF</button>
@@ -5211,8 +5217,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.14', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.15', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.15', '2026-11-06', 'Día a día: frentes plegados con resumen, filtros de frente y plantío, opción «Todas las fechas» para comparar con Seguimiento'],
   ['1.14', '2026-11-06', 'Programa diario publicado: agrega inicio/fin y velocidad de cada lote (igual que Día a día) para Seguimiento'],
   ['1.13', '2026-11-06', 'Publica el programa diario simulado (categoría progdia) para que Seguimiento coincida con Día a día'],
   ['1.12', '2026-11-06', 'Día a día: horas efectivas de TRABAJO por lote y máquina (cada máquina suma su jornada del día) y resumen del frente con base de trabajo'],
@@ -12602,7 +12609,7 @@ function getSimKey() {
   });
   return planItems.length + '_' + campos.length + '_' + Math.round(prodSum * 100) + '_' + fechasHash + '_' + overridesHash + '_' + mtoHash;
 }
-var _ddLogCache = null;
+var _ddLogCache = null, _ddPrgCache = null, _ddMantener = false;
 // Horas efectivas de corte por lote y cosechadora para un día (Logística → Cosechadoras, misma simulación). Se calcula una vez por zafra y simulación.
 function ddHorasCorte(zafra, fecha) {
   if (!zafra || !fecha || typeof logCalcular !== 'function') return null;
@@ -12612,7 +12619,7 @@ function ddHorasCorte(zafra, fecha) {
     return _ddLogCache.dias[fecha];
   } catch (e) { console.error('ddHorasCorte', e); return null; }
 }
-function invalidarSimCache() { if (typeof pdProgramar === 'function') pdProgramar(); _ddLogCache = null; _cobBkCache = {}; if (typeof _ralentiCache !== 'undefined') _ralentiCache = {}; _simCache = null; _evCache = null; _fechaInicioZafraCache = {}; _totalSemanasZafraCache = {}; _mttoPorFrenteCache = null; _eventosPorGrupoCache = {}; _planItemsPorGrupoCache = null; }
+function invalidarSimCache() { if (!_ddMantener && typeof pdProgramar === 'function') pdProgramar(); if (!_ddMantener) { _ddLogCache = null; _ddPrgCache = null; } _cobBkCache = {}; if (typeof _ralentiCache !== 'undefined') _ralentiCache = {}; _simCache = null; _evCache = null; _fechaInicioZafraCache = {}; _totalSemanasZafraCache = {}; _mttoPorFrenteCache = null; _eventosPorGrupoCache = {}; _planItemsPorGrupoCache = null; }
 // ── CACHÉ POR GRUPO (frente+zafra) ──────────────────────────────────
 // PROBLEMA DE RENDIMIENTO GRAVE CORREGIDO: getSimKey() calculaba un
 // hash GLOBAL de TODO el plan (los 2,500+ lotes y TODOS los overrides
@@ -15504,6 +15511,12 @@ function syncDiadiaFechas() {
     filtroZafraDia = selZafra.value;
   }
 
+  var selFrDD = document.getElementById('diadia-filtro-frente');
+  if (selFrDD) {
+    var curFrDD = selFrDD.value, frsDD = Array.from(new Set(planItems.filter(function(p) { return !filtroZafraDia || p.zafra === filtroZafraDia; }).map(function(p) { return p.frenteNombre; }).filter(Boolean))).sort();
+    selFrDD.innerHTML = '<option value="">Todos</option>' + frsDD.map(function(f) { return '<option value="' + f + '">' + f + '</option>'; }).join('');
+    if (frsDD.indexOf(curFrDD) >= 0) selFrDD.value = curFrDD;
+  }
   var sel = document.getElementById('diadia-fecha');
   if (!sel) return;
   var cur = sel.value;
@@ -15549,9 +15562,9 @@ function syncDiadiaFechas() {
     });
   });
   var fechas = Array.from(fechasConCosecha).sort();
-  sel.innerHTML = '<option value="">— selecciona un día —</option>' +
+  sel.innerHTML = '<option value="">— selecciona un día —</option><option value="__todas__">— Todas las fechas —</option>' +
     fechas.map(function(f) { return '<option value="' + f + '">' + f + '</option>'; }).join('');
-  if (cur && fechas.indexOf(cur) >= 0) {
+  if (cur && (fechas.indexOf(cur) >= 0 || cur === '__todas__')) {
     sel.value = cur;
   } else if (fechas.length) {
     // Si la fecha previamente seleccionada ya no pertenece a esta zafra, limpiar selección
@@ -15581,7 +15594,7 @@ function descargarDiaDiaPDF() {
   btn.innerHTML = '<i class="ti ti-loader-2"></i> Generando PDF…';
   btn.disabled = true;
 
-  var fechaSel = document.getElementById('diadia-fecha').value || 'dia';
+  var fechaSel = (document.getElementById('diadia-fecha').value || 'dia').replace('__todas__', 'todas-las-fechas');
   var zafraSel = document.getElementById('diadia-filtro-zafra').value || '';
 
   html2canvas(cont, { scale: 2, backgroundColor: '#ffffff', useCORS: true }).then(function(canvas) {
@@ -15647,22 +15660,27 @@ function diadiaAnterior() {
   var sel = document.getElementById('diadia-fecha');
   if (!sel || !sel.options.length) return;
   var idx = sel.selectedIndex;
-  if (idx > 1) { sel.selectedIndex = idx - 1; verDia(); }
+  if (idx > 2) { sel.selectedIndex = idx - 1; verDia(); }
 }
 
 function diadiaSiguiente() {
   var sel = document.getElementById('diadia-fecha');
   if (!sel || !sel.options.length) return;
   var idx = sel.selectedIndex;
-  if (idx < sel.options.length - 1) { sel.selectedIndex = idx + 1; verDia(); }
+  if (idx < 2 && sel.options.length > 2) { sel.selectedIndex = 2; verDia(); }
+  else if (idx < sel.options.length - 1) { sel.selectedIndex = idx + 1; verDia(); }
 }
 
 function verDia() {
   var fecha = document.getElementById('diadia-fecha').value;
   var el = document.getElementById('diadia-content');
   // Always use fresh cache so velocity changes are reflected immediately
-  recalcularCacheProd();
-  invalidarSimCache();
+  _ddMantener = true;   // navegar entre días no obliga a recalcular el programa diario (los cambios reales del plan sí lo invalidan)
+  try { recalcularCacheProd(); invalidarSimCache(); } finally { _ddMantener = false; }
+  var fFrenteDD = (document.getElementById('diadia-filtro-frente') || {}).value || '';
+  var fPlantDD = String((document.getElementById('diadia-filtro-plantio') || {}).value || '').trim().toLowerCase();
+
+  if (fecha === '__todas__') { verDiaTodas(el, (document.getElementById('diadia-filtro-zafra') || {}).value || '', fFrenteDD, fPlantDD); return; }
 
   if (!fecha) {
     el.innerHTML = '<div class="alert alert-info"><i class="ti ti-info-circle"></i><span>Selecciona una fecha del plan de molienda.</span></div>';
@@ -15713,6 +15731,7 @@ function verDia() {
     if (frentesHoy.indexOf(fn) === -1) frentesHoy.push(fn);
   });
   frentesHoy.sort();
+  if (fFrenteDD) frentesHoy = frentesHoy.filter(function(f) { return f === fFrenteDD; });
 
   // Lotes activos por frente — usa eventos REALES de la simulacion por lote individual.
   // IMPORTANTE: un lote se considera "activo hoy" si tiene CUALQUIER evento (cosecha,
@@ -15815,6 +15834,7 @@ function verDia() {
     if (frentesHoy.indexOf(fn) === -1) frentesHoy.push(fn);
   });
   frentesHoy.sort();
+  if (fFrenteDD) frentesHoy = frentesHoy.filter(function(f) { return f === fFrenteDD; });
 
   var demanda  = dm.ton;
   var pct      = demanda > 0 ? (totalProduccion/demanda)*100 : 0;
@@ -15885,6 +15905,13 @@ function verDia() {
     var tonFn     = simDia[fn] || 0;
     var eventsFn  = (evSim[fn] || {})[fecha] || [];
     var lotesActFn = activosPorFrente[fn] || [];
+    if (fPlantDD) {   // filtro de plantío: solo los lotes que coinciden (y sus eventos y toneladas)
+      lotesActFn = lotesActFn.filter(function(l0) { return String(l0.nombre).toLowerCase().indexOf(fPlantDD) >= 0; });
+      if (!lotesActFn.length) return;
+      eventsFn = eventsFn.filter(function(ev) { return String(ev.lote).toLowerCase().indexOf(fPlantDD) >= 0; });
+      tonFn = lotesActFn.reduce(function(a, l0) { return a + (l0.tonHoy || 0); }, 0);
+    }
+    var idFnDD = fn.replace(/[^a-zA-Z0-9_-]/g, '_');
 
     html += '<div style="margin-bottom:20px;border:0.5px solid var(--border);border-radius:var(--radius);overflow:hidden">';
 
@@ -15892,7 +15919,7 @@ function verDia() {
     html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--teal-bg)">';
     html += '<div style="display:flex;align-items:center;gap:10px"><span class="badge badge-teal" style="font-size:13px;padding:4px 12px">' + fn + '</span>';
     html += '<span style="font-size:12px;color:var(--teal-text)">' + lotesActFn.length + ' lote(s) planificado(s)</span></div>';
-    html += '<strong style="color:var(--teal-text);font-size:15px">' + Math.round(tonFn).toLocaleString() + ' ton hoy</strong>';
+    html += '<div style="display:flex;align-items:center;gap:12px"><strong style="color:var(--teal-text);font-size:15px">' + Math.round(tonFn).toLocaleString() + ' ton hoy</strong><button class="btn btn-xs" id="dd-btn-' + idFnDD + '" onclick="ddToggle(\'' + idFnDD + '\')">' + (_ddAbiertos[idFnDD] ? 'Ocultar plantíos ▴' : 'Ver plantíos ▾') + '</button></div>';
     html += '</div>';
 
     // Máquinas asignadas al frente en esta zafra (composición de la zafra) — o la cantidad de personas si es manual
@@ -15928,8 +15955,8 @@ function verDia() {
       var ddHC0 = ddHorasCorte(zafraDD, fecha);
       if (ddHC0) {
         var prefDD = fecha + '|' + fn + '|', codsDD = {}, hCorteDD = 0, hTrabDD = 0, velSumDD = 0, velHDD = 0;
-        Object.keys(ddHC0).forEach(function(kk) {
-          if (kk.indexOf(prefDD) !== 0) return;
+        lotesActFn.map(function(l0) { return prefDD + l0.nombre; }).forEach(function(kk) {
+          if (!ddHC0[kk]) return;
           var oo = ddHC0[kk]; if (!oo.maqs) return; oo.maqs.forEach(function(m) { codsDD[m.codigo] = true; });
           hCorteDD += oo.hCorte; hTrabDD += oo.hTrab;
           var cLt = campos.find(function(ca) { return ca.nombre === kk.slice(prefDD.length); });
@@ -15951,6 +15978,7 @@ function verDia() {
       }
     }
     var nColsDD = 17;
+    html += '<div id="dd-det-' + idFnDD + '" data-dd-det="1" style="display:' + (_ddAbiertos[idFnDD] ? '' : 'none') + '">';   // plantíos: plegado por defecto
     html += '<div style="padding:6px 14px;background:var(--bg2);border-bottom:0.5px solid var(--border);font-size:11px;color:var(--text2)">' +
       (esManFrDD ? 'Frente manual: ' : 'Máquinas asignadas al frente: ') + maqAsigHtml +
       (eventsFn.length ? ' · <span style="color:var(--text3)">Haz clic en un lote para ver su secuencia de trabajo del día.</span>' : ' · <span style="color:var(--text3);font-style:italic">Sin eventos este día.</span>') + '</div>';
@@ -16091,12 +16119,104 @@ function verDia() {
       html += '<div style="padding:6px 14px;border-top:0.5px solid var(--border);font-size:11px;cursor:pointer;color:var(--text2)" onclick="var r=document.getElementById(\'' + idOtros + '\');if(r)r.style.display=r.style.display===\'none\'?\'\':\'none\';">▸ Otros eventos del frente (' + evOtros.length + ')</div>';
       html += '<div id="' + idOtros + '" style="display:none;padding:6px 14px;background:var(--bg2)">' + evOtros.map(evHtml).join('') + '</div>';
     }
+    html += '</div>';   // cierra el detalle de plantíos
     html += '</div>';
   });
 
   html += '</div>';
 
   el.innerHTML = html;
+}
+
+/* ── Día a día: plegado de frentes, «Todas las fechas» y comparación con Seguimiento ── */
+var _ddAbiertos = {}, _ddPlantTimer = null;
+function verDiaDeb() { clearTimeout(_ddPlantTimer); _ddPlantTimer = setTimeout(verDia, 350); }
+function ddToggle(id) {
+  var el = document.getElementById('dd-det-' + id); if (!el) return;
+  var abrir = el.style.display === 'none'; el.style.display = abrir ? '' : 'none'; _ddAbiertos[id] = abrir;
+  var b = document.getElementById('dd-btn-' + id); if (b) b.textContent = abrir ? 'Ocultar plantíos ▴' : 'Ver plantíos ▾';
+}
+function ddExpandirTodo(abrir) {
+  document.querySelectorAll('[data-dd-det]').forEach(function(el) {
+    var id = el.id.replace('dd-det-', ''); el.style.display = abrir ? '' : 'none'; _ddAbiertos[id] = abrir;
+    var b = document.getElementById('dd-btn-' + id); if (b) b.textContent = abrir ? 'Ocultar plantíos ▴' : 'Ver plantíos ▾';
+  });
+}
+function ddProgramaZafra(z) {
+  if (_ddPrgCache && _ddPrgCache.z === z) return _ddPrgCache;
+  var items = construirProgDiaZafra(z), L = {}, F = {};
+  items.forEach(function(it) { if (it.t === 'L') L[it.id] = it; else if (it.t === 'F') F[it.f] = it; });
+  return (_ddPrgCache = { z: z, items: items, L: L, F: F });
+}
+// Mismas fórmulas que «Programa por frente» de Seguimiento (pdQ / pdAgg) para que ambos coincidan
+function ddQLote(it) {
+  var dd = Object.keys(it.d || {}).sort().map(function(f) { var a = it.d[f] || []; return { f: f, k: +a[0] || 0, hT: +a[1] || 0, hC: +a[2] || 0, ton: +a[3] || 0 }; });
+  if (!dd.length) return null;
+  var sk = 0, sh = 0, sc = 0, st = 0, mx = 0;
+  dd.forEach(function(x) { sk += x.k; sh += x.hT; sc += x.hC; st += x.ton; if (x.k > mx) mx = x.k; });
+  if (!(sk > 0) || !(sh > 0)) return null;
+  return { nec: mx, hef: sh / sk, hefC: sc / sk, pu: st / sh, tmmd: st / sk, cap: st / dd.length, ton: st, hT: sh, hC: sc, sk: sk, dias: dd.length, dd: dd, v: (+it.v > 0 ? +it.v : null), vf: it.vf || 'tabla' };
+}
+function ddAggFrente(F, rows) {
+  var ton = 0, hT = 0, hC = 0, fd = {}, vs = 0, vh = 0, ini = null, fin = null;
+  rows.forEach(function(r) {
+    var q = r.q; ton += q.ton; hT += q.hT; hC += q.hC; if (q.v > 0 && q.hC > 0) { vs += q.v * q.hC; vh += q.hC; }
+    q.dd.forEach(function(d) { fd[d.f] = 1; });
+    if (r.it.i && (!ini || r.it.i < ini)) ini = r.it.i; if (r.it.e && (!fin || r.it.e > fin)) fin = r.it.e;
+  });
+  var sn = 0, nec = 0, nd = 0;
+  Object.keys(fd).forEach(function(f) { var a = F && F.d && F.d[f], n = a ? (+a[0] || 0) : 0; sn += n; nd++; if (n > nec) nec = n; });
+  if (!(hT > 0) || !(sn > 0)) return null;
+  return { nec: nec, hef: hT / sn, hefC: hC / sn, tmh: ton / hT, tmmd: ton / sn, cap: ton / nd, vel: vh > 0 ? vs / vh : null, dias: nd, ton: ton, sn: sn, ini: ini, fin: fin };
+}
+function ddCelda(lab, val, sub, tip) {
+  return '<div title="' + tip + '" style="flex:1;min-width:130px;padding:8px 14px;border-right:0.5px solid var(--border)"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">' + lab + '</div><div style="font-size:15px;font-weight:600;color:var(--text)">' + val + '</div><div style="font-size:10px;color:var(--text3)">' + sub + '</div></div>';
+}
+function verDiaTodas(el, z, fFrente, fPlant) {
+  if (!z) { el.innerHTML = '<div class="alert alert-info"><i class="ti ti-info-circle"></i><span>Para ver todas las fechas elige primero una zafra.</span></div>'; return; }
+  el.innerHTML = '<div class="alert alert-info"><i class="ti ti-loader-2"></i><span>Calculando el programa completo de la zafra…</span></div>';
+  setTimeout(function() {
+    var P;
+    try { P = ddProgramaZafra(z); } catch (e) { el.innerHTML = '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>No se pudo calcular el programa: ' + (e && e.message ? e.message : e) + '</span></div>'; return; }
+    var planPorId = {}; planItems.forEach(function(p) { if (p.zafra === z) planPorId[p.id] = p; });
+    var frs = Array.from(new Set(P.items.filter(function(it) { return it.t === 'L'; }).map(function(it) { return it.f; }))).sort();
+    if (fFrente) frs = frs.filter(function(f) { return f === fFrente; });
+    var fmtD = function(t) { return t ? t.slice(0, 10) + ' <span style="color:var(--text3)">' + t.slice(11) + '</span>' : '–'; };
+    var n1 = function(v, d) { return (v === null || v === undefined || !isFinite(v)) ? '–' : v.toFixed(d === undefined ? 1 : d); };
+    var html = '<div class="alert alert-info" style="margin-bottom:14px"><i class="ti ti-info-circle"></i><span><strong>Todas las fechas · zafra ' + z + '.</strong> Programa simulado completo: es lo que muestra «Programa por frente» de Seguimiento. Cosechadoras = máximo en un día; Hrs efect. = horas-máquina de trabajo ÷ máquinas-día; TM/h = t ÷ horas-máquina de trabajo; TM/máq/día = t ÷ máquinas-día; Capacidad = t por día de corte.</span></div>';
+    html += '<div class="card"><div class="card-title">Detalle por frente</div>';
+    var hayAlgo = false;
+    frs.forEach(function(fn) {
+      var rows = P.items.filter(function(it) { return it.t === 'L' && it.f === fn && (!fPlant || String(it.n).toLowerCase().indexOf(fPlant) >= 0); })
+        .sort(function(a, b) { return String(a.i || '9').localeCompare(String(b.i || '9')); }).map(function(it) { return { it: it, q: ddQLote(it) }; });
+      if (!rows.length) return; hayAlgo = true;
+      var agg = ddAggFrente(P.F[fn], rows.filter(function(r) { return r.q; })), idFn = fn.replace(/[^a-zA-Z0-9_-]/g, '_');
+      html += '<div style="margin-bottom:20px;border:0.5px solid var(--border);border-radius:var(--radius);overflow:hidden">';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--teal-bg)"><div style="display:flex;align-items:center;gap:10px"><span class="badge badge-teal" style="font-size:13px;padding:4px 12px">' + fn + '</span><span style="font-size:12px;color:var(--teal-text)">' + rows.length + ' plantío(s)</span></div>' +
+        '<div style="display:flex;align-items:center;gap:12px"><strong style="color:var(--teal-text);font-size:15px">' + (agg ? Math.round(agg.ton).toLocaleString() : '0') + ' ton simuladas</strong><button class="btn btn-xs" id="dd-btn-' + idFn + '" onclick="ddToggle(\'' + idFn + '\')">' + (_ddAbiertos[idFn] ? 'Ocultar plantíos ▴' : 'Ver plantíos ▾') + '</button></div></div>';
+      if (agg) {
+        html += '<div style="display:flex;flex-wrap:wrap;border-bottom:0.5px solid var(--border);background:var(--bg)">' +
+          ddCelda('Cosechadoras', agg.nec, 'máximo en un día · prom. ' + (agg.sn / agg.dias).toFixed(1), 'Máquinas distintas por día: máximo del período y promedio por día de corte') +
+          ddCelda('Hrs efect. (trabajo)', agg.hef.toFixed(1) + ' h', 'por máquina · corte ' + agg.hefC.toFixed(1) + ' h + maniob./ralentí ' + (agg.hef - agg.hefC).toFixed(1) + ' h', 'Horas-máquina de trabajo ÷ máquinas-día') +
+          ddCelda('TM/h', agg.tmh.toFixed(1), 'ton ÷ máq-h de trabajo', 'Toneladas ÷ horas-máquina de trabajo') +
+          ddCelda('TM/máq/día', Math.round(agg.tmmd).toLocaleString(), 'ton ÷ máquinas-día', 'Toneladas ÷ máquinas-día') +
+          ddCelda('Capacidad frente', Math.round(agg.cap).toLocaleString(), 't/día · ' + agg.dias + ' días de corte', 'Toneladas ÷ días con corte') +
+          ddCelda('Vel. de corte', agg.vel > 0 ? agg.vel.toFixed(1) + ' km/h' : '–', 'prom. ponderado por horas de corte', 'Velocidad de cosecha ponderada por horas de corte') +
+          ddCelda('Inicio → fin', (agg.ini || '–').slice(0, 10), '→ ' + (agg.fin || '–').slice(0, 10), 'Primer y último evento de cosecha del frente') + '</div>';
+      }
+      html += '<div id="dd-det-' + idFn + '" data-dd-det="1" style="display:' + (_ddAbiertos[idFn] ? '' : 'none') + ';overflow-x:auto"><table style="font-size:12px"><thead><tr><th>Lote</th><th>TCH</th><th>Cosech.</th><th>Vel. cosecha</th><th>Hrs efect.</th><th>TM/h</th><th>TM/máq/día</th><th>Capacidad t/día</th><th>Ton campo</th><th>Ton simuladas</th><th>Días</th><th>F. inicio</th><th>F. fin</th></tr></thead><tbody>';
+      rows.forEach(function(r) {
+        var q = r.q, p = planPorId[r.it.id] || {};
+        html += '<tr><td><strong>' + r.it.n + '</strong></td><td>' + (p.tch !== undefined && p.tch !== null ? p.tch : '–') + '</td>' +
+          (q ? '<td>' + q.nec + '</td><td>' + n1(q.v) + (q.v ? ' <span style="font-size:9px;color:var(--blue-text)">' + (q.vf === 'anterior' ? 'ant.' : 'tabla') + '</span>' : '') + '</td><td>' + n1(q.hef) + ' h</td><td>' + n1(q.pu) + '</td><td>' + Math.round(q.tmmd).toLocaleString() + '</td><td>' + Math.round(q.cap).toLocaleString() + '</td>' : '<td colspan="6" style="color:var(--text3)">sin corte en la simulación</td>') +
+          '<td>' + Math.round(p.tonCampo || 0).toLocaleString() + '</td><td>' + (q ? Math.round(q.ton).toLocaleString() : '–') + '</td><td>' + (q ? q.dias : '–') + '</td><td style="white-space:nowrap">' + fmtD(r.it.i) + '</td><td style="white-space:nowrap">' + fmtD(r.it.e) + '</td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+    });
+    if (!hayAlgo) html += '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>No hay plantíos que coincidan con el filtro.</span></div>';
+    html += '</div>';
+    el.innerHTML = html;
+  }, 30);
 }
 
 /* ── Analizador de secuencia ── */
