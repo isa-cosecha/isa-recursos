@@ -5261,8 +5261,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.29', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.30', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.30', '2026-11-06', 'Comparativo: proporción de TM por semana y variedad (plan o zafras reales) con [+] por semana para ver los días'],
   ['1.29', '2026-11-06', 'Resultados: el aviso de cobertura sube debajo del comparativo Plan vs Fábrica e incluye el desfase fin de cosecha vs molienda; se quita el segundo aviso'],
   ['1.28', '2026-11-06', 'Resultados: Cumplimiento diario justo después del comparativo Plan vs Fábrica (clic en la barra = día, todas las fechas con [+] de ajuste sugerido); Análisis de horas y Detalle por campo colapsados'],
   ['1.27', '2026-11-06', 'Resultados: se quitan los resúmenes de Productividad (frente completo / por cosechadora) y de Costo total equipos / Costo por tonelada'],
@@ -26093,26 +26094,33 @@ function cmpParseMatriz(m) {
   for (i = 0; i < m.length && i < 30; i++) { var n = (m[i] || []).map(cmpNorm); if (n.indexOf('zafra') >= 0 && (n.indexOf('tonmetrica') >= 0 || n.indexOf('tm') >= 0)) { hi = i; break; } }
   if (hi < 0) throw new Error('No encontré la fila de encabezados (Zafra, Ha, Ton Metrica, Fecha de Corte, TENENCIA…).');
   var H = m[hi].map(cmpNorm), col = function() { for (var k = 0; k < arguments.length; k++) { var x = H.indexOf(arguments[k]); if (x >= 0) return x; } return -1; };
-  var cZ = col('zafra'), cHa = col('ha', 'hectareas'), cTM = col('tonmetrica', 'tm'), cF = col('fechadecorte', 'fecha'), cTen = col('tenencia'), cTer = col('tercio'), cSem = col('semana'), cEd = col('edad'), cEt = col('edadtm');
+  var cVar = col('variedad'), cZ = col('zafra'), cHa = col('ha', 'hectareas'), cTM = col('tonmetrica', 'tm'), cF = col('fechadecorte', 'fecha'), cTen = col('tenencia'), cTer = col('tercio'), cSem = col('semana'), cEd = col('edad'), cEt = col('edadtm');
   if (cZ < 0 || cHa < 0 || cTM < 0 || cF < 0) throw new Error('Faltan columnas obligatorias: Zafra, Ha, Ton Metrica y Fecha de Corte.');
   var rows = [], omitidas = 0, z0 = {};
   for (i = hi + 1; i < m.length; i++) {
     var r = m[i] || [], z = r[cZ] == null ? '' : String(r[cZ]).trim(), ha = parseFloat(r[cHa]), tm = parseFloat(r[cTM]), f = cmpFechaISO(r[cF]);
     if (!z || isNaN(ha) || isNaN(tm) || !f) { omitidas++; continue; }
     var ed = cEd >= 0 ? parseFloat(r[cEd]) : NaN, etm = cEt >= 0 ? parseFloat(r[cEt]) : (isNaN(ed) ? NaN : ed * tm);
-    rows.push({ z: z, ha: ha, tm: tm, f: f, ten: cTen >= 0 ? cmpTenCodigo(r[cTen]) : 'O', ter: cTer >= 0 ? parseInt(r[cTer], 10) : null, sem: cSem >= 0 ? parseInt(r[cSem], 10) : null, etm: etm });
+    rows.push({ va: cVar >= 0 ? String(r[cVar] == null ? '' : r[cVar]).trim() : null, z: z, ha: ha, tm: tm, f: f, ten: cTen >= 0 ? cmpTenCodigo(r[cTen]) : 'O', ter: cTer >= 0 ? parseInt(r[cTer], 10) : null, sem: cSem >= 0 ? parseInt(r[cSem], 10) : null, etm: etm });
     var d = cmpDia(f); if (z0[z] === undefined || d < z0[z]) z0[z] = d;
   }
   if (!rows.length) throw new Error('El archivo no tiene filas con zafra, hectáreas, toneladas y fecha de corte.');
-  var agg = {}, sinEdad = 0;
+  var agg = {}, sinEdad = 0, vn = [], vIdx = {}, vagg = {};
   rows.forEach(function(r) {
     var ter = (r.ter >= 1 && r.ter <= 3) ? r.ter : cmpTercioDe(r.f, r.z), sem = (r.sem >= 1) ? r.sem : cmpSemana(r.f, z0[r.z]), k = r.z + '|' + r.ten + '|' + ter + '|' + sem;
     var a = agg[k] || (agg[k] = { z: r.z, ten: r.ten, ter: ter, sem: sem, ha: 0, tm: 0, etm: 0 });
     a.ha += r.ha; a.tm += r.tm; if (isNaN(r.etm)) sinEdad++; else a.etm += r.etm;
+    if (r.va !== null && r.tm > 0) {   // variedad por (fecha, semana): la semana del Excel no siempre es función de la fecha, por eso se guarda el par
+      var vk = cmpVarKey(r.va || 'Sin variedad'); if (vIdx[vk] === undefined) { vIdx[vk] = vn.length; vn.push(r.va || 'Sin variedad'); }
+      var kd = r.f.slice(2, 4) + r.f.slice(5, 7) + r.f.slice(8, 10) + '/' + sem, zz = vagg[r.z] || (vagg[r.z] = {}), dd = zz[kd] || (zz[kd] = {});
+      dd[vIdx[vk]] = (dd[vIdx[vk]] || 0) + r.tm;
+    }
   });
+  var vd = {};
+  Object.keys(vagg).forEach(function(z) { vd[z] = Object.keys(vagg[z]).sort().map(function(kd) { return kd + ':' + Object.keys(vagg[z][kd]).map(function(i) { return i + '=' + Math.round(vagg[z][kd][i] * 10) / 10; }).join(','); }).join(';'); });
   var rd = function(v, d) { var p = Math.pow(10, d); return Math.round(v * p) / p; };
   var filas = Object.keys(agg).sort().map(function(k) { var a = agg[k]; return [a.z, a.ten, a.ter, a.sem, rd(a.ha, 3), rd(a.tm, 2), rd(a.etm, 1)]; });
-  return { filas: filas, n: rows.length, omitidas: omitidas, sinEdad: sinEdad, zafras: Array.from(new Set(rows.map(function(r) { return r.z; }))).sort() };
+  return { vn: vn, vd: vd, filas: filas, n: rows.length, omitidas: omitidas, sinEdad: sinEdad, zafras: Array.from(new Set(rows.map(function(r) { return r.z; }))).sort() };
 }
 function cmpImportarExcel(input) {
   var f = input.files && input.files[0]; if (!f) return;
@@ -26122,7 +26130,7 @@ function cmpImportarExcel(input) {
     try {
       var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
       var res = cmpParseMatriz(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null, blankrows: false }));
-      historicoCompar = JSON.stringify({ v: 1, arch: f.name, fecha: new Date().toISOString(), n: res.n, filas: res.filas });
+      historicoCompar = JSON.stringify({ v: 1, arch: f.name, fecha: new Date().toISOString(), n: res.n, filas: res.filas, vn: res.vn, vd: res.vd });
       if (typeof autoSave === 'function') autoSave();
       _cmpSel = null; cmpInit();
       var msg = 'Histórico cargado: ' + res.n.toLocaleString() + ' plantíos de ' + res.zafras.join(', ') + (res.omitidas ? ' · ' + res.omitidas + ' fila(s) omitida(s) por datos incompletos' : '') + (res.sinEdad ? ' · ' + res.sinEdad + ' sin edad' : '') + '.';
@@ -26139,11 +26147,14 @@ function cmpRecsPlan(z, base) {
   var pd = null; if (base === 'sim') { try { pd = ddProgramaZafra(z); } catch (e) { pd = null; } }
   var fechas = items.map(function(p) { var it = pd && pd.L[p.id]; return (it && it.i) ? String(it.i).slice(0, 10) : p.fechaInicio; });
   var z0 = Math.min.apply(null, fechas.map(cmpDia).filter(function(x) { return x !== null; }));
-  return items.map(function(p, i) {
+  var out = items.map(function(p, i) {
     var f = fechas[i], c = campos.find(function(cc) { return cc.id === p.campoId || cc.nombre === p.campoNombre; }) || {}, fc = p.fechaCorte || c.fechaCorte || '';
     var ed = (fc && cmpDia(fc) !== null) ? cmpDia(f) - cmpDia(fc) : null, tm = p.tonCampo || 0;
-    return { ten: cmpTenCodigo(c.tenencia), ter: cmpTercioDe(f, z), sem: cmpSemana(f, z0), ha: p.area || 0, tm: tm, etm: ed !== null ? ed * tm : 0, tmEd: ed !== null ? tm : 0, nom: p.campoNombre, fr: p.frenteNombre, f: f, ed: ed };
+    var itp = pd && pd.L[p.id], dd = null;   // toneladas por día del programa simulado (para ver la variedad por día)
+    if (itp && itp.d) { dd = Object.keys(itp.d).map(function(fd) { return [fd, +itp.d[fd][3] || 0]; }).filter(function(x) { return x[1] > 0; }); if (!dd.length) dd = null; }
+    return { ten: cmpTenCodigo(c.tenencia), ter: cmpTercioDe(f, z), sem: cmpSemana(f, z0), ha: p.area || 0, tm: tm, etm: ed !== null ? ed * tm : 0, tmEd: ed !== null ? tm : 0, nom: p.campoNombre, fr: p.frenteNombre, f: f, ed: ed, va: String(c.variedad || '').trim() || 'Sin variedad', dd: dd };
   });
+  out.z0 = z0; return out;
 }
 function cmpSeries(zPlan, base) {
   var out = [], H = cmpHist(), zAnt = cmpZafraAnterior(zPlan);
@@ -26152,7 +26163,7 @@ function cmpSeries(zPlan, base) {
   });
   [[zAnt, zAnt + ' Plan', CMP_COLOR_PLAN_ANT, 'planAnt', 'plan'], [zPlan, zPlan + ' Plan', CMP_COLOR_PLAN, 'plan', base]].forEach(function(x) {
     if (!x[0]) return; var recs = cmpRecsPlan(x[0], x[4]);
-    if (recs.length) out.push({ id: 'plan:' + x[0], label: x[1], color: x[2], tipo: x[3], zafra: x[0], recs: recs });
+    if (recs.length) out.push({ id: 'plan:' + x[0], label: x[1], color: x[2], tipo: x[3], zafra: x[0], recs: recs, z0: recs.z0 });
   });
   return out;
 }
@@ -26303,6 +26314,8 @@ function cmpOnClick(e) {
   if (_cmpDragMovio) { _cmpDragMovio = false; return; }
   var svg = e.target.closest ? e.target.closest('svg[data-cid]') : null; if (!svg) return;
   var cid = svg.getAttribute('data-cid'), d = _cmpCharts[cid]; if (!d || !d.geo) return;
+  var ex = e.target.closest('[data-vexp]');   // [+] / [−] bajo una semana: despliega sus días en el mismo gráfico
+  if (ex) { var st0 = cmpEstado(cid), sm = ex.getAttribute('data-vexp'); st0.exp = st0.exp || {}; if (st0.exp[sm]) delete st0.exp[sm]; else st0.exp[sm] = true; st0.pin = null; cmpTipOcultar(); cmpRedibujar(cid); return; }
   var leg = e.target.closest('[data-leg]'), st = cmpEstado(cid);
   if (leg) {
     var lab = d.labels[parseInt(leg.getAttribute('data-leg'), 10)], quedan = d.labels.filter(function(l) { return !st.hidden[l]; });
@@ -26346,10 +26359,79 @@ function cmpDrillHTML(cid, titulo, recs) {
   var ha = 0, tm = 0, etm = 0, te = 0; recs.forEach(function(r) { ha += r.ha; tm += r.tm; etm += r.etm; te += r.tmEd; });
   var ord = recs.slice().sort(function(a, b) { return String(a.f).localeCompare(String(b.f)) || String(a.nom).localeCompare(String(b.nom)); }), lim = 300;
   var h = cab + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px"><strong style="font-size:12px">' + cmpEsc(titulo) + ' · ' + recs.length + ' lote(s) · ' + cmpFmtN(ha, 0) + ' ha · ' + cmpFmtN(tm, 0) + ' TM · TCH ' + cmpFmtN(ha > 0 ? tm / ha : null, 1) + ' · edad ' + cmpFmtN(te > 0 ? etm / te : null, 0) + '</strong><button class="btn btn-xs" onclick="cmpCerrarDrill(\'' + cid + '\')">Cerrar</button></div>';
-  h += '<div style="max-height:260px;overflow:auto"><table style="font-size:11px"><thead><tr><th>Inicio</th><th>Frente</th><th>Lote</th><th>Tenencia</th><th>Ha</th><th>TM</th><th>TCH</th><th>Edad</th></tr></thead><tbody>';
-  ord.slice(0, lim).forEach(function(r) { h += '<tr><td>' + cmpEsc(r.f) + '</td><td>' + cmpEsc(r.fr) + '</td><td>' + cmpEsc(r.nom) + '</td><td>' + (r.ten === 'A' ? 'Administrado' : r.ten === 'P' ? 'Proveedor' : '—') + '</td><td>' + cmpFmtN(r.ha, 1) + '</td><td>' + cmpFmtN(r.tm, 0) + '</td><td>' + cmpFmtN(r.ha > 0 ? r.tm / r.ha : null, 1) + '</td><td>' + (r.ed !== null && r.ed !== undefined ? r.ed : '—') + '</td></tr>'; });
+  h += '<div style="max-height:260px;overflow:auto"><table style="font-size:11px"><thead><tr><th>Inicio</th><th>Frente</th><th>Lote</th>' + (ord[0] && ord[0].va ? '<th>Variedad</th>' : '') + '<th>Tenencia</th><th>Ha</th><th>TM</th><th>TCH</th><th>Edad</th></tr></thead><tbody>';
+  ord.slice(0, lim).forEach(function(r) { h += '<tr><td>' + cmpEsc(r.f) + '</td><td>' + cmpEsc(r.fr) + '</td><td>' + cmpEsc(r.nom) + '</td>' + (r.va ? '<td>' + cmpEsc(r.va) + '</td>' : '') + '<td>' + (r.ten === 'A' ? 'Administrado' : r.ten === 'P' ? 'Proveedor' : '—') + '</td><td>' + cmpFmtN(r.ha, 1) + '</td><td>' + cmpFmtN(r.tm, 0) + '</td><td>' + cmpFmtN(r.ha > 0 ? r.tm / r.ha : null, 1) + '</td><td>' + (r.ed !== null && r.ed !== undefined ? r.ed : '—') + '</td></tr>'; });
   return h + '</tbody></table>' + (ord.length > lim ? '<div style="font-size:11px;color:var(--text3);padding:4px">… y ' + (ord.length - lim) + ' lote(s) más</div>' : '') + '</div></div>';
 }
+/* ── Proporción de TM por semana y variedad (barras apiladas al 100%) ── */
+var _cmpVarSel = null, _cmpVarCache = {}, _cmpVarHistCache = null;
+var CMP_VAR_COLORES = { CG02163: '#70AD47', CGMEX1026315: '#5B9BD5', CP001101: '#FFC000', CP022113: '#375623', CP722086: '#255E91', CP731547: '#996600', CP881165: '#92D050', CP892143: '#8FB4E3', RB845210: '#F4B942', VARIAS: '#548235', BR00010: '#C55A11' };
+var CMP_VAR_PALETA = ['#7030A0', '#00A3A3', '#C00000', '#7F7F7F', '#2E75B6', '#BF9000', '#9E480E', '#D6459C'];
+function cmpVarKey(n) { return String(n == null ? '' : n).toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function cmpVarColor(k) { if (CMP_VAR_COLORES[k]) return CMP_VAR_COLORES[k]; var h = 0; for (var i = 0; i < k.length; i++) h = (h * 31 + k.charCodeAt(i)) >>> 0; return CMP_VAR_PALETA[h % CMP_VAR_PALETA.length]; }
+function cmpHistVar(z) {   // variedad por día y semana de una zafra real, decodificada del Excel cargado
+  var H = cmpHist(); if (!H || !H.vd || !H.vd[z]) return [];
+  var sig = String(historicoCompar).length; if (!_cmpVarHistCache || _cmpVarHistCache.sig !== sig) _cmpVarHistCache = { sig: sig };
+  if (_cmpVarHistCache[z]) return _cmpVarHistCache[z];
+  var nombres = H.vn || [], out = [];
+  String(H.vd[z]).split(';').forEach(function(e) {
+    if (!e) return; var p = e.split(':'), a = p[0].split('/'), yy = a[0], f = '20' + yy.slice(0, 2) + '-' + yy.slice(2, 4) + '-' + yy.slice(4, 6), sem = parseInt(a[1], 10);
+    (p[1] || '').split(',').forEach(function(x) { var q = x.split('='), lab = nombres[parseInt(q[0], 10)] || 'Sin variedad'; out.push({ f: f, sem: sem, k: cmpVarKey(lab), lab: lab, tm: parseFloat(q[1]) || 0 }); });
+  });
+  return (_cmpVarHistCache[z] = out);
+}
+function cmpVarDatos(s) {
+  var ck = s.id + '|' + (s.recs ? s.recs.length : 0) + '|' + String(historicoCompar).length;
+  if (_cmpVarCache[ck]) return _cmpVarCache[ck];
+  var porSem = {}, porDia = {}, lab = {}, tot = {};
+  var add = function(sem, f, vk, vl, tm) {
+    if (!(tm > 0)) return; lab[vk] = lab[vk] || vl; tot[vk] = (tot[vk] || 0) + tm;
+    var ps = porSem[sem] || (porSem[sem] = {}); ps[vk] = (ps[vk] || 0) + tm;
+    var pd = porDia[sem] || (porDia[sem] = {}), pf = pd[f] || (pd[f] = {}); pf[vk] = (pf[vk] || 0) + tm;
+  };
+  if (s.tipo === 'real') cmpHistVar(s.zafra).forEach(function(r) { add(r.sem, r.f, r.k, r.lab, r.tm); });
+  else s.recs.forEach(function(r) { var vl = r.va || 'Sin variedad', vk = cmpVarKey(vl); if (r.dd) r.dd.forEach(function(x) { add(cmpSemana(x[0], s.z0), x[0], vk, vl, x[1]); }); else add(r.sem, r.f, vk, vl, r.tm); });
+  var sems = Object.keys(porSem).map(Number).sort(function(a, b) { return a - b; }), dias = {};
+  sems.forEach(function(sm) { dias[sm] = Object.keys(porDia[sm]).sort(); });
+  var keys = Object.keys(tot).sort(function(a, b) { return tot[b] - tot[a]; }), top = keys.slice(0, 10), resto = keys.slice(10);
+  top.sort(function(a, b) { if (a === 'VARIAS') return 1; if (b === 'VARIAS') return -1; return String(lab[a]).localeCompare(String(lab[b]), 'es', { numeric: true }); });
+  var vars = top.map(function(k) { return { key: k, lab: lab[k], color: cmpVarColor(k) }; });
+  if (resto.length) {
+    vars.push({ key: '__otras', lab: 'Otras', color: '#BFBFBF' });
+    var fus = function(m) { var o = 0; resto.forEach(function(k) { if (m[k]) { o += m[k]; delete m[k]; } }); if (o > 0) m.__otras = o; };
+    sems.forEach(function(sm) { fus(porSem[sm]); dias[sm].forEach(function(f) { fus(porDia[sm][f]); }); });
+  }
+  return (_cmpVarCache[ck] = { sems: sems, porSem: porSem, porDia: porDia, dias: dias, vars: vars });
+}
+// Barras apiladas al 100%. cats: [{l, tipo:'sem'|'dia', sem, f, ab}]; series: [{label,color,pct:[por cat]}]. Bajo cada semana un [+]/[−] (data-vexp) despliega sus días.
+function cmpSvgApiladas(cats, series, o) {
+  o = o || {}; var st = o.st || { hidden: {} }, W = o.W || 900, H = o.h || 340, mL = 44, mR = 12, mB = 50, ley = cmpLeyenda(series, W, st), mT = ley.alto + 12, pw = W - mL - mR, ph = H - mT - mB, n = cats.length, gw = pw / n, bw = Math.min(gw * 0.74, 64);
+  if (o.reg) o.reg.geo = { tipo: 'barras', mL: mL, pw: pw, n: n, mT: mT, ph: ph, W: W, H: H };
+  var Y = function(v) { return mT + ph - v / 100 * ph; };
+  var h = '<svg data-cid="' + (o.cid || '') + '" viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" style="width:100%;height:auto;display:block;font-family:inherit" role="img">' + ley.svg;
+  for (var v = 0; v <= 100; v += 10) h += '<line x1="' + mL + '" x2="' + (W - mR) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="var(--border)" stroke-width="0.5"/><text x="' + (mL - 6) + '" y="' + (Y(v) + 4) + '" font-size="11" text-anchor="end" fill="var(--text3)">' + v + '%</text>';
+  cats.forEach(function(c, i) { if (c.tipo === 'sem' && c.ab) { var j = i + 1; while (j < n && cats[j].tipo === 'dia') j++; h += '<rect x="' + (mL + i * gw) + '" y="' + (mT - 4) + '" width="' + ((j - i) * gw) + '" height="' + (ph + 4 + 28) + '" fill="var(--bg2)" opacity="0.7" rx="4" style="pointer-events:none"/>'; } });
+  h += '<rect class="cmp-hov" x="0" y="' + (mT - 4) + '" width="0" height="' + (ph + 4) + '" fill="var(--text)" opacity="0" style="pointer-events:none"/>';
+  var lum = function(hex) { var m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || ''); return m ? (0.299 * parseInt(m[1], 16) + 0.587 * parseInt(m[2], 16) + 0.114 * parseInt(m[3], 16)) : 128; };
+  cats.forEach(function(c, i) {
+    var cx = mL + i * gw + gw / 2, x = cx - bw / 2, acc = 0;
+    series.forEach(function(s, si) {
+      var p = s.pct[i]; if (!(p > 0)) return;
+      var y1 = Y(acc + p), hh = Y(acc) - y1;
+      h += '<rect data-s="' + si + '" x="' + x.toFixed(1) + '" y="' + y1.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(hh, 0.5).toFixed(1) + '" fill="' + s.color + '" stroke="var(--bg,#fff)" stroke-width="0.5"/>';
+      if (hh >= 13 && bw >= 22) h += '<text data-s="' + si + '" x="' + cx.toFixed(1) + '" y="' + (y1 + hh / 2 + 4).toFixed(1) + '" font-size="' + (bw < 30 ? 9 : 11) + '" text-anchor="middle" fill="' + (lum(s.color) < 150 ? '#fff' : '#222') + '" style="pointer-events:none">' + Math.round(p) + '%</text>';
+      acc += p;
+    });
+    if (c.tipo === 'sem') {
+      h += '<text x="' + cx.toFixed(1) + '" y="' + (mT + ph + 15) + '" font-size="11" font-weight="600" text-anchor="middle" fill="var(--text2)" style="pointer-events:none">' + (gw < 24 ? c.sem : 'S' + c.sem) + '</text>';
+      h += '<g data-vexp="' + c.sem + '" style="cursor:pointer"><rect x="' + (cx - 14).toFixed(1) + '" y="' + (mT + ph + 19) + '" width="28" height="16" fill="transparent"/><text x="' + cx.toFixed(1) + '" y="' + (mT + ph + 31) + '" font-size="11" font-family="monospace" font-weight="700" text-anchor="middle" fill="var(--green-text)">' + (c.ab ? '[−]' : '[+]') + '</text></g>';
+    } else {
+      h += '<text x="' + cx.toFixed(1) + '" y="' + (mT + ph + 15) + '" font-size="9" text-anchor="middle" fill="var(--text3)" style="pointer-events:none">' + c.l + '</text>';
+    }
+  });
+  return h + '</svg>';
+}
+function cmpVarCambiar(id) { _cmpVarSel = id; var st = cmpEstado('varSem'); st.exp = {}; st.hidden = {}; st.pin = null; cmpRedibujar('varSem'); }
 function cmpGrafico(cid, titulo, def, nota) {
   var st = cmpEstado(cid); st.pin = null; def.st = st; def.cid = cid; _cmpCharts[cid] = def;
   var svg = def.build(st);
@@ -26454,6 +26536,52 @@ function cmpDibujar() {
   h += '<div style="display:grid;grid-template-columns:' + grid2 + ';gap:' + GAP + 'px">' +
     gLineas('detEdad', '<span style="color:' + det.color + '">' + cmpEsc(det.label) + '</span> · edad por semana: Administrado vs Proveedores', xd, lt(vA, vP), wH, {}, recsDet, function(v) { return v.toFixed(0) + ' días'; }) +
     gLineas('detProp', '<span style="color:' + det.color + '">' + cmpEsc(det.label) + '</span> · proporción de TM por semana', xd, lt(pA, pP), wH, { pct: true, ymin: 0, ymax: 100 }, recsDet, function(v) { return v.toFixed(1) + '%'; }) + '</div>';
+  // proporción de TM por semana y variedad (zafra del plan, plan anterior o zafras reales), con [+] por semana para ver los días
+  var gVariedad = function(W) {
+    var cid = 'varSem', def = { labels: [] };
+    if (!_cmpVarSel || !todas.some(function(s) { return s.id === _cmpVarSel; })) _cmpVarSel = planSel.id;
+    var serieSel = function() { return todas.filter(function(s) { return s.id === _cmpVarSel; })[0] || planSel; };
+    var sinDatos = function(S) { return '<div style="padding:18px;color:var(--text3);font-size:12px">' + (S.tipo === 'real' ? 'El histórico cargado no trae la columna «Variedad» por plantío: vuelve a cargar el Excel con «Cargar histórico (Excel)».' : 'No hay toneladas por variedad en esta serie (revisa que los campos tengan variedad).') + '</div>'; };
+    var armar = function(st) {
+      var S = serieSel(), D = cmpVarDatos(S); if (!D.sems.length) return { S: S, D: D };
+      var exp = st.exp || {}, cats = [];
+      D.sems.forEach(function(sm) { cats.push({ l: 'S' + sm, tipo: 'sem', sem: sm, ab: !!exp[sm] }); if (exp[sm]) (D.dias[sm] || []).forEach(function(f) { cats.push({ l: f.slice(8) + '/' + f.slice(5, 7), tipo: 'dia', sem: sm, f: f }); }); });
+      var vis = D.vars.filter(function(v) { return !st.hidden[v.lab]; }), todasVis = !vis.length || vis.length === D.vars.length;
+      var series = D.vars.map(function(v) { return { label: v.lab, color: v.color, key: v.key, tms: [], pct: [] }; });
+      cats.forEach(function(c, i) {
+        var m = (c.tipo === 'sem' ? D.porSem[c.sem] : (D.porDia[c.sem] || {})[c.f]) || {}, tot = 0;
+        series.forEach(function(s) { s.tms[i] = m[s.key] || 0; if (todasVis || !st.hidden[s.label]) tot += s.tms[i]; });
+        c.tot = tot; c.totAll = series.reduce(function(a, s) { return a + s.tms[i]; }, 0);
+        series.forEach(function(s) { s.pct[i] = (tot > 0 && (todasVis || !st.hidden[s.label])) ? s.tms[i] / tot * 100 : 0; });
+      });
+      return { S: S, D: D, cats: cats, series: series };
+    };
+    def.build = function(st) { var A = def.A = armar(st); if (!A.cats) { def.labels = []; return sinDatos(A.S); } def.labels = A.series.map(function(s) { return s.label; }); return cmpSvgApiladas(A.cats, A.series, { W: W, h: 340, st: st, reg: def, cid: def.cid }); };
+    def.tip = function(i) {
+      var A = def.A; if (!A || !A.cats) return ''; var c = A.cats[i];
+      var h = '<div style="font-weight:600;margin-bottom:3px">' + (c.tipo === 'sem' ? 'Semana ' + c.sem : 'Día ' + c.f + ' · semana ' + c.sem) + ' · ' + cmpFmtN(c.tot, 0) + ' TM</div>';
+      A.series.slice().sort(function(a, b) { return b.tms[i] - a.tms[i]; }).forEach(function(s) { if (s.tms[i] <= 0 || s.pct[i] <= 0) return; h += fila(s.color, s.label, cmpFmtN(s.pct[i], 1) + '% · ' + cmpFmtN(s.tms[i], 0) + ' TM'); });
+      return h + '<div style="color:var(--text3);font-size:11px;margin-top:4px">' + (c.tipo === 'sem' ? '[+] bajo la semana: ver por día · ' : '') + (A.S.tipo === 'real' ? '' : 'clic: lotes del plan') + '</div>';
+    };
+    def.drill = function(i) {
+      var A = def.A; if (!A || !A.cats) return ''; var c = A.cats[i], S = A.S;
+      if (S.tipo === 'real') return '<div style="margin-top:10px;font-size:12px;color:var(--text3)">El histórico está agregado por variedad y día: no tiene detalle por lote. <button class="btn btn-xs" onclick="cmpCerrarDrill(\'' + def.cid + '\')">Cerrar</button></div>';
+      var recs = [];
+      S.recs.forEach(function(r) {
+        var base = r.tm || 0, dd = r.dd || [[r.f, base]], sel = 0;
+        dd.forEach(function(x) { if (cmpSemana(x[0], S.z0) !== c.sem) return; if (c.tipo === 'dia' && x[0] !== c.f) return; sel += x[1]; });
+        if (sel > 0) { var k = base > 0 ? sel / base : 0; recs.push(Object.assign({}, r, { tm: sel, ha: r.ha * k, etm: r.etm * k, tmEd: r.tmEd * k })); }
+      });
+      return cmpDrillHTML(def.cid, S.label + ' · ' + (c.tipo === 'sem' ? 'semana ' + c.sem : 'día ' + c.f), recs);
+    };
+    def.tabla = function() {
+      var A = def.A; if (!A || !A.cats) return { head: ['Sin datos'], rows: [] };
+      return { head: ['Categoría', 'Semana', 'Fecha', 'TM total'].concat(A.series.map(function(s) { return s.label + ' (%)'; })), rows: A.cats.map(function(c, i) { return [c.tipo === 'sem' ? 'Semana ' + c.sem : 'Día', c.sem, c.f || '', r2(c.tot)].concat(A.series.map(function(s) { return r2(s.pct[i]); })); }) };
+    };
+    var opts = todas.map(function(s) { return '<option value="' + s.id + '"' + (s.id === _cmpVarSel ? ' selected' : '') + '>' + cmpEsc(s.tipo === 'real' ? s.label + ' (real)' : s.label) + '</option>'; }).join('');
+    return cmpGrafico(cid, 'Proporción de TM por semana y variedad · <select onchange="cmpVarCambiar(this.value)" style="margin:0 0 0 6px;width:auto;font-size:12px">' + opts + '</select>', def, 'Cada barra suma 100% de las toneladas de la semana. [+] bajo una semana la despliega por día en el mismo gráfico; clic en una barra muestra los lotes del plan; la leyenda oculta variedades (el resto se reescala a 100%). Las 10 variedades con más toneladas se muestran aparte y las demás se agrupan en «Otras».');
+  };
+  h += gVariedad(wF);
   var th = '<div style="overflow-x:auto"><table style="font-size:12px"><thead><tr><th>Serie</th><th>Lotes/registros</th><th>Ha</th><th>TM</th><th>TCH</th><th>Edad</th><th>Edad Admin.</th><th>Edad Prov.</th><th>% TM Admin.</th></tr></thead><tbody>';
   sel.forEach(function(s) { var a = aggs[s.id], tA = a.A.g.tm, tP = a.P.g.tm; th += '<tr><td><span style="display:inline-block;width:10px;height:10px;background:' + s.color + ';border-radius:2px;margin-right:6px"></span><strong>' + cmpEsc(s.label) + '</strong></td><td>' + s.recs.length.toLocaleString() + '</td><td>' + cmpFmtN(a.all.g.ha, 0) + '</td><td>' + cmpFmtN(a.all.g.tm, 0) + '</td><td>' + cmpFmtN(cmpTch(a.all.g), 1) + '</td><td>' + cmpFmtN(cmpEdad(a.all.g), 0) + '</td><td>' + cmpFmtN(cmpEdad(a.A.g), 0) + '</td><td>' + cmpFmtN(cmpEdad(a.P.g), 0) + '</td><td>' + ((tA + tP) > 0 ? cmpFmtN(tA / (tA + tP) * 100, 0) + '%' : '–') + '</td></tr>'; });
   h += cmpTarjeta('Resumen numérico', th + '</tbody></table></div>', 'Los registros del histórico están agregados por zafra, tenencia, tercio y semana; los del plan son lotes. Edad ponderada por TM; TCH = ΣTM ÷ ΣHa.');
