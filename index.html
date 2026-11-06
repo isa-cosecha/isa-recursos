@@ -5113,8 +5113,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.9', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.10', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.10', '2026-11-06', 'Día a día: resumen por frente (cosechadoras que participan, horas efectivas de corte, TM/h, TM/máq/día, velocidad de corte)'],
   ['1.9', '2026-11-06', 'Día a día: horas efectivas de corte por cosechadora participante en cada lote (en vez de la jornada meta)'],
   ['1.8', '2026-11-06', 'Nota de versión al final de Ajustes'],
   ['1.7', '2026-11-06', 'Rendimiento por máquina en el simulador (TM/h por antigüedad + horas por año de operación), Logística y Capacidad por tercio'],
@@ -15817,6 +15818,33 @@ function verDia() {
       maqAsigHtml += ' <span style="color:var(--text3);margin:0 2px">+ backup:</span>' + bkDD.maquinas.map(function(b) {
         return '<span class="badge badge-amber" style="font-family:monospace;margin:1px" title="' + (b.motivo === 'mantenimiento' ? 'Reemplaza a una máquina en mantenimiento' : 'Refuerzo para cumplir la demanda') + '">' + (b.codigo || '<span style="color:var(--red-text)" title="Ese día no queda ninguna máquina de backup libre de este modelo: el plan guardado asignó más backup del que existe. Vuelve a correr el optimizador.">sin máquina libre</span>') + ' · ' + (b.motivo === 'mantenimiento' ? 'mtto.' : 'refuerzo') + '</span>';
       }).join('');
+    }
+    // ── Resumen del frente en el día (arriba): cosechadoras que participan, horas efectivas de corte, TM/h, TM/máq/día y velocidad de corte ──
+    // Misma fuente que la columna «Hrs efect. corte» y que Logística → Cosechadoras (simulación del plan).
+    if (!esManFrDD) {
+      var ddHC0 = ddHorasCorte(zafraDD, fecha);
+      if (ddHC0) {
+        var prefDD = fecha + '|' + fn + '|', codsDD = {}, hCorteDD = 0, hTrabDD = 0, velSumDD = 0, velHDD = 0;
+        Object.keys(ddHC0).forEach(function(kk) {
+          if (kk.indexOf(prefDD) !== 0) return;
+          var oo = ddHC0[kk]; oo.maqs.forEach(function(m) { codsDD[m.codigo] = true; });
+          hCorteDD += oo.hCorte; hTrabDD += oo.hCorte + oo.hMan + oo.hRal;
+          var cLt = campos.find(function(ca) { return ca.nombre === kk.slice(prefDD.length); });
+          var vL = cLt ? (cLt.velFuente === 'anterior' ? cLt.velAnterior : calcTiempos(cLt).vel) : 0;
+          if (vL > 0 && oo.hCorte > 0) { velSumDD += vL * oo.hCorte; velHDD += oo.hCorte; }
+        });
+        var nPartDD = Object.keys(codsDD).length, nAsigDD = (frEfDD && frEfDD.cosechCodigos && frEfDD.cosechCodigos.length) ? frEfDD.cosechCodigos.length : ((frEfDD && frEfDD.nCosech) || 0);
+        if (nPartDD > 0 && hCorteDD > 0) {
+          var celdaDD = function(lab, val, sub, tip) { return '<div title="' + tip + '" style="flex:1;min-width:130px;padding:8px 14px;border-right:0.5px solid var(--border)"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">' + lab + '</div><div style="font-size:15px;font-weight:600;color:var(--text)">' + val + '</div><div style="font-size:10px;color:var(--text3)">' + sub + '</div></div>'; };
+          html += '<div style="display:flex;flex-wrap:wrap;border-bottom:0.5px solid var(--border);background:var(--bg)">' +
+            celdaDD('Cosechadoras', nPartDD, 'participan de ' + nAsigDD + ' asignadas' + (bkDD ? ' (+ backup)' : ''), 'Cosechadoras distintas que cortaron algún lote del frente este día') +
+            celdaDD('Hrs efect. corte', (hCorteDD / nPartDD).toFixed(1) + ' h', 'por máquina · ' + hCorteDD.toFixed(1) + ' máq-h', 'Horas efectivas de corte (sin maniobras ni ralentí) por cosechadora participante, y total del frente') +
+            celdaDD('TM/h del día', (tonFn / (hTrabDD || 1)).toFixed(1), 'ton ÷ máq-h de trabajo', 'Toneladas del día ÷ horas-máquina de trabajo (corte + maniobras + ralentí); misma base que la columna Productividad') +
+            celdaDD('TM/máq/día', Math.round(tonFn / nPartDD).toLocaleString(), Math.round(tonFn).toLocaleString() + ' t ÷ ' + nPartDD + ' máq', 'Toneladas del día por cosechadora participante') +
+            celdaDD('Vel. de corte', velHDD > 0 ? (velSumDD / velHDD).toFixed(1) + ' km/h' : '–', 'prom. ponderado por horas de corte', 'Velocidad de cosecha de los lotes del día, ponderada por sus horas de corte') +
+            '</div>';
+        }
+      }
     }
     var nColsDD = 17;
     html += '<div style="padding:6px 14px;background:var(--bg2);border-bottom:0.5px solid var(--border);font-size:11px;color:var(--text2)">' +
