@@ -2539,7 +2539,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
       </div>
       <div class="card">
         <div class="card-title">Programa diario para Seguimiento</div>
-        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Publica en la nube lo mismo que muestra «Día a día» (lotes que se cortan cada día, cosechadoras, horas efectivas por máquina, TM/h y toneladas) para que «Programa por frente» de Seguimiento coincida. Se actualiza solo unos segundos después de cada cambio del plan o de los ajustes (admin y editor); este botón lo fuerza. Se guarda como documentos <code>progdia_N</code> (admin o editor).</p>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Publica en la nube lo mismo que muestra «Día a día» (lotes que se cortan cada día, cosechadoras, horas efectivas por máquina, TM/h y toneladas) para que «Programa por frente» de Seguimiento coincida. Se actualiza solo unos segundos después de guardar cualquier cambio del plan, de los campos, de los equipos o de los ajustes (con usuario admin o editor), y también cuando entras con una versión nueva del planificador. El botón solo lo fuerza. Se guarda como documentos <code>progdia_N</code> (admin o editor).</p>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="btn btn-sm" id="ajustes-progdia-btn" onclick="publicarProgDia(true)"><i class="ti ti-cloud-upload"></i> Publicar programa diario ahora</button><span id="ajustes-progdia-estado" style="font-size:12px"></span></div>
       </div>
       <div id="ajustes-version" style="margin:14px 4px 6px;font-size:10px;color:var(--text3);line-height:1.5"></div>
@@ -3147,16 +3147,26 @@ function fbPublicarSelloCompleto() {
 /* ══ PROGRAMA DIARIO PARA SEGUIMIENTO (categoría «progdia») ═════════════════════════════════════════════════════════
    Seguimiento no puede correr la simulación: este bloque publica, por zafra, frente, lote y día, lo MISMO que muestra «Día a día»
    (cosechadoras que participan, horas efectivas de trabajo y de corte por máquina, toneladas), para que ambos coincidan.
-   · Se calcula unos segundos después del último cambio de plan o de ajustes (invalidarSimCache → pdProgramar) y se escribe en
+   · Se calcula unos segundos después de cada guardado en la nube que cambie algo (guardarEnFirestore → pdProgramar) y se escribe en
      planificador_compartido/progdia_N con su sello. Solo roles admin/editor. Es solo escritura: este planificador no la escucha.
    · Reglas de Firestore: con «allow write: if puedeEditar()» en planificador_compartido ya se permite (no hace falta cambiarlas).
-   Formato de cada ítem: lote { t:'L', z, f, id, n, i:'AAAA-MM-DD HH:MM' (inicio), e:'…' (fin), v:km/h, vf:'tabla'|'anterior', d:{ 'AAAA-MM-DD': [máquinas, hTrabajo(máq-h), hCorte(máq-h), ton, 'cod:hT:hC;…'] } }
+   Formato de cada ítem: lote { t:'L', z, f, id, n, i:'AAAA-MM-DD HH:MM' (inicio), e:'…' (fin), v:km/h, vf:'tabla'|'anterior', d:{ 'AAAA-MM-DD': [máquinas, hTrabajo(máq-h), hCorte(máq-h), ton, 'cod:hT:hC:ton:km/h;…'] } }
                           frente { t:'F', z, f, d:{ 'AAAA-MM-DD': [máquinas distintas, hTrabajo, hCorte, ton] } } */
 var _pdTimer = null, _pdCalculando = false, _pdFirma = null, _pdPartesPrev = 0;
 var _pdEstado = { ts: null, items: 0, kb: 0, zafras: [], msg: 'Todavía no se ha publicado en esta sesión.', tipo: '' };
+var _pdPendiente = false, _pdVerificado = false;
 function pdProgramar() {
-  if (_pdCalculando || !fbDb || !fbUsuarioActual || (fbRolActual !== 'admin' && fbRolActual !== 'editor') || !planItems.length) return;
+  if (!fbDb || !fbUsuarioActual || (fbRolActual !== 'admin' && fbRolActual !== 'editor') || !planItems.length) return;
+  if (_pdCalculando) { _pdPendiente = true; return; }   // cambió algo mientras calculaba: se repite al terminar
   clearTimeout(_pdTimer); _pdTimer = setTimeout(function() { publicarProgDia(false); }, 8000);
+}
+// Una vez por sesión: si lo publicado en la nube es de otra versión del planificador (o no existe), se vuelve a publicar solo
+function pdVerificarVersion() {
+  if (!fbDb || !fbUsuarioActual || (fbRolActual !== 'admin' && fbRolActual !== 'editor')) return;
+  fbDb.collection(FB_COLECCION).doc('progdia_0').get().then(function(d) {
+    var m = d.exists && d.data() && d.data().meta && d.data().meta.progDiaMeta;
+    if (!m || m.version !== PLANIFICADOR_VERSION.v) pdProgramar();
+  }).catch(function() {});
 }
 function construirProgDiaZafra(z) {
   var data = logCalcular(z), R = logCalcularCosechadoras(data, data.dias, z), lotes = {}, fd = {};
@@ -3166,7 +3176,7 @@ function construirProgDiaZafra(z) {
     if (!o.maqs || !o.maqs.length) return;
     var pi = planItems.find(function(p) { return p.zafra === z && p.frenteNombre === fr && p.campoNombre === lote; }); if (!pi) return;
     var it = lotes[pi.id] || (lotes[pi.id] = { t: 'L', z: z, f: fr, id: pi.id, n: lote, d: {} });
-    it.d[fecha] = [o.maqs.length, r2(o.hTrab), r2(o.hCorte), r1(o.ton), o.maqs.map(function(m) { return m.codigo + ':' + r2(m.hT) + ':' + r2(m.h); }).join(';')];
+    it.d[fecha] = [o.maqs.length, r2(o.hTrab), r2(o.hCorte), r1(o.ton), o.maqs.map(function(m) { return m.codigo + ':' + r2(m.hT) + ':' + r2(m.h) + ':' + r1(m.ton) + ':' + r2(m.vel); }).join(';')];
     var kf = fr + '|' + fecha, f = fd[kf] = fd[kf] || { codes: {}, hT: 0, hC: 0, ton: 0 };
     o.maqs.forEach(function(m) { f.codes[m.codigo] = 1; }); f.hT += o.hTrab; f.hC += o.hCorte; f.ton += o.ton;
   });
@@ -3201,7 +3211,7 @@ function publicarProgDia(manual) {
   if (!planItems.length) { _pdEstado.msg = 'No hay lotes en el plan.'; _pdEstado.tipo = 'err'; renderEstadoProgDia(); return; }
   _pdCalculando = true; _pdEstado.msg = 'Calculando el programa diario…'; _pdEstado.tipo = ''; renderEstadoProgDia();
   setTimeout(function() {
-    var fin = function() { _pdCalculando = false; renderEstadoProgDia(); };
+    var fin = function() { _pdCalculando = false; renderEstadoProgDia(); if (_pdPendiente) { _pdPendiente = false; pdProgramar(); } };
     try {
       var zs = Array.from(new Set(planItems.map(function(p) { return p.zafra; }).filter(Boolean))).sort().slice(-2), items = [];   // las 2 zafras más recientes
       zs.forEach(function(z) { try { items = items.concat(construirProgDiaZafra(z)); } catch (e) { console.warn('progdia ' + z, e); } });
@@ -3259,6 +3269,7 @@ function guardarEnFirestore(dataOpc) {
     if (fbFirmaCat[nombreCat] !== firmas[nombreCat]) cambiadas.push(nombreCat);
   });
   if (!cambiadas.length) { if (badge) badge.textContent = 'Guardado ☁'; return; }   // nada nuevo que enviar
+  if (cambiadas.some(function(c) { return c !== 'geodata' && c !== 'vialidad'; })) pdProgramar();   // cambió algo del plan/ajustes: el programa diario que lee Seguimiento se actualiza solo
 
   // ── 2) Partir en documentos SOLO lo que cambió ──
   var partesPorCategoria = {};
@@ -3518,6 +3529,7 @@ function aplicarChunksRemotos() {
   // para que los demás usuarios también se beneficien de la corrección.
   sincronizarCampoIds();
   renderPaginaActual();
+  if (!_pdVerificado) { _pdVerificado = true; setTimeout(pdVerificarVersion, 20000); }
 }
 
 /* Re-renderiza lo que esté visible en pantalla ahora mismo, sin cambiar
@@ -5217,8 +5229,10 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.16', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.18', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.18', '2026-11-06', 'Programa diario para Seguimiento: se publica solo tras cada guardado y al cambiar de versión (ya no depende del botón)'],
+  ['1.17', '2026-11-06', 'Programa diario publicado: toneladas y velocidad (km/h) por máquina y lote, para el detalle de cosechadoras de Seguimiento'],
   ['1.16', '2026-11-06', 'Día a día · Todas las fechas: cada plantío se despliega [+] con sus días, cosechadoras y secuencia de trabajo'],
   ['1.15', '2026-11-06', 'Día a día: frentes plegados con resumen, filtros de frente y plantío, opción «Todas las fechas» para comparar con Seguimiento'],
   ['1.14', '2026-11-06', 'Programa diario publicado: agrega inicio/fin y velocidad de cada lote (igual que Día a día) para Seguimiento'],
@@ -5345,21 +5359,32 @@ function cosechadorasDelFrente(frente, zafra) {
 var _velMaqForzada = null;   // si no es null, getVelTablaTrabajo() usa la antigüedad de ESTA máquina (en vez del promedio del frente)
 var _prodMaqCache = {}, _hayVelEdad = null;
 function hayVelEdadCfg() { if (_hayVelEdad === null) _hayVelEdad = leerVelPctEdad().some(function(r) { return r.some(function(v) { return v; }); }); return _hayVelEdad; }
-function prodLoteConMaquina(p, reg) {   // cálculo directo (misma ruta que recalcularCacheProd); reg=null → promedio del frente
+function calcLoteConMaquina(p, reg) {   // cálculo directo (misma ruta que recalcularCacheProd); reg=null → promedio del frente. Devuelve el resultado de calcTiempos
   var campoBase = campos.find(function(c) { return c.id === p.campoId || c.nombre === p.campoNombre; });
   if (!campoBase) return null;
   campoBase = conAreaPlan(campoBase, p);
   var tch = p.tch || campoBase.tch, nMaq = p.nCosechadoras || campoBase.nCosechadoras || 1;
   var ca = (tch !== campoBase.tch || nMaq !== campoBase.nCosechadoras) ? Object.assign({}, campoBase, { tch: tch, nCosechadoras: nMaq }) : campoBase;
   _velMaqForzada = reg;
-  try { var t = calcTiempos(ca); return t ? t.productividad : null; } finally { _velMaqForzada = null; }
+  try { return calcTiempos(ca) || null; } finally { _velMaqForzada = null; }
+}
+function prodLoteConMaquina(p, reg) { var t = calcLoteConMaquina(p, reg); return t ? t.productividad : null; }
+var _velMaqCache = {};
+function claveMaq(p, reg) {
+  var usa = !!(reg && hayVelEdadCfg() && edadCosechadora(reg, p.zafra) !== null && !(p.tch > 105));
+  return { usa: usa, k: p.id + '|' + p.frenteNombre + '|' + (p.nCosechadoras || '') + '|' + (usa ? (reg.codigo || reg.id) : '*') };
 }
 function prodMaqLote(p, reg) {   // TM/h con caché; reg=null → TM/h del lote promediando las máquinas del frente
   if (!p) return 0;
-  var usa = !!(reg && hayVelEdadCfg() && edadCosechadora(reg, p.zafra) !== null && !(p.tch > 105));
-  var k = p.id + '|' + p.frenteNombre + '|' + (p.nCosechadoras || '') + '|' + (usa ? (reg.codigo || reg.id) : '*');
-  if (!_prodMaqCache.hasOwnProperty(k)) { var v = prodLoteConMaquina(p, usa ? reg : null); _prodMaqCache[k] = (v > 0) ? v : (getProdFromCache(p) || 0); }
-  return _prodMaqCache[k];
+  var c = claveMaq(p, reg);
+  if (!_prodMaqCache.hasOwnProperty(c.k)) {
+    var t = calcLoteConMaquina(p, c.usa ? reg : null), v = t ? t.productividad : null;
+    _prodMaqCache[c.k] = (v > 0) ? v : (getProdFromCache(p) || 0); _velMaqCache[c.k] = (t && t.vel > 0) ? t.vel : null;
+  }
+  return _prodMaqCache[c.k];
+}
+function velMaqLote(p, reg) {   // km/h de cosecha de esa máquina en ese lote (según su antigüedad en la tabla de velocidad)
+  if (!p) return null; prodMaqLote(p, reg); return _velMaqCache[claveMaq(p, reg).k] || null;
 }
 function horasMaquinaDia(reg, zafra, H) {   // horas efectivas de una máquina en un día de jornada H
   if (curvaEdad.activa) return Math.min(24, H * factoresCurvaMaq(reg, zafra).h);
@@ -12620,7 +12645,7 @@ function ddHorasCorte(zafra, fecha) {
     return _ddLogCache.dias[fecha];
   } catch (e) { console.error('ddHorasCorte', e); return null; }
 }
-function invalidarSimCache() { if (!_ddMantener && typeof pdProgramar === 'function') pdProgramar(); if (!_ddMantener) { _ddLogCache = null; _ddPrgCache = null; } _cobBkCache = {}; if (typeof _ralentiCache !== 'undefined') _ralentiCache = {}; _simCache = null; _evCache = null; _fechaInicioZafraCache = {}; _totalSemanasZafraCache = {}; _mttoPorFrenteCache = null; _eventosPorGrupoCache = {}; _planItemsPorGrupoCache = null; }
+function invalidarSimCache() { if (!_ddMantener) { _ddLogCache = null; _ddPrgCache = null; } _cobBkCache = {}; if (typeof _ralentiCache !== 'undefined') _ralentiCache = {}; _simCache = null; _evCache = null; _fechaInicioZafraCache = {}; _totalSemanasZafraCache = {}; _mttoPorFrenteCache = null; _eventosPorGrupoCache = {}; _planItemsPorGrupoCache = null; }
 // ── CACHÉ POR GRUPO (frente+zafra) ──────────────────────────────────
 // PROBLEMA DE RENDIMIENTO GRAVE CORREGIDO: getSimKey() calculaba un
 // hash GLOBAL de TODO el plan (los 2,500+ lotes y TODOS los overrides
@@ -18817,7 +18842,7 @@ function ejecutarAnalizador() {
 var _prodCache = {}; // key: campo.nombre -> {productividad, tTrabajoH, tCosechaH, tManiobrasH}
 
 function recalcularCacheProd() {
-  _prodCache = {}; _prodMaqCache = {}; _hayVelEdad = null;
+  _prodCache = {}; _prodMaqCache = {}; _velMaqCache = {}; _hayVelEdad = null;
   // Entradas por CAMPO genérico (nombre/id) — se conservan como
   // respaldo para consultas que no traen un planItem concreto (ej.
   // previews de formularios antes de que el lote exista en el plan).
@@ -26234,7 +26259,7 @@ function logCalcularCosechadoras(data, dias, zafraOpt) {
     // participan k máquinas (máximo simultáneo ese día); cada máquina suma EXACTAMENTE su total del día (el mismo de arriba): se reparte con un
     // ajuste proporcional iterativo entre lotes y máquinas, así lo que ves por lote y lo que ves por máquina son la misma cifra.
     var porLoteG = {};
-    g.cos.forEach(function(c) { var o = porLoteG[c.lote] = porLoteG[c.lote] || { hCorte: 0, hMan: 0, hRal: 0, k: 0, ton: 0 }, hm = (c.b - c.a) / 60 * (c.maq || 0), fr = fracciones(c.plan); o.hCorte += hm * fr.c; o.hMan += hm * fr.m; o.hRal += hm * fr.r; o.k = Math.max(o.k, c.maq || 0); o.ton += c.ton; });
+    g.cos.forEach(function(c) { var o = porLoteG[c.lote] = porLoteG[c.lote] || { hCorte: 0, hMan: 0, hRal: 0, k: 0, ton: 0, plan: c.plan }, hm = (c.b - c.a) / 60 * (c.maq || 0), fr = fracciones(c.plan); o.hCorte += hm * fr.c; o.hMan += hm * fr.m; o.hRal += hm * fr.r; o.k = Math.max(o.k, c.maq || 0); o.ton += c.ton; });
     var ordenAct = maqs.filter(function(x) { return (x.asignH || 0) > 0.001 && !x.exceso; }), lts = Object.keys(porLoteG);
     if (ordenAct.length && lts.length) {
       var nM = ordenAct.length, Hl = lts.map(function(l) { var o = porLoteG[l]; return o.hCorte + o.hMan + o.hRal; }), Aj = ordenAct.map(function(x) { return x.asignH; });
@@ -26248,7 +26273,15 @@ function logCalcularCosechadoras(data, dias, zafraOpt) {
       lts.forEach(function(lt, i) {
         var o = porLoteG[lt], fc = Hl[i] > 0 ? o.hCorte / Hl[i] : 1;
         o.hTrab = Hl[i];
-        o.maqs = ordenAct.map(function(x, j) { return { codigo: x.codigo, hT: Wm[i][j], h: Wm[i][j] * fc }; }).filter(function(m) { return m.hT > 0.005; });
+        // toneladas por máquina: sus horas × su TM/h relativo en este lote (misma regla que el reparto de Logística); velocidad: la de su antigüedad
+        var plan = o.plan, baseP = plan ? prodMaqLote(plan, null) : 0, conVel = hayVelEdadCfg();
+        var rel = ordenAct.map(function(x) { return (baseP > 0 && x.reg && conVel && edadCosechadora(x.reg, zafra) !== null) ? prodMaqLote(plan, x.reg) / baseP : null; });
+        var kn = rel.filter(function(v) { return v; }), prom = kn.length ? kn.reduce(function(a, b) { return a + b; }, 0) / kn.length : 1;
+        var sw = 0; ordenAct.forEach(function(x, j) { sw += Wm[i][j] * (rel[j] || prom); });
+        o.maqs = ordenAct.map(function(x, j) {
+          return { codigo: x.codigo, hT: Wm[i][j], h: Wm[i][j] * fc, ton: sw > 0 ? o.ton * Wm[i][j] * (rel[j] || prom) / sw : 0,
+                   vel: plan ? (velMaqLote(plan, (x.reg && conVel && edadCosechadora(x.reg, zafra) !== null) ? x.reg : null) || 0) : 0 };
+        }).filter(function(m) { return m.hT > 0.005; });
         lotesDia[g.fecha + '|' + g.frente + '|' + lt] = o;
       });
     }

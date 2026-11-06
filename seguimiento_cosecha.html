@@ -966,16 +966,25 @@ function maqModalPD(i,win){
   var sv=MOT[S.zafra+'|'+i.codigo]||null,opts=['Traslados','Mantenimiento de cosechadoras','Carga de trabajo','Otro'],pre=sv?sv.mot:(q.red?'Mantenimiento de cosechadoras':'Otro');
   var oh=opts.map(function(o){return '<option'+(o===pre?' selected':'')+'>'+o+'</option>';}).join('');
   var cf=codigosFrente(S.zafra,q.fn).map(function(c){return c.codigo;}),porM={},orden=[];
-  q.dd.forEach(function(d){d.m.split(';').forEach(function(t){var a=t.split(':');if(!a[0])return;var o=porM[a[0]];if(!o){o=porM[a[0]]={cod:a[0],hT:0,hC:0,dias:0};orden.push(a[0]);}o.hT+=+a[1]||0;o.hC+=+a[2]||0;o.dias++;});});
-  var mh=orden.map(function(c){var o=porM[c],base=cf.indexOf(c)>=0;return '<tr><td><b>'+esc(c)+'</b></td><td>'+esc(modeloDe(c)||'—')+'</td><td>'+(base?'Base':'Refuerzo (backup)')+'</td><td>'+fN(o.hT/o.dias,1)+' h</td><td>'+fN(o.hC/o.dias,1)+' h</td></tr>';}).join('');
-  var dh=q.dd.slice(0,16).map(function(x){return '<tr><td>'+fD(x.s)+'</td><td>'+fN(x.k,0)+'</td><td>'+fN(x.hT/x.k,1)+'</td><td>'+fN(x.hC/x.k,1)+'</td><td>'+fN(x.ton,0)+'</td></tr>';}).join('')+(q.dd.length>16?'<tr><td colspan="5">… y '+(q.dd.length-16)+' día(s) más</td></tr>':'');
+  /* cada máquina en cada día: 'cod:hTrabajo:hCorte:ton:km/h' (ton y km/h solo si el planificador es v1.17 o posterior) */
+  var porDia=q.dd.map(function(d){var ms=[];d.m.split(';').forEach(function(t){var a=t.split(':');if(!a[0])return;var m={cod:a[0],hT:+a[1]||0,hC:+a[2]||0,ton:a[3]!==undefined&&a[3]!==''?+a[3]:null,v:a[4]!==undefined&&+a[4]>0?+a[4]:null};ms.push(m);
+      var o=porM[m.cod];if(!o){o=porM[m.cod]={cod:m.cod,hT:0,hC:0,ton:0,hayTon:false,vs:0,vh:0,dias:0};orden.push(m.cod);}
+      o.hT+=m.hT;o.hC+=m.hC;o.dias++;if(m.ton!=null){o.ton+=m.ton;o.hayTon=true;}if(m.v>0&&m.hT>0){o.vs+=m.v*m.hT;o.vh+=m.hT;}});
+    return {d:d,ms:ms};});
+  var fv1=function(v){return v>0?fN(v,1):'—';};
+  var mh=orden.map(function(c){var o=porM[c],base=cf.indexOf(c)>=0;
+    return '<tr><td><b>'+esc(c)+'</b></td><td>'+esc(modeloDe(c)||'—')+'</td><td>'+(base?'Base':'Refuerzo (backup)')+'</td><td>'+(o.vh>0?fN(o.vs/o.vh,1):fv1(q.v))+'</td><td>'+fN(o.hT/o.dias,1)+' h</td><td>'+(o.hayTon&&o.hT>0?fN(o.ton/o.hT,1):'—')+'</td><td>'+(o.hayTon?fN(o.ton/o.dias,0):'—')+'</td></tr>';}).join('');
+  var dh=porDia.slice(0,16).map(function(x){var d=x.d,sv2=0,sh2=0;x.ms.forEach(function(m){if(m.v>0&&m.hT>0){sv2+=m.v*m.hT;sh2+=m.hT;}});
+    return '<tr><td>'+fD(d.s)+'</td><td>'+fN(d.k,0)+'</td><td>'+(sh2>0?fN(sv2/sh2,1):fv1(q.v))+'</td><td>'+fN(d.hT/d.k,1)+' h</td><td>'+fN(d.hT>0?d.ton/d.hT:null,1)+'</td><td>'+fN(d.ton/d.k,0)+'</td></tr>';}).join('')+(porDia.length>16?'<tr><td colspan="6">… y '+(porDia.length-16)+' día(s) más</td></tr>':'');
   var txt=q.red?'La simulación del planificador usa hasta '+q.nec+' máquinas en este lote (dotación base '+q.base+'): el refuerzo sale de backups por mantenimiento o de la regla de refuerzo.':'La simulación usa las máquinas de la dotación base del frente; no hace falta sumar cosechadoras.';
   return '<div class="mq-bg" data-act="maqx"></div><div class="mq-box" role="dialog" aria-label="Cosechadoras del programa simulado">'
-   +'<h4>Cosechadoras del programa simulado · '+esc(i.nombre)+'</h4><div class="sub">Frente '+esc(q.fn)+' · '+fD(q.d0)+' → '+fD(q.d1)+' · '+fN(q.ton)+' t · '+fN(q.pu,1)+' t/h de trabajo</div>'
+   +'<h4>Cosechadoras del programa simulado · '+esc(i.nombre)+'</h4><div class="sub">Frente '+esc(q.fn)+' · '+fD(q.d0)+' → '+fD(q.d1)+' · '+fN(q.ton)+' t · '+fN(q.pu,1)+' t/h de trabajo · '+fv1(q.v)+' km/h</div>'
    +'<div class="mq-kp"><div><b>'+q.nec+'</b><span>Máquinas (máximo en un día)</span></div><div><b>'+q.base+'</b><span>Dotación base del frente</span></div><div class="'+(q.red?'bad':'good')+'"><b>'+(q.red?'+'+(q.nec-q.base):'0')+'</b><span>Refuerzo sobre la base</span></div></div>'
-   +'<table class="mq-m"><tr><th>Máquina</th><th>Modelo</th><th>Rol</th><th>Horas de trabajo/día</th><th>Horas de corte/día</th></tr>'+mh+'</table>'
+   +'<div class="sub" style="margin:8px 0 4px"><b>Por máquina</b> (promedio de los días en que trabajó en este lote)</div>'
+   +'<table class="mq-m"><tr><th>Máquina</th><th>Modelo</th><th>Rol</th><th>Vel. km/h</th><th>Horas trabajo/día</th><th>TM/h</th><th>TM/Máq/Día</th></tr>'+mh+'</table>'
    +'<div class="mq-why"><b>Resumen: </b>'+fN(q.sk,0)+' máquinas-día · '+fN(q.hef,1)+' h efectivas de trabajo por máquina y día ('+fN(q.hefC,1)+' h de corte) · '+fN(q.pu,1)+' t/h · '+fN(q.tmmd,0)+' t por máquina y día.</div>'
-   +'<table><tr><th>Día</th><th>Máq.</th><th>Horas trabajo/máq</th><th>Horas corte/máq</th><th>Toneladas del lote</th></tr>'+dh+'</table>'
+   +'<div class="sub" style="margin:8px 0 4px"><b>Por día</b> (todas las máquinas del lote ese día)</div>'
+   +'<table><tr><th>Día</th><th>Máq.</th><th>Vel. km/h</th><th>Horas trabajo/día</th><th>TM/h</th><th>TM/Máq/Día</th></tr>'+dh+'</table>'
    +'<div class="mq-why'+(q.red?' red':'')+'"><b>'+(q.red?'Por qué sumar: ':'Resultado: ')+'</b>'+esc(txt)+'</div>'
    +'<label class="lb">Motivo (se guarda en este navegador)</label><select id="sgp-mot">'+oh+'</select>'
    +'<textarea id="sgp-mot-txt" rows="3" placeholder="Comentario: ¿por qué se necesitan más cosechadoras en este plantío?">'+esc(sv?sv.txt:'')+'</textarea>'
