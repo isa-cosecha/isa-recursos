@@ -5113,8 +5113,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.8', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.9', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.9', '2026-11-06', 'Día a día: horas efectivas de corte por cosechadora participante en cada lote (en vez de la jornada meta)'],
   ['1.8', '2026-11-06', 'Nota de versión al final de Ajustes'],
   ['1.7', '2026-11-06', 'Rendimiento por máquina en el simulador (TM/h por antigüedad + horas por año de operación), Logística y Capacidad por tercio'],
   ['1.6', '2026-11-06', 'Capacidad por tercio: TM/h por máquina según la tabla de velocidad por antigüedad'],
@@ -12497,7 +12498,17 @@ function getSimKey() {
   });
   return planItems.length + '_' + campos.length + '_' + Math.round(prodSum * 100) + '_' + fechasHash + '_' + overridesHash + '_' + mtoHash;
 }
-function invalidarSimCache() { _cobBkCache = {}; if (typeof _ralentiCache !== 'undefined') _ralentiCache = {}; _simCache = null; _evCache = null; _fechaInicioZafraCache = {}; _totalSemanasZafraCache = {}; _mttoPorFrenteCache = null; _eventosPorGrupoCache = {}; _planItemsPorGrupoCache = null; }
+var _ddLogCache = null;
+// Horas efectivas de corte por lote y cosechadora para un día (Logística → Cosechadoras, misma simulación). Se calcula una vez por zafra y simulación.
+function ddHorasCorte(zafra, fecha) {
+  if (!zafra || !fecha || typeof logCalcular !== 'function') return null;
+  try {
+    if (!_ddLogCache || _ddLogCache.zafra !== zafra) _ddLogCache = { zafra: zafra, data: logCalcular(zafra), dias: {} };
+    if (!_ddLogCache.dias[fecha]) _ddLogCache.dias[fecha] = logCalcularCosechadoras(_ddLogCache.data, [fecha], zafra).porLote;
+    return _ddLogCache.dias[fecha];
+  } catch (e) { console.error('ddHorasCorte', e); return null; }
+}
+function invalidarSimCache() { _ddLogCache = null; _cobBkCache = {}; if (typeof _ralentiCache !== 'undefined') _ralentiCache = {}; _simCache = null; _evCache = null; _fechaInicioZafraCache = {}; _totalSemanasZafraCache = {}; _mttoPorFrenteCache = null; _eventosPorGrupoCache = {}; _planItemsPorGrupoCache = null; }
 // ── CACHÉ POR GRUPO (frente+zafra) ──────────────────────────────────
 // PROBLEMA DE RENDIMIENTO GRAVE CORREGIDO: getSimKey() calculaba un
 // hash GLOBAL de TODO el plan (los 2,500+ lotes y TODOS los overrides
@@ -15815,12 +15826,13 @@ function verDia() {
     // ── Tabla de lotes (cada fila se despliega con la secuencia de ese lote) ──
     if (lotesActFn.length) {
       html += '<div style="overflow-x:auto"><table><thead><tr>';
-      html += '<th>Lote</th><th>TCH</th><th>Máquinas</th><th style="white-space:nowrap" title="Horas de trabajo planificadas para ese día, por cada máquina (o por persona en un frente manual)">' + (esManFrDD ? 'Hrs Pers. Plan' : 'Hrs Maq. Plan') + '</th><th>' + (esManFrDD ? 'Personas' : 'Máquinas asignadas') + '</th><th>Vel. cosecha</th><th>Productividad</th><th>Ton campo</th>';
+      html += '<th>Lote</th><th>TCH</th><th>Máquinas</th><th style="white-space:nowrap" title="Frente de máquinas: horas EFECTIVAS DE CORTE por cosechadora que participa en el lote ese día (de la simulación; sin maniobras ni ralentí; las mismas de Logística → Cosechadoras). Frente manual: horas planificadas por persona.">' + (esManFrDD ? 'Hrs Pers. Plan' : 'Hrs efect. corte') + '</th><th>' + (esManFrDD ? 'Personas' : 'Máquinas asignadas') + '</th><th>Vel. cosecha</th><th>Productividad</th><th>Ton campo</th>';
       html += '<th>Ton hoy</th><th>Ton cosechadas</th><th>% avance</th><th>Ton restantes</th>';
       html += '<th>Autovolteos</th><th>Edad cultivo</th>';
       html += '<th title="Cada cuánto tiempo se llena un camión completo, a la tasa de producción de este lote">Frecuencia camión</th>';
       html += '<th>F. inicio</th><th>F. fin estimado</th>';
       html += '</tr></thead><tbody>';
+      var ddHC = esManFrDD ? null : ddHorasCorte(zafraDD, fecha);
       lotesActFn.forEach(function(l) {
         var prodColor = l.prod >= 15 ? 'var(--green-text)' : l.prod >= 8 ? 'var(--amber-text)' : 'var(--red-text)';
         var pctBg     = l.pctAv >= 90 ? 'var(--green-bg)' : l.pctAv >= 70 ? 'var(--blue-bg)' : 'var(--amber-bg)';
@@ -15875,12 +15887,22 @@ function verDia() {
         var idSecDD = 'dd-sec-' + (fn + '-' + l.nombre).replace(/[^a-zA-Z0-9_-]/g, '_');
         var piHrs = planItems.find(function(p){ return p.campoNombre === l.nombre && p.frenteNombre === fn && (!zafraDD || p.zafra === zafraDD); }) || planItems.find(function(p){ return p.campoNombre === l.nombre && (!zafraDD || p.zafra === zafraDD); });
         var horasPlanStr = piHrs ? (Math.round(horasPlanDia(piHrs.zafra, fn, fecha, piHrs) * 10) / 10) + ' h' : '–';
+        // Horas efectivas de corte de las cosechadoras que participan en ESTE lote hoy (en vez de la jornada meta del frente)
+        var loDD = (!esManFrDD && ddHC) ? ddHC[fecha + '|' + fn + '|' + l.nombre] : null, horasCelda = horasPlanStr, maqAsigLote = maqAsigHtml, tituloHoras = '';
+        if (loDD && loDD.maqs.length && loDD.hCorte > 0) {
+          horasCelda = '<strong>' + (loDD.hCorte / loDD.maqs.length).toFixed(1) + ' h</strong><div style="font-size:10px;color:var(--text3)">' + loDD.maqs.length + ' máq · ' + loDD.hCorte.toFixed(1) + ' máq-h</div>';
+          tituloHoras = 'Promedio por cosechadora participante. Jornada planificada del frente: ' + horasPlanStr + (loDD.hMan + loDD.hRal > 0 ? ' · Además: ' + loDD.hMan.toFixed(1) + ' máq-h de maniobras y ' + loDD.hRal.toFixed(1) + ' de ralentí' : '');
+          var codsFrDD = (frEfDD && frEfDD.cosechCodigos) ? frEfDD.cosechCodigos.map(function(cc) { return cc.codigo; }) : [], partDD = {};
+          loDD.maqs.forEach(function(m) { partDD[m.codigo] = true; });
+          maqAsigLote = loDD.maqs.map(function(m) { return '<span class="badge badge-gray" style="font-family:monospace;margin:1px">' + m.codigo + ' <strong>' + m.h.toFixed(1) + ' h</strong></span>'; }).join('') +
+            codsFrDD.filter(function(c) { return !partDD[c]; }).map(function(c) { return '<span class="badge badge-gray" style="font-family:monospace;margin:1px;opacity:.4" title="No participa en este lote hoy">' + c + '</span>'; }).join('');
+        }
         html += '<tr style="cursor:pointer" onclick="var r=document.getElementById(\'' + idSecDD + '\');if(r){var ab=r.style.display===\'none\';r.style.display=ab?\'\':\'none\';var ic=this.querySelector(\'.dd-caret\');if(ic)ic.textContent=ab?\'▾\':\'▸\';}" title="Ver la secuencia de trabajo de este lote">';
         html += '<td><span class="dd-caret" style="color:var(--text3);margin-right:4px">▸</span><strong>' + l.nombre + '</strong>' + (evLote.length ? ' <span style="font-size:10px;color:var(--text3)">(' + evLote.length + ')</span>' : '') + '</td>';
         html += '<td>' + l.tch + '</td>';
         html += '<td style="color:'+maqColor+';font-weight:500;white-space:nowrap">' + maqStr + '</td>';
-        html += '<td style="white-space:nowrap;font-weight:500">' + horasPlanStr + '</td>';
-        html += '<td><div style="display:flex;flex-wrap:wrap;gap:2px;max-width:170px;white-space:normal">' + maqAsigHtml + '</div></td>';
+        html += '<td style="white-space:nowrap;font-weight:500"' + (tituloHoras ? ' title="' + tituloHoras.replace(/"/g, '&quot;') + '"' : '') + '>' + horasCelda + '</td>';
+        html += '<td><div style="display:flex;flex-wrap:wrap;gap:2px;max-width:170px;white-space:normal">' + maqAsigLote + '</div></td>';
         html += '<td style="white-space:nowrap">' + velStr + ' ' + velFuenteStr + '</td>';
         html += '<td style="font-weight:500;color:'+prodColor+'">' + l.prod.toFixed(2) + ' ton/h</td>';
         html += '<td>' + Math.round(l.tonCampo).toLocaleString() + ' ton</td>';
@@ -25833,7 +25855,7 @@ function logCalcularCosechadoras(data, dias, zafraOpt) {
   var grupos = {};
   (data.cosechas || []).forEach(function(c) { if (!enRango[c.fecha]) return; var k = c.fecha + '|' + c.frente; (grupos[k] = grupos[k] || { fecha: c.fecha, frente: c.frente, cos: [], tras: [] }).cos.push(c); });
   (data.traslados || []).forEach(function(t) { if (!enRango[t.fecha] || t.modo === 'bus' || t.modo === 'sin_destino') return; var k = t.fecha + '|' + t.frente; (grupos[k] = grupos[k] || { fecha: t.fecha, frente: t.frente, cos: [], tras: [] }).tras.push(t); });
-  var porDia = {}, filasMaq = [], bkCache = {};
+  var porDia = {}, filasMaq = [], bkCache = {}, lotesDia = {};   // lotesDia: fecha|frente|lote → horas efectivas de corte y máquinas que participan
   Object.keys(grupos).sort().forEach(function(k) {
     var g = grupos[k], fe = getFrenteEfectivo(zafra, g.frente);
     if (!fe || frenteEsManual(fe)) return;
@@ -25912,11 +25934,21 @@ function logCalcularCosechadoras(data, dias, zafraOpt) {
       x.meta = meta; x.fecha = g.fecha; x.frente = g.frente;
       filasMaq.push(x);
     });
+    // Horas de corte por LOTE: horas-máquina de corte de ese lote (la fracción de corte del tiempo de trabajo, sin maniobras ni ralentí)
+    // repartidas entre las k cosechadoras que participaron (k = máximo de máquinas simultáneas en el lote ese día), según sus horas disponibles
+    var porLoteG = {};
+    g.cos.forEach(function(c) { var o = porLoteG[c.lote] = porLoteG[c.lote] || { hCorte: 0, hMan: 0, hRal: 0, k: 0, ton: 0 }, hm = (c.b - c.a) / 60 * (c.maq || 0), fr = fracciones(c.plan); o.hCorte += hm * fr.c; o.hMan += hm * fr.m; o.hRal += hm * fr.r; o.k = Math.max(o.k, c.maq || 0); o.ton += c.ton; });
+    var ordenAct = maqs.filter(function(x) { return x.disp > 0 && !x.exceso; });
+    Object.keys(porLoteG).forEach(function(lt) {
+      var o = porLoteG[lt], part = ordenAct.slice(0, Math.max(1, Math.min(Math.round(o.k) || 1, ordenAct.length))), sw = part.reduce(function(s2, x) { return s2 + (x.dispLibre || x.disp || 1); }, 0) || 1;
+      o.maqs = part.map(function(x) { return { codigo: x.codigo, h: o.hCorte * (x.dispLibre || x.disp || 1) / sw }; });
+      lotesDia[g.fecha + '|' + g.frente + '|' + lt] = o;
+    });
     var d = porDia[g.fecha] = porDia[g.fecha] || { fecha: g.fecha, frentes: [], maq: 0, bk: 0, mtto: 0, hTrabajo: 0, hCorte: 0, hMan: 0, hRal: 0, hTras: 0, hMotor: 0, ton: 0 };
     var fr = { frente: g.frente, maqs: maqs, meta: meta, detenido: detenido, maq: maqs.filter(function(x) { return x.hTrabajo > 0.01; }).length, bk: maqs.filter(function(x) { return x.rol === 'backup' && x.hTrabajo > 0.01; }).length, mtto: maqs.filter(function(x) { return x.mtto.length; }).length, hTrabajo: hCorte + hMan + hRal + tras, hCorte: hCorte, hMan: hMan, hRal: hRal, hTras: tras, hMotor: hCorte + hMan + hRal + trasMotor, ton: ton };
     d.frentes.push(fr); d.maq += fr.maq; d.bk += fr.bk; d.mtto += fr.mtto; d.hTrabajo += fr.hTrabajo; d.hCorte += hCorte; d.hMan += hMan; d.hRal += hRal; d.hTras += tras; d.hMotor += fr.hMotor; d.ton += ton;
   });
-  return { porDia: porDia, filas: filasMaq, zafra: zafra };
+  return { porDia: porDia, filas: filasMaq, zafra: zafra, porLote: lotesDia };
 }
 function renderLogCosechadoras(data, dias, kp, cont) {
   var R = logCalcularCosechadoras(data, dias), D = R.porDia, fechas = Object.keys(D).sort();
