@@ -5261,8 +5261,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.23', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.24', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.24', '2026-11-06', 'Capacidad de frente por tercio: debajo de Toneladas y hectáreas por semana, frentes plegados con [+] y columnas más angostas'],
   ['1.23', '2026-11-06', 'Resultados · Comparativo Plan vs Fábrica: al pasar por cada punto se ve el total, el acumulado y las diferencias; la leyenda oculta series'],
   ['1.22', '2026-11-06', 'Comparativo interactivo: tooltip, leyenda que oculta/resalta series, zoom en líneas, detalle de lotes del plan por clic, CSV/PNG'],
   ['1.21', '2026-11-06', 'Comparativo: gráficos a tamaño real y altura estándar, etiquetas legibles, líneas que unen los puntos'],
@@ -14741,6 +14742,8 @@ function calcular() {
       html += '</tbody></table></div></div>';
     }
   }
+  // Capacidad de frente por tercio: justo después de «Toneladas y hectáreas programadas por semana»
+  html += '<div class="card" style="margin-bottom:16px"><div class="card-title">Capacidad de frente por tercio</div><div id="capacidad-tercio-content"></div></div>';
   // IMPORTANTE (corregido): c.productividad es la tasa "equivalente a UNA
   // sola máquina" (tonCampo / tTrabajoH, ver calcTiempos — no se divide por
   // nCosechadoras ahí). El ritmo del FRENTE COMPLETO (todas las cosechadoras
@@ -15313,14 +15316,25 @@ function calcular() {
   html += '<div id="res-tabla-wrap"></div>';
   html += '</div>';
 
-  html += '<div class="card" style="margin-top:20px"><div class="card-title">Capacidad de frente por tercio</div><div id="capacidad-tercio-content"></div></div>';
-
   document.getElementById('resultado-content').innerHTML = html;
   renderTablaResultados();
   renderCapacidadFrentePorTercio(filtroZafraRes);
 }
 
 /* ── Render: "Capacidad de frente por tercio" — al final de Resultados ── */
+var _capAbiertos = {};
+function capToggle(id) {
+  var ab = !_capAbiertos[id]; _capAbiertos[id] = ab;
+  document.querySelectorAll('tr[data-capf="' + id + '"]').forEach(function(r) { r.style.display = ab ? '' : 'none'; });
+  var c = document.getElementById(id + '-c'); if (c) c.textContent = ab ? '[−]' : '[+]';
+}
+function capExpandirTodo(ab) {
+  document.querySelectorAll('tr.cap-sub .cap-car').forEach(function(c) {
+    var id = c.id.replace(/-c$/, ''); _capAbiertos[id] = ab;
+    document.querySelectorAll('tr[data-capf="' + id + '"]').forEach(function(r) { r.style.display = ab ? '' : 'none'; });
+    c.textContent = ab ? '[−]' : '[+]';
+  });
+}
 function renderCapacidadFrentePorTercio(zafra) {
   var el = document.getElementById('capacidad-tercio-content');
   if (!el) return;
@@ -15332,49 +15346,47 @@ function renderCapacidadFrentePorTercio(zafra) {
   if (!data) { el.innerHTML = '<div class="alert alert-info"><i class="ti ti-info-circle"></i><span>No hay lotes planificados para esta zafra.</span></div>'; return; }
 
   var n = data.tercios.length;
-  var h = '<p style="font-size:12px;color:var(--text2);margin-bottom:14px">Sale del programa simulado (el mismo de «Día a día» y del Resumen por frente de Seguimiento). Cada máquina: Horas/Día = horas efectivas de trabajo (corte + maniobras + ralentí) por día que trabajó, TM/Hora = t ÷ horas, TM/Día = t por día que trabajó. El <b>subtotal</b> de cada frente usa horas-máquina y máquinas-día de sus días de corte; Total por Día = toneladas ÷ días de corte; por Semana = ×7. «General» es toda la zafra. Los frentes manuales (de personas, ej. K11) se muestran como un solo bloque con su capacidad total — no tienen "cosechadoras" que desglosar y no se cuentan en el total de máquinas del resumen. Se recalcula solo con cada ajuste al plan.</p>';
-  h += '<div style="overflow-x:auto"><table style="font-size:11px"><thead>';
-  h += '<tr><th rowspan="2" style="vertical-align:bottom">Frente</th><th rowspan="2" style="vertical-align:bottom">Cosech./<br>Alzadora</th>' +
-    data.tercios.map(function(t) { return '<th colspan="5" style="text-align:center;border-left:1px solid var(--border)">' + t.nombre + '<br><span style="font-weight:400;color:var(--text3)">(' + t.desde + ' a ' + t.hasta + ')</span></th>'; }).join('') + '</tr>';
-  h += '<tr>' + data.tercios.map(function() { return '<th style="border-left:1px solid var(--border)">Horas/<br>Día</th><th>TM/<br>Horas</th><th>TM/<br>Día</th><th>Total por<br>Día</th><th>Total por<br>Semana</th>'; }).join('') + '</tr>';
+  var h = '<style>.cap-t{table-layout:fixed;width:100%;min-width:1150px;font-size:11px;border-collapse:collapse}.cap-t th,.cap-t td{padding:4px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cap-t .n{text-align:right}.cap-t tr.cap-sub{font-weight:600;background:var(--bg2);cursor:pointer}.cap-t tr.cap-sub:hover{filter:brightness(.97)}.cap-car{font-family:monospace;font-weight:700;color:var(--green-text);margin-right:6px}</style>';
+  h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px;flex-wrap:wrap"><details style="font-size:12px;color:var(--text2);flex:1;min-width:260px"><summary style="cursor:pointer">Cómo se calcula</summary><p style="margin:6px 0 0">Sale del programa simulado (el mismo de «Día a día» y del Resumen por frente de Seguimiento). <b>Cada máquina</b>: H/Día = horas efectivas de trabajo (corte + maniobras + ralentí) por día que trabajó, TM/h = t ÷ horas, TM/Día = t por día que trabajó. <b>Subtotal del frente</b>: horas-máquina y máquinas-día de sus días de corte; Tot/Día = toneladas ÷ días de corte; Tot/Sem = ×7. «General» es toda la zafra. Los frentes manuales (personas, ej. K11) van en una sola fila con su capacidad total y no cuentan en el total de máquinas.</p></details>' +
+    '<span style="white-space:nowrap"><button class="btn btn-xs" onclick="capExpandirTodo(true)" title="Abrir todos los frentes y ver cada cosechadora">[+] Abrir todos</button> <button class="btn btn-xs" onclick="capExpandirTodo(false)">[−] Plegar todos</button></span></div>';
+  h += '<div style="overflow-x:auto"><table class="cap-t"><colgroup><col style="width:130px">' + data.tercios.map(function() { return '<col style="width:46px"><col style="width:46px"><col style="width:52px"><col style="width:58px"><col style="width:68px">'; }).join('') + '</colgroup><thead>';
+  h += '<tr><th rowspan="2" style="vertical-align:bottom">Frente / cosechadora</th>' +
+    data.tercios.map(function(t) { return '<th colspan="5" style="text-align:center;border-left:1px solid var(--border)">' + t.nombre + '<br><span style="font-weight:400;color:var(--text3);font-size:10px">' + t.desde.slice(2) + ' a ' + t.hasta.slice(2) + '</span></th>'; }).join('') + '</tr>';
+  h += '<tr>' + data.tercios.map(function() { return '<th class="n" style="border-left:1px solid var(--border)" title="Horas efectivas de trabajo por día">H/Día</th><th class="n" title="Toneladas por hora de trabajo">TM/h</th><th class="n" title="Toneladas por día">TM/Día</th><th class="n" title="Toneladas por día de corte del frente">Tot/Día</th><th class="n" title="Total por día × 7">Tot/Sem</th>'; }).join('') + '</tr>';
   h += '</thead><tbody>';
 
   if (!data.frentesData.length) {
-    h += '<tr><td colspan="' + (2 + n * 5) + '" style="color:var(--text3);text-align:center;padding:10px">Sin actividad planificada</td></tr>';
+    h += '<tr><td colspan="' + (1 + n * 5) + '" style="color:var(--text3);text-align:center;padding:10px">Sin actividad planificada</td></tr>';
   }
+  var nd = '<td class="n" style="border-left:1px solid var(--border);color:var(--text3)">–</td><td class="n">–</td><td class="n">–</td>';
   data.frentesData.forEach(function(fd) {
-    var nFilas = fd.filas.length, conSub = !fd.manual && fd.sub;
-    fd.filas.forEach(function(fila, i) {
-      h += '<tr>';
-      h += '<td>' + (i === 0 ? '<strong>' + fd.frenteNombre + '</strong>' + (fd.manual ? ' <span style="color:var(--text3);font-size:10px">(manual)</span>' : '') : '') + '</td>';
-      h += '<td style="font-family:monospace">' + (fd.manual ? '—' : fila.codigo + (fila.anio ? ' <span style="color:var(--text3);font-size:10px">año ' + fila.anio + '</span>' : '')) + '</td>';
-      fila.porTercio.forEach(function(pt, ti) {
-        if (!pt) {
-          h += '<td style="border-left:1px solid var(--border);color:var(--text3)">–</td><td>–</td><td>–</td>';
-          if (conSub) h += '<td></td><td></td>';
-          else if (i === 0) h += '<td rowspan="' + nFilas + '" style="color:var(--text3)">–</td><td rowspan="' + nFilas + '" style="color:var(--text3)">–</td>';
-          return;
-        }
-        h += '<td style="border-left:1px solid var(--border)">' + pt.horasProm.toFixed(1) + '</td>';
-        h += '<td>' + pt.prodProm.toFixed(1) + '</td>';
-        h += '<td>' + Math.round(pt.tmDia).toLocaleString() + (fd.manual ? ' <span style="color:var(--text3);font-size:10px">(total)</span>' : '') + '</td>';
-        if (conSub) h += '<td></td><td></td>';   // el total del frente va en su fila de subtotal
-        else if (i === 0) {   // frente manual: un solo bloque
-          h += '<td rowspan="' + nFilas + '" style="font-weight:600">' + Math.round(pt.totalDia).toLocaleString() + '</td>';
-          h += '<td rowspan="' + nFilas + '" style="font-weight:600">' + Math.round(pt.totalSemana).toLocaleString() + '</td>';
-        }
+    var idF = 'cap-' + String(fd.frenteNombre).replace(/[^a-zA-Z0-9_-]/g, '_'), ab = !!_capAbiertos[idF];
+    if (!fd.manual && fd.sub) {
+      // fila del frente (subtotal, siempre visible): [+] despliega cada cosechadora
+      h += '<tr class="cap-sub" style="border-top:1px solid var(--border)" onclick="capToggle(\'' + idF + '\')" title="Clic para ver el rendimiento de cada cosechadora"><td><span class="cap-car" id="' + idF + '-c">' + (ab ? '[−]' : '[+]') + '</span>' + fd.frenteNombre + ' <span style="color:var(--text3);font-weight:400;font-size:10px">' + fd.filas.length + ' máq</span></td>';
+      fd.sub.forEach(function(x) {
+        if (!x) { h += nd + '<td class="n">–</td><td class="n">–</td>'; return; }
+        h += '<td class="n" style="border-left:1px solid var(--border)" title="Horas efectivas de trabajo por máquina y día = horas-máquina ÷ máquinas-día">' + x.horasProm.toFixed(1) + '<div style="font-weight:400;font-size:9px;color:var(--text3)">' + x.nMaq.toFixed(1) + ' máq</div></td>' +
+          '<td class="n" title="Toneladas ÷ horas-máquina de trabajo">' + x.prodProm.toFixed(1) + '</td>' +
+          '<td class="n" title="Toneladas por máquina y día = toneladas ÷ máquinas-día">' + Math.round(x.tmDia).toLocaleString() + '</td>' +
+          '<td class="n" title="Toneladas por día de corte del frente">' + Math.round(x.totalDia).toLocaleString() + '</td>' +
+          '<td class="n">' + Math.round(x.totalSemana).toLocaleString() + '</td>';
       });
       h += '</tr>';
-    });
-    if (conSub) {
-      h += '<tr style="font-weight:600;background:var(--bg2);border-top:1px solid var(--border)"><td colspan="2">Subtotal ' + fd.frenteNombre + '</td>';
-      fd.sub.forEach(function(x) {
-        if (!x) { h += '<td style="border-left:1px solid var(--border);color:var(--text3)">–</td><td>–</td><td>–</td><td>–</td><td>–</td>'; return; }
-        h += '<td style="border-left:1px solid var(--border)" title="Horas efectivas de trabajo por máquina y día = horas-máquina ÷ máquinas-día">' + x.horasProm.toFixed(1) + '<div style="font-weight:400;font-size:9px;color:var(--text3)">' + x.nMaq.toFixed(1) + ' máq</div></td>' +
-          '<td title="Toneladas ÷ horas-máquina de trabajo">' + x.prodProm.toFixed(1) + '</td>' +
-          '<td title="Toneladas por máquina y día = toneladas ÷ máquinas-día">' + Math.round(x.tmDia).toLocaleString() + '</td>' +
-          '<td title="Toneladas por día de corte del frente">' + Math.round(x.totalDia).toLocaleString() + '</td>' +
-          '<td>' + Math.round(x.totalSemana).toLocaleString() + '</td>';
+      fd.filas.forEach(function(fila) {
+        h += '<tr data-capf="' + idF + '" style="display:' + (ab ? '' : 'none') + '"><td style="padding-left:26px;font-family:monospace">' + fila.codigo + (fila.anio ? ' <span style="color:var(--text3);font-size:10px">año ' + fila.anio + '</span>' : '') + '</td>';
+        fila.porTercio.forEach(function(pt) {
+          if (!pt) { h += nd + '<td></td><td></td>'; return; }
+          h += '<td class="n" style="border-left:1px solid var(--border)">' + pt.horasProm.toFixed(1) + '</td><td class="n">' + pt.prodProm.toFixed(1) + '</td><td class="n">' + Math.round(pt.tmDia).toLocaleString() + '</td><td></td><td></td>';
+        });
+        h += '</tr>';
+      });
+    } else {
+      // frente manual: una sola fila con su capacidad total
+      h += '<tr style="border-top:1px solid var(--border)"><td><strong>' + fd.frenteNombre + '</strong> <span style="color:var(--text3);font-size:10px">(manual)</span></td>';
+      fd.filas[0].porTercio.forEach(function(pt) {
+        if (!pt) { h += nd + '<td class="n">–</td><td class="n">–</td>'; return; }
+        h += '<td class="n" style="border-left:1px solid var(--border)">' + pt.horasProm.toFixed(1) + '</td><td class="n">' + pt.prodProm.toFixed(1) + '</td><td class="n">' + Math.round(pt.tmDia).toLocaleString() + '</td><td class="n" style="font-weight:600">' + Math.round(pt.totalDia).toLocaleString() + '</td><td class="n" style="font-weight:600">' + Math.round(pt.totalSemana).toLocaleString() + '</td>';
       });
       h += '</tr>';
     }
@@ -15387,19 +15399,19 @@ function renderCapacidadFrentePorTercio(zafra) {
   // Horas/Día × TM/Horas (prodProm se calculó como tmDiaProm ÷ horasProm, así que al multiplicarlos
   // de vuelta da el mismo número, sin redondeos intermedios). Total/Día y Total/Semana sí incluyen
   // a los frentes manuales, porque esos son toneladas reales que también le llegan a la fábrica.
-  h += '<tr style="font-weight:600;border-top:2px solid var(--border)"><td colspan="2">TOTAL ZAFRA (todos los frentes)</td>' +
+  h += '<tr style="font-weight:600;border-top:2px solid var(--border)"><td>TOTAL ZAFRA</td>' +
     data.bloques.map(function(b) {
-      return '<td style="border-left:1px solid var(--border)">' + b.resumen.horasProm.toFixed(1) + '</td>' +
-        '<td>' + b.resumen.prodProm.toFixed(1) + '</td>' +
-        '<td>' + Math.round(b.resumen.tmDiaProm).toLocaleString() + '</td>' +
-        '<td>' + Math.round(b.resumen.totalDia).toLocaleString() + '</td>' +
-        '<td>' + Math.round(b.resumen.totalSemana).toLocaleString() + '</td>';
+      return '<td class="n" style="border-left:1px solid var(--border)">' + b.resumen.horasProm.toFixed(1) + '</td>' +
+        '<td class="n">' + b.resumen.prodProm.toFixed(1) + '</td>' +
+        '<td class="n">' + Math.round(b.resumen.tmDiaProm).toLocaleString() + '</td>' +
+        '<td class="n">' + Math.round(b.resumen.totalDia).toLocaleString() + '</td>' +
+        '<td class="n">' + Math.round(b.resumen.totalSemana).toLocaleString() + '</td>';
     }).join('') + '</tr>';
-  h += '<tr style="color:var(--text3)"><td colspan="2">' + data.bloques[0].resumen.nMaq + ' máquina(s) — Horas/Día, TM/Horas y TM/Día excluyen frentes manuales</td>' +
+  h += '<tr style="color:var(--text3)"><td colspan="1" title="Horas/Día, TM/h y TM/Día excluyen frentes manuales" style="white-space:normal;font-size:10px">' + data.bloques[0].resumen.nMaq.toFixed(1) + ' máq (sin manuales)</td>' +
     data.bloques.map(function() { return '<td colspan="5" style="border-left:1px solid var(--border)"></td>'; }).join('') + '</tr>';
   var hayFabrica = data.bloques.some(function(b) { return b.planFabricaProm !== null; });
   if (hayFabrica) {
-    h += '<tr style="color:var(--text3)"><td colspan="2">Plan Fábrica (ton/día prom.)</td>' +
+    h += '<tr style="color:var(--text3)"><td style="white-space:normal;font-size:10px">Plan Fábrica (t/día)</td>' +
       data.bloques.map(function(b) {
         if (b.planFabricaProm === null) return '<td colspan="5" style="border-left:1px solid var(--border)">–</td>';
         var difPct = b.resumen.totalDia > 0 ? Math.round((b.resumen.totalDia / b.planFabricaProm) * 100) : null;
