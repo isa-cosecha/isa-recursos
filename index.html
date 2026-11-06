@@ -5217,8 +5217,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.15', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.16', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.16', '2026-11-06', 'Día a día · Todas las fechas: cada plantío se despliega [+] con sus días, cosechadoras y secuencia de trabajo'],
   ['1.15', '2026-11-06', 'Día a día: frentes plegados con resumen, filtros de frente y plantío, opción «Todas las fechas» para comparar con Seguimiento'],
   ['1.14', '2026-11-06', 'Programa diario publicado: agrega inicio/fin y velocidad de cada lote (igual que Día a día) para Seguimiento'],
   ['1.13', '2026-11-06', 'Publica el programa diario simulado (categoría progdia) para que Seguimiento coincida con Día a día'],
@@ -16057,8 +16058,8 @@ function verDia() {
           maqAsigLote = loDD.maqs.map(function(m) { return '<span class="badge badge-gray" style="font-family:monospace;margin:1px" title="Corte ' + m.h.toFixed(1) + ' h + maniobras y ralentí ' + (m.hT - m.h).toFixed(1) + ' h">' + m.codigo + ' <strong>' + m.hT.toFixed(1) + ' h</strong></span>'; }).join('') +
             codsFrDD.filter(function(c) { return !partDD[c]; }).map(function(c) { return '<span class="badge badge-gray" style="font-family:monospace;margin:1px;opacity:.4" title="No participa en este lote hoy">' + c + '</span>'; }).join('');
         }
-        html += '<tr style="cursor:pointer" onclick="var r=document.getElementById(\'' + idSecDD + '\');if(r){var ab=r.style.display===\'none\';r.style.display=ab?\'\':\'none\';var ic=this.querySelector(\'.dd-caret\');if(ic)ic.textContent=ab?\'▾\':\'▸\';}" title="Ver la secuencia de trabajo de este lote">';
-        html += '<td><span class="dd-caret" style="color:var(--text3);margin-right:4px">▸</span><strong>' + l.nombre + '</strong>' + (evLote.length ? ' <span style="font-size:10px;color:var(--text3)">(' + evLote.length + ')</span>' : '') + '</td>';
+        html += '<tr style="cursor:pointer" onclick="var r=document.getElementById(\'' + idSecDD + '\');if(r){var ab=r.style.display===\'none\';r.style.display=ab?\'\':\'none\';var ic=this.querySelector(\'.dd-caret\');if(ic)ic.textContent=ab?\'[−]\':\'[+]\';}" title="Ver la secuencia de trabajo de este lote">';
+        html += '<td><span class="dd-caret" style="color:var(--green-text);font-family:monospace;font-weight:700;margin-right:6px">[+]</span><strong>' + l.nombre + '</strong>' + (evLote.length ? ' <span style="font-size:10px;color:var(--text3)">(' + evLote.length + ')</span>' : '') + '</td>';
         html += '<td>' + l.tch + '</td>';
         html += '<td style="color:'+maqColor+';font-weight:500;white-space:nowrap">' + maqStr + '</td>';
         html += '<td style="white-space:nowrap;font-weight:500"' + (tituloHoras ? ' title="' + tituloHoras.replace(/"/g, '&quot;') + '"' : '') + '>' + horasCelda + '</td>';
@@ -16169,6 +16170,47 @@ function ddAggFrente(F, rows) {
   if (!(hT > 0) || !(sn > 0)) return null;
   return { nec: nec, hef: hT / sn, hefC: hC / sn, tmh: ton / hT, tmmd: ton / sn, cap: ton / nd, vel: vh > 0 ? vs / vh : null, dias: nd, ton: ton, sn: sn, ini: ini, fin: fin };
 }
+
+// Evento de la secuencia de un lote (mismo formato que el detalle de un día)
+function ddEvHtml(ev) {
+  var cruce = ev.dtIni.fecha !== ev.dtFin.fecha, hora = ev.dtIni.hora + ' → ' + ev.dtFin.hora + (cruce ? ' (+1d)' : ''), col, bg, ic;
+  if (ev.real) { col = '#085041'; bg = '#DDF3E8'; ic = 'ti-circle-check'; }
+  else if (ev.tipo === 'traslado') { col = '#854F0B'; bg = '#FAEEDA'; ic = 'ti-truck'; }
+  else if (ev.tipo === 'fin') { col = '#085041'; bg = '#E1F5EE'; ic = 'ti-circle-check'; }
+  else if (ev.tipo === 'paralela') { col = '#3C3489'; bg = '#EEEDFE'; ic = 'ti-tractor'; }
+  else if (ev.tipo === 'mantenimiento') { col = '#A32D2D'; bg = '#FCEBEB'; ic = 'ti-tool'; }
+  else { col = '#185FA5'; bg = '#E6F1FB'; ic = 'ti-tractor'; }
+  return '<div style="display:flex;align-items:flex-start;gap:8px;background:' + bg + ';color:' + col + ';border-radius:4px;padding:5px 10px;margin-bottom:3px;font-size:11px"><i class="ti ' + ic + '" style="font-size:12px;flex-shrink:0;margin-top:1px"></i><div><strong style="white-space:nowrap">' + hora + '</strong>' + (ev.maq ? ' <span style="background:rgba(0,0,0,.08);border-radius:3px;padding:0 5px;font-size:10px">' + ev.maq + ' máq.</span>' : '') + ' <span>' + ev.desc + '</span></div></div>';
+}
+// [+] de un plantío en «Todas las fechas»: día por día (cosechadoras con sus horas, toneladas) y la secuencia de trabajo de cada día
+function ddToggleLote(lid) {
+  var safe = String(lid).replace(/[^a-zA-Z0-9_-]/g, '_'), tr = document.getElementById('ddl-' + safe); if (!tr) return;
+  var abrir = tr.style.display === 'none'; tr.style.display = abrir ? '' : 'none';
+  var c = document.getElementById('ddc-' + safe); if (c) c.textContent = abrir ? '[−]' : '[+]';
+  if (abrir && !tr.getAttribute('data-ok')) { ddRellenaLote(lid, safe); tr.setAttribute('data-ok', '1'); }
+}
+function ddRellenaLote(lid, safe) {
+  var cel = document.getElementById('ddlc-' + safe); if (!cel) return;
+  try {
+    var z = (document.getElementById('diadia-filtro-zafra') || {}).value || '', P = ddProgramaZafra(z), it = P.L[lid];
+    if (!it) { cel.innerHTML = '<div style="padding:8px 14px;color:var(--text3);font-size:12px">Sin datos del programa para este plantío (el plan cambió: vuelve a elegir la fecha).</div>'; return; }
+    if (!P.ev) P.ev = simularEventosPorFrente(z);
+    var evF = P.ev[it.f] || {}, set = {};
+    Object.keys(it.d || {}).forEach(function(f) { set[f] = 1; });
+    Object.keys(evF).forEach(function(f) { if ((evF[f] || []).some(function(ev) { return ev.lote === it.n; })) set[f] = 1; });
+    var h = '<div style="background:var(--bg2);padding:8px 14px">';
+    Object.keys(set).sort().forEach(function(f) {
+      var a = (it.d || {})[f], evs = (evF[f] || []).filter(function(ev) { return ev.lote === it.n; }).sort(function(x, y) { return x.minIni - y.minIni; });
+      h += '<div style="margin-bottom:10px"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11px;margin-bottom:4px"><strong style="font-size:12px">' + f + '</strong>';
+      if (a) {
+        h += '<span style="color:var(--text2)">' + a[0] + ' máq · ' + (a[1] / a[0]).toFixed(1) + ' h efect./máq (corte ' + (a[2] / a[0]).toFixed(1) + ' h) · ' + Math.round(a[3]).toLocaleString() + ' t</span>';
+        String(a[4] || '').split(';').forEach(function(t) { var x = t.split(':'); if (x[0]) h += '<span class="badge badge-gray" style="font-family:monospace" title="Corte ' + (+x[2] || 0).toFixed(1) + ' h">' + x[0] + ' <strong>' + (+x[1] || 0).toFixed(1) + ' h</strong></span>'; });
+      }
+      h += '</div>' + (evs.length ? evs.map(ddEvHtml).join('') : '<span style="font-size:11px;color:var(--text3);font-style:italic">Sin eventos este día.</span>') + '</div>';
+    });
+    cel.innerHTML = h + '</div>';
+  } catch (e) { cel.innerHTML = '<div style="padding:8px 14px;color:var(--red-text);font-size:12px">No se pudo cargar el detalle: ' + (e && e.message ? e.message : e) + '</div>'; }
+}
 function ddCelda(lab, val, sub, tip) {
   return '<div title="' + tip + '" style="flex:1;min-width:130px;padding:8px 14px;border-right:0.5px solid var(--border)"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">' + lab + '</div><div style="font-size:15px;font-weight:600;color:var(--text)">' + val + '</div><div style="font-size:10px;color:var(--text3)">' + sub + '</div></div>';
 }
@@ -16207,9 +16249,11 @@ function verDiaTodas(el, z, fFrente, fPlant) {
       html += '<div id="dd-det-' + idFn + '" data-dd-det="1" style="display:' + (_ddAbiertos[idFn] ? '' : 'none') + ';overflow-x:auto"><table style="font-size:12px"><thead><tr><th>Lote</th><th>TCH</th><th>Cosech.</th><th>Vel. cosecha</th><th>Hrs efect.</th><th>TM/h</th><th>TM/máq/día</th><th>Capacidad t/día</th><th>Ton campo</th><th>Ton simuladas</th><th>Días</th><th>F. inicio</th><th>F. fin</th></tr></thead><tbody>';
       rows.forEach(function(r) {
         var q = r.q, p = planPorId[r.it.id] || {};
-        html += '<tr><td><strong>' + r.it.n + '</strong></td><td>' + (p.tch !== undefined && p.tch !== null ? p.tch : '–') + '</td>' +
+        var lidSafe = String(r.it.id).replace(/[^a-zA-Z0-9_-]/g, '_');
+        html += '<tr style="cursor:pointer" data-lid="' + r.it.id + '" onclick="ddToggleLote(this.getAttribute(\'data-lid\'))" title="Ver los días y la secuencia de trabajo de este plantío"><td style="white-space:nowrap"><span class="dd-caret" id="ddc-' + lidSafe + '" style="color:var(--green-text);font-family:monospace;font-weight:700;margin-right:6px">[+]</span><strong>' + r.it.n + '</strong></td><td>' + (p.tch !== undefined && p.tch !== null ? p.tch : '–') + '</td>' +
           (q ? '<td>' + q.nec + '</td><td>' + n1(q.v) + (q.v ? ' <span style="font-size:9px;color:var(--blue-text)">' + (q.vf === 'anterior' ? 'ant.' : 'tabla') + '</span>' : '') + '</td><td>' + n1(q.hef) + ' h</td><td>' + n1(q.pu) + '</td><td>' + Math.round(q.tmmd).toLocaleString() + '</td><td>' + Math.round(q.cap).toLocaleString() + '</td>' : '<td colspan="6" style="color:var(--text3)">sin corte en la simulación</td>') +
-          '<td>' + Math.round(p.tonCampo || 0).toLocaleString() + '</td><td>' + (q ? Math.round(q.ton).toLocaleString() : '–') + '</td><td>' + (q ? q.dias : '–') + '</td><td style="white-space:nowrap">' + fmtD(r.it.i) + '</td><td style="white-space:nowrap">' + fmtD(r.it.e) + '</td></tr>';
+          '<td>' + Math.round(p.tonCampo || 0).toLocaleString() + '</td><td>' + (q ? Math.round(q.ton).toLocaleString() : '–') + '</td><td>' + (q ? q.dias : '–') + '</td><td style="white-space:nowrap">' + fmtD(r.it.i) + '</td><td style="white-space:nowrap">' + fmtD(r.it.e) + '</td></tr>' +
+          '<tr id="ddl-' + lidSafe + '" style="display:none"><td colspan="13" id="ddlc-' + lidSafe + '" style="padding:0"></td></tr>';
       });
       html += '</tbody></table></div></div>';
     });
