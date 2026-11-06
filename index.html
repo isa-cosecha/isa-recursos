@@ -11,7 +11,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="author" content="Carlos Rafael Colindres M.">
 <title>Planificador de Cosecha de Caña</title>
-<!-- v294: botón «Importar desde el módulo de diseño» (Campos): aplica la última propuesta de propuestas_diseno con el mismo importador de «Importar tiempos y diseño». v293: N° de serie por cosechadora (Equipos → Modelos de cosechadora). v292: red vial con geometría persistida (simplificada), validación del grafo al restaurar, salidas ordenadas por cercanía, mapa base con respaldo -->
+<!-- v293: N° de serie por cosechadora (Equipos → Modelos de cosechadora). v292: red vial con geometría persistida (simplificada), validación del grafo al restaurar, salidas ordenadas por cercanía, mapa base con respaldo -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -452,7 +452,6 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
             <button class="btn btn-sm" onclick="descargarPlantillaTiempos()" title="Plantilla con el tiempo por maniobra, las maniobras, los surcos, la distancia y la velocidad que tiene hoy cada campo"><i class="ti ti-clock"></i> Plantilla tiempos</button>
             <button class="btn btn-sm btn-primary" onclick="document.getElementById('tiempos-import-file').click()" title="Actualiza de una vez el tiempo por maniobra, las maniobras, los surcos, la distancia y la velocidad de muchos campos, con el CSV que genera el módulo de diseño de lotes (tiempos reales de cosechadoras y diseño)"><i class="ti ti-file-upload"></i> Importar tiempos y diseño</button>
             <input type="file" id="tiempos-import-file" accept=".csv,.txt" style="display:none" onchange="importarCSVTiempos(this)">
-            <button class="btn btn-sm btn-primary" id="btn-import-modulo-diseno" onclick="importarDesdeModuloDiseno()" title="Trae la última propuesta enviada desde el módulo «Diseño de lotes» y la aplica igual que «Importar tiempos y diseño»: solo los campos incluidos, preguntando la zafra y con opción de deshacer"><i class="ti ti-cloud-download"></i> Importar desde el módulo de diseño</button>
             <button class="btn btn-sm" id="btn-deshacer-tiempos" style="display:none" onclick="deshacerImportTiempos()" title="Vuelve los campos a como estaban antes de la última importación de tiempos y diseño"><i class="ti ti-arrow-back-up"></i> Deshacer importación</button>
             <button class="btn btn-sm btn-danger" onclick="borrarTodosCampos()"><i class="ti ti-trash"></i> Limpiar todo</button>
           </div>
@@ -2516,15 +2515,15 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
           <div id="hmax-avisos"></div>
         </div>
         <div style="margin-top:16px;padding-top:14px;border-top:0.5px solid var(--border)">
-          <div style="font-size:13px;font-weight:600;margin-bottom:4px">Curva de rendimiento por años de operación (Año 1 a 10)</div>
-          <p style="font-size:11px;color:var(--text2);margin:0 0 8px">Ajusta el <strong>TM/h</strong> y las <strong>horas efectivas por máquina y día</strong> de cada cosechadora respecto a la media del plan: rendimiento diario = media × (1 + % TM/h) × (1 + % horas). El frente rinde el promedio de sus máquinas, según el año de inicio de cada una (Equipos → Modelos de cosechadora). Año 1 = la máquina arranca en el año de la zafra. <strong>Al activarla reemplaza</strong> a la tabla de mínimos por antigüedad y a los topes de horas por tramo de arriba (no se suman). Los backups trabajan entre las horas mínimas y máximas indicadas abajo (reposición por mantenimiento preventivo).</p>
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px">Horas efectivas por años de operación (Año 1 a 10)</div>
+          <p style="font-size:11px;color:var(--text2);margin:0 0 8px">Ajusta las <strong>horas efectivas por máquina y día</strong> de cada cosechadora respecto a la media del plan: horas de la máquina = media × (1 + % horas). El TM/h por antigüedad <strong>no se toca aquí</strong>: ya está en la velocidad de avance (tabla «Mínimo según la antigüedad» de arriba, que sigue vigente). El frente rinde el promedio de sus máquinas, según el año de inicio de cada una (Equipos → Modelos de cosechadora). Año 1 = la máquina arranca en el año de la zafra. <strong>Al activarla reemplaza</strong> a los topes de horas por tramo de arriba (no se suman). Los backups trabajan entre las horas mínimas y máximas indicadas abajo (reposición por mantenimiento preventivo).</p>
           <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center;margin-bottom:8px;font-size:12px">
-            <label><input type="checkbox" id="ce-activa" onchange="onCurvaEdad()" style="width:auto;margin-right:4px">Activar curva por antigüedad</label>
-            <label title="Divide por el factor medio de toda la flota: la media del plan pasa a ser la de la flota actual y la curva solo reparte. Sin marcar, la media del plan equivale a una máquina de ~3.5 años."><input type="checkbox" id="ce-norm" onchange="onCurvaEdad()" style="width:auto;margin-right:4px">Normalizar a la media de la flota</label>
+            <label><input type="checkbox" id="ce-activa" onchange="onCurvaEdad()" style="width:auto;margin-right:4px">Activar horas por antigüedad</label>
+            <label title="Divide por el factor medio de horas de toda la flota: la media del plan pasa a ser la de la flota actual y la curva solo reparte. Sin marcar, la media del plan equivale a una máquina de ~3.5 años."><input type="checkbox" id="ce-norm" onchange="onCurvaEdad()" style="width:auto;margin-right:4px">Normalizar a la media de la flota</label>
             <label>Backup h/día: mín <input type="number" id="ce-bkmin" value="8" step="0.5" min="1" max="24" oninput="onCurvaEdad()" style="width:60px"> máx <input type="number" id="ce-bkmax" value="10" step="0.5" min="1" max="24" oninput="onCurvaEdad()" style="width:60px"></label>
             <label>Ejemplo — media TM/h <input type="number" id="ce-ref-tmh" value="55" step="0.5" oninput="refrescarCurvaEdad()" style="width:60px"> horas efectivas <input type="number" id="ce-ref-h" value="15" step="0.5" oninput="refrescarCurvaEdad()" style="width:60px"></label>
           </div>
-          <table class="vel-table" style="max-width:720px"><thead><tr><td></td><td style="font-size:11px;color:var(--text2)">TM/h (%)</td><td style="font-size:11px;color:var(--text2)">Horas efect. (%)</td><td style="font-size:11px;color:var(--text2);text-align:right">TM/h</td><td style="font-size:11px;color:var(--text2);text-align:right">Horas/día</td><td style="font-size:11px;color:var(--text2);text-align:right">TM/máq/día</td><td style="font-size:11px;color:var(--text2);text-align:right">Efecto combinado</td></tr></thead><tbody id="ce-body"></tbody></table>
+          <table class="vel-table" style="max-width:620px"><thead><tr><td></td><td style="font-size:11px;color:var(--text2)">Horas efect. (%)</td><td style="font-size:11px;color:var(--text2);text-align:right">Horas/día</td><td style="font-size:11px;color:var(--text2);text-align:right">TM/máq/día</td><td style="font-size:11px;color:var(--text2);text-align:right">Efecto</td></tr></thead><tbody id="ce-body"></tbody></table>
           <div id="ce-media" style="font-size:11px;color:var(--text2);margin-top:6px"></div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:14px;padding-top:14px;border-top:0.5px solid var(--border)">
@@ -5110,43 +5109,40 @@ function marcarCambiosVelocidadPendientes() {
 // Rangos 0–70 y 71–105 TCH: % según la antigüedad de cada cosechadora del frente (0–3, más de 3 a 5, más de 5 años).
 // Si el frente tiene máquinas de distinta antigüedad se usa el PROMEDIO de sus %: cortan el lote en paralelo, así
 // que el tiempo es distancia ÷ suma de velocidades = distancia ÷ (n × velocidad promedio).
-/* ── CURVA DE RENDIMIENTO POR ANTIGÜEDAD (Año 1…10) ──
-   Año de operación = antigüedad al inicio de la zafra + 1 (máquina que arranca en el año de la zafra = Año 1; de Año 10 en adelante se usa el Año 10).
-   · vel[]: % sobre el TM/h medio del lote.   · hrs[]: % sobre las horas efectivas medias por máquina y día.
-   Rendimiento diario de una máquina = media × (1+vel) × (1+hrs). El frente rinde el promedio de sus máquinas (se mueven en paralelo).
-   Si 'normalizar' está activo, se divide por el factor medio de toda la flota: la media del plan pasa a ser la de la flota actual.
-   Backups: horas/día entre bkMin y bkMax (en la práctica 8–10 h). Si 'activa', reemplaza a la tabla de mínimos por antigüedad y a los topes de horas por tramo. */
-var CURVA_EDAD_DEF = { activa: false, normalizar: false, vel: [5, 3, 1, -0.5, -2, -4, -6, -8, -9, -10], hrs: [8, 5, 2, -1, -4, -7, -10, -15, -20, -30], bkMin: 8, bkMax: 10 };
+/* ── HORAS EFECTIVAS POR AÑOS DE OPERACIÓN (Año 1…10) ──
+   Año de operación = antigüedad al inicio de la zafra + 1 (de Año 10 en adelante se usa el Año 10).
+   hrs[]: % sobre las horas efectivas medias por máquina y día. El TM/h por antigüedad NO se toca aquí: ya está en la velocidad de avance
+   (tabla «Mínimo según la antigüedad de las cosechadoras»), que sigue vigente. Producción diaria de una máquina = TM/h del frente × horas del día × (1+hrs).
+   El frente rinde el promedio de sus máquinas. Si 'normalizar' está activo, se divide por el factor medio de horas de la flota.
+   Backups: horas/día entre bkMin y bkMax (en la práctica 8–10 h). Si 'activa', reemplaza a los topes de horas por tramo. */
+var CURVA_EDAD_DEF = { activa: false, normalizar: false, hrs: [8, 5, 2, -1, -4, -7, -10, -15, -20, -30], bkMin: 8, bkMax: 10 };
 var curvaEdad = JSON.parse(JSON.stringify(CURVA_EDAD_DEF));
 function anioOperacion(edad) { return (edad === null || edad === undefined) ? null : Math.min(10, Math.max(1, edad + 1)); }
-function factVelEdad(edad) { var a = anioOperacion(edad); return a === null ? 1 : 1 + (parseFloat(curvaEdad.vel[a - 1]) || 0) / 100; }
 function factHrsEdad(edad) { var a = anioOperacion(edad); return a === null ? 1 : 1 + (parseFloat(curvaEdad.hrs[a - 1]) || 0) / 100; }
-// Media de la flota (máquinas con código y año de inicio): factor de TM/h (v) y de horas (h) por separado
+// Media de la flota (máquinas con código y año de inicio) del factor de horas
 function factorCurvaFlota(zafra) {
   var l = modelosCosech.filter(function(m) { return m.id !== -1 && m.codigo && edadCosechadora(m, zafra) !== null; });
-  if (!l.length) return { v: 1, h: 1, n: 0 };
-  return { v: l.reduce(function(s, m) { return s + factVelEdad(edadCosechadora(m, zafra)); }, 0) / l.length, h: l.reduce(function(s, m) { return s + factHrsEdad(edadCosechadora(m, zafra)); }, 0) / l.length, n: l.length };
+  if (!l.length) return { h: 1, n: 0 };
+  return { h: l.reduce(function(s, m) { return s + factHrsEdad(edadCosechadora(m, zafra)); }, 0) / l.length, n: l.length };
 }
-// Factores de UNA máquina (ya normalizados a la flota si el check está activo): v sobre TM/h, h sobre horas efectivas
+// Factor de horas de UNA máquina (ya normalizado a la flota si el check está activo)
 function factoresCurvaMaq(reg, zafra) {
-  var e = reg ? edadCosechadora(reg, zafra) : null, v = factVelEdad(e), h = factHrsEdad(e);
-  if (curvaEdad.normalizar) { var fl = factorCurvaFlota(zafra); if (fl.v > 0) v /= fl.v; if (fl.h > 0) h /= fl.h; }
-  return { v: v, h: h, anio: anioOperacion(e) };
+  var e = reg ? edadCosechadora(reg, zafra) : null, h = factHrsEdad(e);
+  if (curvaEdad.normalizar) { var fl = factorCurvaFlota(zafra); if (fl.h > 0) h /= fl.h; }
+  return { h: h, anio: anioOperacion(e) };
 }
 function factorCurvaFrente(zafra, frenteNombre, horasDia) {
   var fe = getFrenteEfectivo(zafra, frenteNombre); if (!fe || frenteEsManual(fe)) return 1;
   var maqs = cosechadorasDelFrente(fe, zafra); if (!maqs.length) return 1;
   var H = (horasDia > 0) ? horasDia : (getFrenteHorasMax(zafra, frenteNombre) || (getParamsAnal().horasDia || 20)), suma = 0;
-  maqs.forEach(function(m) { var fm = factoresCurvaMaq(m, zafra); suma += fm.v * Math.min(fm.h, 24 / H); });   // una máquina no pasa de 24 h/día
-  var f = suma / maqs.length;
-  return Math.max(0.05, Math.min(2, f));
+  maqs.forEach(function(m) { suma += Math.min(factoresCurvaMaq(m, zafra).h, 24 / H); });   // una máquina no pasa de 24 h/día
+  return Math.max(0.05, Math.min(2, suma / maqs.length));
 }
 function leerCurvaEdad() { return curvaEdad; }
 function ponerCurvaEdad(d) {
   var b = JSON.parse(JSON.stringify(CURVA_EDAD_DEF));
-  if (d && typeof d === 'object') {
+  if (d && typeof d === 'object') {   // un 'vel' guardado por versiones anteriores se ignora
     b.activa = !!d.activa; b.normalizar = !!d.normalizar;
-    if (Array.isArray(d.vel) && d.vel.length === 10) b.vel = d.vel.map(function(v) { return parseFloat(v) || 0; });
     if (Array.isArray(d.hrs) && d.hrs.length === 10) b.hrs = d.hrs.map(function(v) { return parseFloat(v) || 0; });
     if (d.bkMin > 0) b.bkMin = parseFloat(d.bkMin); if (d.bkMax > 0) b.bkMax = parseFloat(d.bkMax);
   }
@@ -5157,9 +5153,8 @@ function renderCurvaEdad() {
   var c = curvaEdad, h = '';
   for (var i = 0; i < 10; i++) {
     h += '<tr><td>Año ' + (i + 1) + (i === 9 ? ' o más' : '') + '</td>' +
-      '<td><input type="number" id="ce-vel-' + i + '" value="' + c.vel[i] + '" step="0.5" min="-90" max="100" oninput="onCurvaEdad()" style="width:70px"></td>' +
       '<td><input type="number" id="ce-hrs-' + i + '" value="' + c.hrs[i] + '" step="0.5" min="-90" max="100" oninput="onCurvaEdad()" style="width:70px"></td>' +
-      '<td id="ce-tmh-' + i + '" style="text-align:right"></td><td id="ce-h-' + i + '" style="text-align:right"></td><td id="ce-tmd-' + i + '" style="text-align:right;font-weight:600"></td><td id="ce-comb-' + i + '" style="text-align:right"></td></tr>';
+      '<td id="ce-h-' + i + '" style="text-align:right"></td><td id="ce-tmd-' + i + '" style="text-align:right;font-weight:600"></td><td id="ce-comb-' + i + '" style="text-align:right"></td></tr>';
   }
   tb.innerHTML = h;
   var set = function(id, v) { var e = document.getElementById(id); if (e) e.checked = v; }, setv = function(id, v) { var e = document.getElementById(id); if (e) e.value = v; };
@@ -5167,22 +5162,22 @@ function renderCurvaEdad() {
   refrescarCurvaEdad();
 }
 function refrescarCurvaEdad() {
-  var Fv = 1, Fh = 1, nota = '';
+  var Fh = 1, nota = '';
   if (curvaEdad.normalizar) {
-    try { var zf = zafraPorDefecto || ultimaZafraPlan(), fl = factorCurvaFlota(zf); if (fl.n) { Fv = fl.v; Fh = fl.h; nota = ' · Normalizado con la flota de ' + zf + ': ' + fl.n + ' máquinas con año de inicio, factor medio TM/h ' + fl.v.toFixed(3) + ' y horas ' + fl.h.toFixed(3); } else nota = ' · Normalizar sin efecto: ninguna máquina con código y año de inicio (Equipos → Modelos de cosechadora)'; } catch (e) {}
+    try { var zf = zafraPorDefecto || ultimaZafraPlan(), fl = factorCurvaFlota(zf); if (fl.n) { Fh = fl.h; nota = ' · Normalizado con la flota de ' + zf + ': ' + fl.n + ' máquinas con año de inicio, factor medio de horas ' + fl.h.toFixed(3); } else nota = ' · Normalizar sin efecto: ninguna máquina con código y año de inicio (Equipos → Modelos de cosechadora)'; } catch (e) {}
   }
   var rt = parseFloat((document.getElementById('ce-ref-tmh') || {}).value) || 55, rh = parseFloat((document.getElementById('ce-ref-h') || {}).value) || 15, sumaC = 0;
   for (var i = 0; i < 10; i++) {
-    var fv = (1 + (parseFloat(curvaEdad.vel[i]) || 0) / 100) / Fv, fh = (1 + (parseFloat(curvaEdad.hrs[i]) || 0) / 100) / Fh, tmh = rt * fv, hh = rh * fh; sumaC += fv * fh;
+    var fh = (1 + (parseFloat(curvaEdad.hrs[i]) || 0) / 100) / Fh, hh = rh * fh; sumaC += fh;
     var set = function(id, t) { var e = document.getElementById(id); if (e) e.textContent = t; };
-    set('ce-tmh-' + i, tmh.toFixed(2)); set('ce-h-' + i, hh.toFixed(1)); set('ce-tmd-' + i, Math.round(tmh * hh).toLocaleString()); set('ce-comb-' + i, ((fv * fh - 1) * 100 >= 0 ? '+' : '') + ((fv * fh - 1) * 100).toFixed(1) + '%');
+    set('ce-h-' + i, hh.toFixed(1)); set('ce-tmd-' + i, Math.round(rt * hh).toLocaleString()); set('ce-comb-' + i, ((fh - 1) * 100 >= 0 ? '+' : '') + ((fh - 1) * 100).toFixed(1) + '%');
   }
   var m = document.getElementById('ce-media'); if (m) m.textContent = 'Factor medio de las 10 edades: ' + (sumaC / 10).toFixed(3) + ' (' + ((sumaC / 10 - 1) * 100).toFixed(1) + '% vs. la media de referencia)' + nota;
 }
 function onCurvaEdad() {
   var g = function(id) { return document.getElementById(id); };
   curvaEdad.activa = !!(g('ce-activa') || {}).checked; curvaEdad.normalizar = !!(g('ce-norm') || {}).checked;
-  for (var i = 0; i < 10; i++) { var v = parseFloat((g('ce-vel-' + i) || {}).value), h = parseFloat((g('ce-hrs-' + i) || {}).value); curvaEdad.vel[i] = isNaN(v) ? 0 : Math.max(-90, Math.min(100, v)); curvaEdad.hrs[i] = isNaN(h) ? 0 : Math.max(-90, Math.min(100, h)); }
+  for (var i = 0; i < 10; i++) { var h = parseFloat((g('ce-hrs-' + i) || {}).value); curvaEdad.hrs[i] = isNaN(h) ? 0 : Math.max(-90, Math.min(100, h)); }
   var a = parseFloat((g('ce-bkmin') || {}).value), b = parseFloat((g('ce-bkmax') || {}).value);
   if (a > 0 && a <= 24) curvaEdad.bkMin = a; if (b > 0 && b <= 24) curvaEdad.bkMax = Math.max(b, curvaEdad.bkMin);
   refrescarCurvaEdad(); marcarCambiosVelocidadPendientes();
@@ -5217,7 +5212,7 @@ function getVelTablaTrabajo(c) {
   var max = getVelPorTCH(tch, ten, cana), r = rangoTablaVel(tch), pfx = (ten === 'Propio') ? (cana === 'Quemada' ? 'vpq' : 'vpv') : (cana === 'Quemada' ? 'vvq' : 'vvv');
   var pct = null, detalle = '';
   if (r >= 2) { pct = valPct(pfx + '-pct-' + r); if (pct) detalle = pct + '% del máximo del rango'; }
-  else if (!curvaEdad.activa) {
+  else {
     var ps = [], usadas = 0, sinAnio = 0, maqs = cosechadorasDelFrente(c && c.frente, c && c._zafra);
     maqs.forEach(function(m) { var e = edadCosechadora(m, c._zafra); if (e === null) { sinAnio++; return; } var v = valPct('vel-edad-' + r + '-' + tramoEdadCosech(e)); if (v) { ps.push(v); usadas++; } });
     if (ps.length) { pct = ps.reduce(function(s, v) { return s + v; }, 0) / ps.length; detalle = 'promedio de ' + usadas + ' cosechadora(s) según su antigüedad' + (sinAnio ? ' (' + sinAnio + ' sin año de inicio)' : ''); }
@@ -9663,17 +9658,17 @@ function calcCapacidadFrentePorTercio(zafra) {
 
     // Cada código del frente comparte el mismo Horas/Día y TM/Hora (el planificador calcula la
     // productividad a nivel de frente, no por máquina individual — ver nota en la tarjeta).
-    // Con la curva por antigüedad activa, cada máquina tiene sus propias Horas/Día y TM/Hora (media del lote × su factor)
-    // y el total del frente es la SUMA de sus máquinas. Sin curva: todas iguales, como siempre.
+    // Con las horas por antigüedad activas, cada máquina tiene sus propias Horas/Día (media del lote × su factor); el TM/Hora es el del frente
+    // (ya incluye la antigüedad vía la tabla de velocidad) y el total del frente es la SUMA de sus máquinas. Sin la curva: todas iguales, como siempre.
     var regsFrente = cosechadorasDelFrente(fe, zafra);
     var filas = codigosMostrar.map(function(codigo) {
       var reg = (codigo && codigo !== '–') ? (modelosCosech.find(function(mm) { return mm.codigo === codigo; }) || null) : (regsFrente[0] || null);
-      var fm = curvaEdad.activa ? factoresCurvaMaq(reg, zafra) : { v: 1, h: 1, anio: null };
+      var fm = curvaEdad.activa ? factoresCurvaMaq(reg, zafra) : { h: 1, anio: null };
       return {
         codigo: codigo, anio: curvaEdad.activa ? fm.anio : null,
         porTercio: porTercioFrente.map(function(pt) {
           if (!pt) return null;
-          var hh = Math.min(24, pt.horasProm * fm.h), pr = pt.prodProm * fm.v;
+          var hh = Math.min(24, pt.horasProm * fm.h), pr = pt.prodProm;
           return { horasProm: hh, prodProm: pr, tmDia: hh * pr, totalDia: 0, totalSemana: 0 };
         })
       };
@@ -11783,37 +11778,9 @@ function importarCSVTiempos(input) {
     importados.unshift({ fila: '', nombre: 'Diseño aplicado a la zafra ' + Z + (esUltima ? '' : ' (no es la más reciente del plan: los valores generales del campo no cambian)') + ' · velocidad registrada como la de la zafra ' + zDatos });
     mostrarModalCSV(importados, advertencias, errores);
     actualizarBotonDeshacerTiempos();
-    if (window._alTerminarImportTiempos && window._alTerminarImportTiempos.archivo === file.name) { var fin = window._alTerminarImportTiempos; window._alTerminarImportTiempos = null; fin.hecho(importados.length - 1, Z); }
     });
   };
   reader.readAsText(file, 'UTF-8');
-}
-/* ── Importar desde el módulo «Diseño de lotes» ──
-   El módulo guarda su propuesta en la colección propuestas_diseno (documento «ultima»): es la misma «Plantilla tiempos y diseño».
-   Aquí se aplica con el MISMO importador de «Importar tiempos y diseño»: pregunta la zafra, solo cambian los campos incluidos y se puede
-   deshacer. El planificador sigue siendo el único que escribe en sus datos; al terminar, la propuesta queda marcada como aplicada. */
-function importarDesdeModuloDiseno() {
-  if (typeof fbDb === 'undefined' || !fbDb || !fbUsuarioActual) { alert('Inicia sesión para traer la propuesta del módulo de diseño.'); return; }
-  if (fbRolActual === 'visor') { alert('Tu usuario es de solo lectura (visor): no puede importar datos.'); return; }
-  var btn = document.getElementById('btn-import-modulo-diseno'), ref = fbDb.collection('propuestas_diseno').doc('ultima');
-  if (btn) btn.disabled = true;
-  ref.get().then(function(doc) {
-    if (!doc.exists) { alert('Todavía no hay propuestas enviadas desde el módulo de diseño.'); return; }
-    var p = doc.data() || {};
-    if (!p.csvTiempos) { alert('La última propuesta no trae datos de tiempos y diseño.'); return; }
-    var f = function(iso) { return iso ? new Date(iso).toLocaleString('es') : '—'; };
-    var texto = 'Última propuesta del módulo de diseño\n\nEnviada por: ' + (p.autor || '—') + '\nFecha: ' + f(p.fecha) + '\nLotes: ' + (p.nTiempos || '—') +
-      (p.estado === 'aplicada' ? '\n\nATENCIÓN: ya fue aplicada el ' + f(p.aplicadaEl) + ' por ' + (p.aplicadaPor || '—') + ' (zafra ' + (p.aplicadaZafra || '—') + ').' : '') +
-      '\n\n¿Aplicarla? Se te preguntará la zafra; solo cambian los campos incluidos y puedes deshacer.';
-    if (!confirm(texto)) return;
-    var nombre = 'propuesta-modulo-diseno-' + (p.id || 'ultima') + '.csv';
-    window._alTerminarImportTiempos = { archivo: nombre, hecho: function(n, Z) {
-      ref.set({ estado: 'aplicada', aplicadaPor: fbUsuarioActual.email, aplicadaEl: new Date().toISOString(), aplicadaZafra: Z, aplicadaCampos: n }, { merge: true }).catch(function() {});
-    } };
-    importarCSVTiempos({ files: [new File([p.csvTiempos], nombre, { type: 'text/csv' })], value: '' });
-  }).catch(function(e) {
-    alert('No se pudo leer la propuesta del módulo de diseño: ' + ((e && e.code === 'permission-denied') ? 'tu usuario no tiene permiso (revisa las reglas de Firestore).' : ((e && e.message) || e)));
-  }).then(function() { if (btn) btn.disabled = false; });
 }
 function ultimaZafraPlan() { var zs = planItems.map(function(p) { return p.zafra; }).filter(Boolean).sort(); return zs.length ? zs[zs.length - 1] : ''; }
 function valorDisenoZafra(cp, zafra, campo) { var dz = disenoVigenteZafra(cp, zafra); return (dz && dz[campo] > 0) ? dz[campo] : (parseFloat(cp[campo]) || 0); }
@@ -25868,7 +25835,7 @@ function logCalcularCosechadoras(data, dias, zafraOpt) {
     // toneladas por máquina: tiempo disponible × velocidad relativa según su antigüedad (rango de TCH del lote)
     var tonMaq = maqs.map(function() { return 0; });
     g.cos.forEach(function(c) {
-      var r = c.plan ? rangoTablaVel(c.plan.tch) : 2, pcts = maqs.map(function(x) { if (curvaEdad.activa) return x.edad !== null ? factVelEdad(x.edad) * 100 : null; return (r <= 1 && x.edad !== null) ? valPct('vel-edad-' + r + '-' + tramoEdadCosech(x.edad)) : null; });
+      var r = c.plan ? rangoTablaVel(c.plan.tch) : 2, pcts = maqs.map(function(x) { return (r <= 1 && x.edad !== null) ? valPct('vel-edad-' + r + '-' + tramoEdadCosech(x.edad)) : null; });
       var conocidos = pcts.filter(function(v) { return v; }), prom = conocidos.length ? conocidos.reduce(function(s, v) { return s + v; }, 0) / conocidos.length : 1;
       var pesos = maqs.map(function(x, i) { return (x.asignH || 0) * (pcts[i] || prom); }), sp = pesos.reduce(function(s, v) { return s + v; }, 0);
       if (sp > 0) pesos.forEach(function(w, i) { tonMaq[i] += c.ton * w / sp; });
