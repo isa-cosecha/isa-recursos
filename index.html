@@ -351,6 +351,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
     <div class="nav-label">Operación</div>
     <button class="nav-item" onclick="showPage('planificacion')" data-page="planificacion"><i class="ti ti-calendar-stats"></i> Planificación</button>
     <button class="nav-item" onclick="showPage('resultados')" data-page="resultados"><i class="ti ti-chart-bar"></i> Resultados</button>
+    <button class="nav-item" onclick="showPage('comparativo')" data-page="comparativo"><i class="ti ti-chart-dots"></i> Comparativo</button>
     <button class="nav-item" onclick="showPage('diadia')" data-page="diadia"><i class="ti ti-calendar-search"></i> Día a día</button>
     <button class="nav-item" onclick="showPage('logistica')" data-page="logistica"><i class="ti ti-truck"></i> Logística</button>
     <button class="nav-item" onclick="showPage('ejecucion')" data-page="ejecucion"><i class="ti ti-activity"></i> Ejecución</button>
@@ -1242,6 +1243,25 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
     </div>
 
     <!-- DÍA A DÍA -->
+    <!-- COMPARATIVO VS ZAFRAS ANTERIORES -->
+    <div id="page-comparativo" class="page">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+        <div class="page-title" style="margin:0">Comparativo vs zafras anteriores</div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <label style="margin:0;font-size:13px;color:var(--text2)">Zafra del plan:</label>
+          <select id="cmp-zafra" onchange="cmpRender()" style="margin:0;width:130px"></select>
+          <label style="margin:0;font-size:13px;color:var(--text2)">Fechas del plan:</label>
+          <select id="cmp-base" onchange="cmpRender()" style="margin:0;width:230px"><option value="sim">Inicio simulado (programa optimizado)</option><option value="plan">Fecha de inicio del plan</option></select>
+          <label style="margin:0;font-size:13px;color:var(--text2)">Detalle por tenencia:</label>
+          <select id="cmp-det" onchange="cmpRender()" style="margin:0;width:160px"></select>
+          <button class="btn btn-sm" onclick="document.getElementById('cmp-file').click()"><i class="ti ti-upload"></i> Cargar histórico (Excel)</button>
+          <input type="file" id="cmp-file" accept=".xlsx,.xls" style="display:none" onchange="cmpImportarExcel(this)">
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:14px"><div id="cmp-estado" style="font-size:12px;margin-bottom:8px"></div><div id="cmp-series"></div></div>
+      <div id="cmp-content"></div>
+    </div>
+
     <div id="page-diadia" class="page">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px">
         <div class="page-title" style="margin:0">Detalle día a día</div>
@@ -2897,7 +2917,7 @@ function construirDataCompleta() {
     velVPQ: [0,1,2,3].map(function(i) { return fv('vpq-' + i); }),
     velVVV: [0,1,2,3].map(function(i) { return fv('vvv-' + i); }),
     velVVQ: [0,1,2,3].map(function(i) { return fv('vvq-' + i); }),
-    velPctTCH: leerVelPctTCH(), velPctEdad: leerVelPctEdad(), horasMaxEdad: leerTopesHorasEdad(), curvaEdad: leerCurvaEdad(), intervalosMtto: intervalosMtto,
+    velPctTCH: leerVelPctTCH(), velPctEdad: leerVelPctEdad(), horasMaxEdad: leerTopesHorasEdad(), curvaEdad: leerCurvaEdad(), historicoCompar: historicoCompar, intervalosMtto: intervalosMtto,
     camion: {
       carretasInt: fv('e-carretasInterno'), volCarretaInt: fv('e-volCarretaInterno'),
       camIntActivos: fv('e-camIntActivos'), camIntBackup: fv('e-camIntBackup'), camExt: fv('e-camExt'), tCambioCarretas: fv('e-tCambioCarretas'),
@@ -2993,7 +3013,7 @@ function categoriasDeData(d) {
       factoresTrashPorVariedad: d.factoresTrashPorVariedad, factorTrashDefault: d.factorTrashDefault,
       vinculosGeoManual: d.vinculosGeoManual, geoRoutesGuardadas: d.geoRoutesGuardadas,
       cosechIdSeq: d.cosechIdSeq, avIdSeq: d.avIdSeq, frenteIdSeq: d.frenteIdSeq, tandemIdSeq: d.tandemIdSeq, mtIdSeq: d.mtIdSeq,
-      velVPV: d.velVPV, velVPQ: d.velVPQ, velVVV: d.velVVV, velVVQ: d.velVVQ, velPctTCH: d.velPctTCH, velPctEdad: d.velPctEdad, horasMaxEdad: d.horasMaxEdad, curvaEdad: d.curvaEdad, intervalosMtto: d.intervalosMtto,
+      velVPV: d.velVPV, velVPQ: d.velVPQ, velVVV: d.velVVV, velVVQ: d.velVVQ, velPctTCH: d.velPctTCH, velPctEdad: d.velPctEdad, horasMaxEdad: d.horasMaxEdad, curvaEdad: d.curvaEdad, historicoCompar: d.historicoCompar, intervalosMtto: d.intervalosMtto,
       camion: d.camion, fabrica: d.fabrica,
       planesReferencia: d.planesReferencia, lowboysDisponibles: d.lowboysDisponibles, usarRealEnPlan: d.usarRealEnPlan,
       zafraPorDefecto: d.zafraPorDefecto
@@ -4182,6 +4202,7 @@ function showPage(id) {
   if (id === 'costos')    { renderCostos(); }
   if (id === 'mapa')      { initMapaPage(); }
   if (id === 'historico') { renderHistorico(); }
+  if (id === 'comparativo') { cmpInit(); }
   if (id === 'ejecucion') { syncExecSelects(); syncParoSelects(); renderRealRecords(); renderParoRecords(); renderBalanceRecords(); renderExecKPIs(); showExecTab(execTabActual||'registro'); showRegSubtab('prod'); }
   // "Resultados" (Cumplimiento diario, Análisis de horas, etc.) era la
   // ÚNICA página que NO se recalculaba sola al entrar — se quedaba
@@ -5133,7 +5154,7 @@ function _aplicarDatos(d) {
       pctTCH = {}; PREFIJOS_VEL_TCH.forEach(function(pfx) { var mxs = { vpv: d.velVPV, vpq: d.velVPQ, vvv: d.velVVV, vvq: d.velVVQ }[pfx] || []; pctTCH[pfx] = [null, null, 2, 3].map(function(r, i) { var mn = d.velMinTCH[pfx] ? d.velMinTCH[pfx][i] : null, mx = mxs[i]; return (i >= 2 && mn > 0 && mx > 0) ? Math.min(100, Math.round(mn / mx * 100)) : null; }); });
     }
     ponerVelPctTCH(pctTCH); ponerVelPctEdad(d.velPctEdad); actualizarMinKmTabla();
-    ponerTopesHorasEdad(d.horasMaxEdad); ponerCurvaEdad(d.curvaEdad); intervalosMtto = d.intervalosMtto || {};
+    ponerTopesHorasEdad(d.horasMaxEdad); ponerCurvaEdad(d.curvaEdad); if (typeof d.historicoCompar === 'string') historicoCompar = d.historicoCompar; intervalosMtto = d.intervalosMtto || {};
     if (d.camion) {
       var c = d.camion;
       var map = {carretasInt:'e-carretasInterno',volCarretaInt:'e-volCarretaInterno',carretasCarr:'e-carretasCarretera',volCarretaCarr:'e-volCarretaCarretera',velInt:'e-velInterno',velCarr:'e-velCarretera',tIngInt:'e-tIngenioInterno',tIngCarr:'e-tIngenioCarretera',tarifaKmCarr:'e-tarifaKmCarretera',costoCamionHoraInterno:'e-costoCamionHoraInterno',costoCarretaHoraInterno:'e-costoCarretaHoraInterno',precioGalonCombustible:'e-precioGalonCombustible',distDesc:'e-distDescarga',velDesc:'e-velDescarga',tDesc:'e-tDescarga',stockPatio:'e-stockPatio',capPatio:'e-capPatio',tasaConsumo:'e-tasaConsumo',basculas:'e-basculas',tPesaje:'e-tPesaje',velTraslado:'e-velTraslado',tTrasladoFijo:'e-tTrasladoFijo',umbralLowboy:'e-umbralLowboy',tSubidaLowboy:'e-tSubidaLowboy',tBajadaLowboy:'e-tBajadaLowboy'};
@@ -5240,8 +5261,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.19', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.20', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.20', '2026-11-06', 'Nueva sección Comparativo: zafras anteriores (Excel) vs plan optimizado, TCH/Ha/TM por tercio, edad por semana y tenencia'],
   ['1.19', '2026-11-06', 'Capacidad de frente por tercio: desde el programa simulado, con subtotal por frente (coincide con Día a día y Seguimiento); el programa publicado incluye frentes manuales'],
   ['1.18', '2026-11-06', 'Programa diario para Seguimiento: se publica solo tras cada guardado y al cambiar de versión (ya no depende del botón)'],
   ['1.17', '2026-11-06', 'Programa diario publicado: toneladas y velocidad (km/h) por máquina y lote, para el detalle de cosechadoras de Seguimiento'],
@@ -5340,6 +5362,7 @@ function onCurvaEdad() {
   if (a > 0 && a <= 24) curvaEdad.bkMin = a; if (b > 0 && b <= 24) curvaEdad.bkMax = Math.max(b, curvaEdad.bkMin);
   refrescarCurvaEdad(); marcarCambiosVelocidadPendientes();
 }
+var historicoCompar = '';   /* comparativo: histórico agregado del Excel (ver módulo COMPARATIVO); se declara aquí para que la carga de datos lo encuentre */
 var PREFIJOS_VEL_TCH = ['vpv', 'vpq', 'vvv', 'vvq'];
 function valPct(id) { var el = document.getElementById(id), v = el ? parseFloat(el.value) : NaN; return (v > 0 && v <= 100) ? v : null; }
 function leerVelPctTCH() { var o = {}; PREFIJOS_VEL_TCH.forEach(function(pfx) { o[pfx] = [null, null, valPct(pfx + '-pct-2'), valPct(pfx + '-pct-3')]; }); return o; }
@@ -25924,6 +25947,220 @@ function svgBarChart(datos, valueKey, opts) {
 }
 
 /* ── Render de la pestaña Histórico ── */
+/* ══ COMPARATIVO VS ZAFRAS ANTERIORES ═══════════════════════════════════════════════════════════════════════════════
+   Histórico: se carga una vez desde el Excel «Histórico plantíos cerrados (cosechados)» y se guarda AGREGADO (zafra, tenencia, tercio, semana)
+   dentro de los datos del planificador (campo historicoCompar de «equipos»), así lo ven todos los usuarios sin cargarlo de nuevo.
+   Definiciones (validadas contra los gráficos del Excel): TCH = ΣTM ÷ ΣHa · Edad = ΣEdad×TM ÷ ΣTM (ponderada por toneladas) ·
+   tercios: hasta el 10-ene, hasta el 10-mar y el resto · Administrado = Propio/Alquilado · semana de zafra: la misma de Seguimiento. */
+var _cmpSel = null;
+var CMP_COLORES = { '2021-2022': '#BFBFBF', '2022-2023': '#8497B0', '2023-2024': '#70AD47', '2024-2025': '#5B9BD5', '2025-2026': '#FFC000' };
+var CMP_COLOR_PLAN_ANT = '#ED7D31', CMP_COLOR_PLAN = '#1F4E79';
+function cmpHist() { try { var o = historicoCompar ? JSON.parse(historicoCompar) : null; return (o && Array.isArray(o.filas) && o.filas.length) ? o : null; } catch (e) { return null; } }
+function cmpNorm(t) { return String(t == null ? '' : t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ''); }
+function cmpTenCodigo(t) { var n = cmpNorm(t); return n.indexOf('prov') === 0 ? 'P' : (n.indexOf('admin') === 0 || n === 'propio' || n === 'alquilado') ? 'A' : 'O'; }
+function cmpDia(str) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(str || ''); return m ? Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3]) / 86400000) : null; }
+function cmpTercioDe(fecha, zafra) { var y = parseInt(String(zafra).split('-')[1], 10) || (parseInt(zafra, 10) + 1); return fecha <= y + '-01-10' ? 1 : fecha <= y + '-03-10' ? 2 : 3; }
+function cmpSemana(fecha, z0) { var s = cmpDia(fecha), f1 = z0 + ((2 - new Date(z0 * 86400000).getUTCDay() + 7) % 7); return s <= f1 ? 1 : 1 + Math.ceil((s - f1) / 7); }
+function cmpZafraAnterior(z) { var p = String(z || '').split('-'); return p.length === 2 ? (parseInt(p[0], 10) - 1) + '-' + (parseInt(p[1], 10) - 1) : ''; }
+function cmpFechaISO(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400000)).toISOString().slice(0, 10);
+  if (v instanceof Date) return new Date(v.getTime() - v.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  var s = String(v).trim(), m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s); if (m) return m[1] + '-' + m[2] + '-' + m[3];
+  m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(s); return m ? m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2) : null;
+}
+// Matriz de la hoja → registros agregados por (zafra, tenencia, tercio, semana). Función pura (se prueba aparte).
+function cmpParseMatriz(m) {
+  var hi = -1, i;
+  for (i = 0; i < m.length && i < 30; i++) { var n = (m[i] || []).map(cmpNorm); if (n.indexOf('zafra') >= 0 && (n.indexOf('tonmetrica') >= 0 || n.indexOf('tm') >= 0)) { hi = i; break; } }
+  if (hi < 0) throw new Error('No encontré la fila de encabezados (Zafra, Ha, Ton Metrica, Fecha de Corte, TENENCIA…).');
+  var H = m[hi].map(cmpNorm), col = function() { for (var k = 0; k < arguments.length; k++) { var x = H.indexOf(arguments[k]); if (x >= 0) return x; } return -1; };
+  var cZ = col('zafra'), cHa = col('ha', 'hectareas'), cTM = col('tonmetrica', 'tm'), cF = col('fechadecorte', 'fecha'), cTen = col('tenencia'), cTer = col('tercio'), cSem = col('semana'), cEd = col('edad'), cEt = col('edadtm');
+  if (cZ < 0 || cHa < 0 || cTM < 0 || cF < 0) throw new Error('Faltan columnas obligatorias: Zafra, Ha, Ton Metrica y Fecha de Corte.');
+  var rows = [], omitidas = 0, z0 = {};
+  for (i = hi + 1; i < m.length; i++) {
+    var r = m[i] || [], z = r[cZ] == null ? '' : String(r[cZ]).trim(), ha = parseFloat(r[cHa]), tm = parseFloat(r[cTM]), f = cmpFechaISO(r[cF]);
+    if (!z || isNaN(ha) || isNaN(tm) || !f) { omitidas++; continue; }
+    var ed = cEd >= 0 ? parseFloat(r[cEd]) : NaN, etm = cEt >= 0 ? parseFloat(r[cEt]) : (isNaN(ed) ? NaN : ed * tm);
+    rows.push({ z: z, ha: ha, tm: tm, f: f, ten: cTen >= 0 ? cmpTenCodigo(r[cTen]) : 'O', ter: cTer >= 0 ? parseInt(r[cTer], 10) : null, sem: cSem >= 0 ? parseInt(r[cSem], 10) : null, etm: etm });
+    var d = cmpDia(f); if (z0[z] === undefined || d < z0[z]) z0[z] = d;
+  }
+  if (!rows.length) throw new Error('El archivo no tiene filas con zafra, hectáreas, toneladas y fecha de corte.');
+  var agg = {}, sinEdad = 0;
+  rows.forEach(function(r) {
+    var ter = (r.ter >= 1 && r.ter <= 3) ? r.ter : cmpTercioDe(r.f, r.z), sem = (r.sem >= 1) ? r.sem : cmpSemana(r.f, z0[r.z]), k = r.z + '|' + r.ten + '|' + ter + '|' + sem;
+    var a = agg[k] || (agg[k] = { z: r.z, ten: r.ten, ter: ter, sem: sem, ha: 0, tm: 0, etm: 0 });
+    a.ha += r.ha; a.tm += r.tm; if (isNaN(r.etm)) sinEdad++; else a.etm += r.etm;
+  });
+  var rd = function(v, d) { var p = Math.pow(10, d); return Math.round(v * p) / p; };
+  var filas = Object.keys(agg).sort().map(function(k) { var a = agg[k]; return [a.z, a.ten, a.ter, a.sem, rd(a.ha, 3), rd(a.tm, 2), rd(a.etm, 1)]; });
+  return { filas: filas, n: rows.length, omitidas: omitidas, sinEdad: sinEdad, zafras: Array.from(new Set(rows.map(function(r) { return r.z; }))).sort() };
+}
+function cmpImportarExcel(input) {
+  var f = input.files && input.files[0]; if (!f) return;
+  var st = document.getElementById('cmp-estado'); if (st) st.textContent = 'Leyendo ' + f.name + '…';
+  var rd = new FileReader();
+  rd.onload = function(e) {
+    try {
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      var res = cmpParseMatriz(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: null, blankrows: false }));
+      historicoCompar = JSON.stringify({ v: 1, arch: f.name, fecha: new Date().toISOString(), n: res.n, filas: res.filas });
+      if (typeof autoSave === 'function') autoSave();
+      _cmpSel = null; cmpInit();
+      var msg = 'Histórico cargado: ' + res.n.toLocaleString() + ' plantíos de ' + res.zafras.join(', ') + (res.omitidas ? ' · ' + res.omitidas + ' fila(s) omitida(s) por datos incompletos' : '') + (res.sinEdad ? ' · ' + res.sinEdad + ' sin edad' : '') + '.';
+      var st2 = document.getElementById('cmp-estado'); if (st2) st2.innerHTML = '<span style="color:var(--green-text)">' + msg + '</span>';
+    } catch (err) { var st3 = document.getElementById('cmp-estado'); if (st3) st3.innerHTML = '<span style="color:var(--red-text)">No se pudo leer el Excel: ' + (err && err.message ? err.message : err) + '</span>'; }
+    input.value = '';
+  };
+  rd.readAsArrayBuffer(f);
+}
+// Registros del plan de una zafra (lotes del planificador). base 'sim' = fecha de inicio SIMULADA del programa optimizado; 'plan' = fecha de inicio del plan
+function cmpRecsPlan(z, base) {
+  var items = planItems.filter(function(p) { return p.zafra === z && (p.area || 0) > 0; });
+  if (!items.length) return [];
+  var pd = null; if (base === 'sim') { try { pd = ddProgramaZafra(z); } catch (e) { pd = null; } }
+  var fechas = items.map(function(p) { var it = pd && pd.L[p.id]; return (it && it.i) ? String(it.i).slice(0, 10) : p.fechaInicio; });
+  var z0 = Math.min.apply(null, fechas.map(cmpDia).filter(function(x) { return x !== null; }));
+  return items.map(function(p, i) {
+    var f = fechas[i], c = campos.find(function(cc) { return cc.id === p.campoId || cc.nombre === p.campoNombre; }) || {}, fc = p.fechaCorte || c.fechaCorte || '';
+    var ed = (fc && cmpDia(fc) !== null) ? cmpDia(f) - cmpDia(fc) : null, tm = p.tonCampo || 0;
+    return { ten: cmpTenCodigo(c.tenencia), ter: cmpTercioDe(f, z), sem: cmpSemana(f, z0), ha: p.area || 0, tm: tm, etm: ed !== null ? ed * tm : 0, tmEd: ed !== null ? tm : 0 };
+  });
+}
+function cmpSeries(zPlan, base) {
+  var out = [], H = cmpHist(), zAnt = cmpZafraAnterior(zPlan);
+  if (H) Array.from(new Set(H.filas.map(function(r) { return r[0]; }))).sort().forEach(function(z) {
+    out.push({ id: z, label: z, color: CMP_COLORES[z] || '#999999', tipo: 'real', zafra: z, recs: H.filas.filter(function(r) { return r[0] === z; }).map(function(r) { return { ten: r[1], ter: r[2], sem: r[3], ha: r[4], tm: r[5], etm: r[6], tmEd: r[5] }; }) });
+  });
+  [[zAnt, zAnt + ' Plan', CMP_COLOR_PLAN_ANT, 'planAnt', 'plan'], [zPlan, zPlan + ' Plan', CMP_COLOR_PLAN, 'plan', base]].forEach(function(x) {
+    if (!x[0]) return; var recs = cmpRecsPlan(x[0], x[4]);
+    if (recs.length) out.push({ id: 'plan:' + x[0], label: x[1], color: x[2], tipo: x[3], zafra: x[0], recs: recs });
+  });
+  return out;
+}
+function cmpAgg(recs, filtro) {
+  var bl = function() { return { ha: 0, tm: 0, etm: 0, tmEd: 0 }; }, t = [bl(), bl(), bl()], g = bl(), w = {};
+  var add = function(a, r) { a.ha += r.ha; a.tm += r.tm; a.etm += r.etm; a.tmEd += r.tmEd; };
+  recs.forEach(function(r) { if (filtro && !filtro(r)) return; if (r.ter >= 1 && r.ter <= 3) add(t[r.ter - 1], r); add(g, r); add(w[r.sem] || (w[r.sem] = bl()), r); });
+  return { t: t, g: g, w: w };
+}
+var cmpTch = function(a) { return a && a.ha > 0 ? a.tm / a.ha : null; }, cmpEdad = function(a) { return a && a.tmEd > 0 ? a.etm / a.tmEd : null; };
+function cmpNiceMax(v) { if (!(v > 0)) return 1; var e = Math.pow(10, Math.floor(Math.log10(v))), f = v / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * e; }
+function cmpFmtN(v, d) { return (v === null || v === undefined || !isFinite(v)) ? '–' : Number(v).toLocaleString('en-US', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
+function cmpEsc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function cmpLeyenda(series, W) {
+  var x = 8, y = 14, h = '';
+  series.forEach(function(s) { var w = String(s.label).length * 6.4 + 26; if (x + w > W - 8) { x = 8; y += 16; } h += '<rect x="' + x + '" y="' + (y - 8) + '" width="10" height="10" fill="' + s.color + '" rx="2"/><text x="' + (x + 14) + '" y="' + y + '" font-size="11" fill="var(--text2)">' + cmpEsc(s.label) + '</text>'; x += w; });
+  return { svg: h, alto: y + 8 };
+}
+// Barras agrupadas. series: [{label,color,vals:[por categoría],bold,colors:[por categoría]}]; o.deltas: [{txt,color}] por categoría; o.ymin; o.sep: dibuja línea punteada antes de la última categoría
+function cmpSvgBarras(cats, series, o) {
+  o = o || {}; var W = 760, H = o.h || 300, mL = 56, mR = 10, ley = cmpLeyenda(series, W), mT = ley.alto + (o.deltas ? 22 : 6) + 52, mB = 34, pw = W - mL - mR, ph = H - mT - mB;
+  var vs = []; series.forEach(function(s) { s.vals.forEach(function(v) { if (v !== null && v !== undefined && isFinite(v)) vs.push(v); }); });
+  var ymin = o.ymin !== undefined ? o.ymin : 0, ymax = o.ymin !== undefined ? Math.max(Math.ceil((Math.max.apply(null, vs.concat([ymin + 1])) + (Math.max.apply(null, vs.concat([ymin + 1])) - ymin) * 0.45) / 10) * 10, ymin + 10) : cmpNiceMax(Math.max.apply(null, vs.concat([1])) * 1.45);
+  var Y = function(v) { return mT + ph - (v - ymin) / (ymax - ymin) * ph; }, h = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;font-family:inherit" role="img">' + ley.svg;
+  for (var k = 0; k <= 4; k++) { var v = ymin + (ymax - ymin) * k / 4; h += '<line x1="' + mL + '" x2="' + (W - mR) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="var(--border)" stroke-width="0.5"/><text x="' + (mL - 6) + '" y="' + (Y(v) + 3) + '" font-size="10" text-anchor="end" fill="var(--text3)">' + cmpFmtN(v, ymax < 10 ? 1 : 0) + '</text>'; }
+  var gw = pw / cats.length, inner = gw * 0.8, bw = inner / series.length;
+  cats.forEach(function(c, gi) {
+    var gx = mL + gi * gw + (gw - inner) / 2;
+    if (o.sep && gi === cats.length - 1) h += '<line x1="' + (mL + gi * gw) + '" x2="' + (mL + gi * gw) + '" y1="' + (mT - 6) + '" y2="' + (mT + ph) + '" stroke="var(--text3)" stroke-dasharray="4 3" stroke-width="1"/>';
+    series.forEach(function(s, si) {
+      var v = s.vals[gi]; if (v === null || v === undefined || !isFinite(v)) return;
+      var y = Y(v), x = gx + si * bw, col = (s.colors && s.colors[gi]) || s.color;
+      h += '<rect x="' + (x + 1) + '" y="' + y + '" width="' + Math.max(bw - 2, 1) + '" height="' + Math.max(mT + ph - y, 0) + '" fill="' + col + '" rx="1"><title>' + cmpEsc(s.label + ' · ' + c + ': ' + cmpFmtN(v, o.dec || 0)) + '</title></rect>';
+      h += '<text transform="translate(' + (x + bw / 2 + 3) + ',' + (y - 4) + ') rotate(-90)" font-size="' + (s.bold ? 11 : 10) + '" font-weight="' + (s.bold ? 700 : 400) + '" fill="' + (s.bold ? col : 'var(--text2)') + '">' + cmpFmtN(v, o.dec || 0) + '</text>';
+    });
+    if (o.deltas && o.deltas[gi]) h += '<text x="' + (mL + gi * gw + gw / 2) + '" y="' + (ley.alto + 20) + '" font-size="13" font-weight="700" text-anchor="middle" fill="' + o.deltas[gi].color + '">' + o.deltas[gi].txt + '</text>';
+    h += '<text x="' + (mL + gi * gw + gw / 2) + '" y="' + (H - 12) + '" font-size="11" text-anchor="middle" fill="var(--text2)">' + cmpEsc(c) + '</text>';
+  });
+  return h + '</svg>';
+}
+// Líneas por semana. series: [{label,color,vals:{semana:valor},labels:bool,w}]
+function cmpSvgLineas(xs, series, o) {
+  o = o || {}; var W = 900, H = o.h || 300, mL = 48, mR = 14, ley = cmpLeyenda(series, W), mT = ley.alto + 14, mB = 34, pw = W - mL - mR, ph = H - mT - mB;
+  var vs = []; series.forEach(function(s) { xs.forEach(function(x) { var v = s.vals[x]; if (v !== null && v !== undefined && isFinite(v)) vs.push(v); }); });
+  if (!vs.length) return '<div style="padding:14px;color:var(--text3);font-size:12px">Sin datos para graficar.</div>';
+  var ymin = o.ymin !== undefined ? o.ymin : Math.floor((Math.min.apply(null, vs) - 6) / 10) * 10, ymax = o.ymax !== undefined ? o.ymax : Math.ceil((Math.max.apply(null, vs) + 6) / 10) * 10;
+  var X = function(i) { return mL + (xs.length > 1 ? i / (xs.length - 1) : 0.5) * pw; }, Y = function(v) { return mT + ph - (v - ymin) / (ymax - ymin) * ph; };
+  var h = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto;font-family:inherit" role="img">' + ley.svg, n = 5;
+  for (var k = 0; k <= n; k++) { var v = ymin + (ymax - ymin) * k / n; h += '<line x1="' + mL + '" x2="' + (W - mR) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="var(--border)" stroke-width="0.5"/><text x="' + (mL - 6) + '" y="' + (Y(v) + 3) + '" font-size="10" text-anchor="end" fill="var(--text3)">' + (o.pct ? Math.round(v) + '%' : Math.round(v)) + '</text>'; }
+  xs.forEach(function(x, i) { h += '<text x="' + X(i) + '" y="' + (H - 12) + '" font-size="10" text-anchor="middle" fill="var(--text3)">' + x + '</text>'; });
+  h += '<text x="' + (mL + pw / 2) + '" y="' + (H - 1) + '" font-size="10" text-anchor="middle" fill="var(--text3)">' + (o.xlab || 'Semana de zafra') + '</text>';
+  series.forEach(function(s, si) {
+    var d = '', pts = [];
+    xs.forEach(function(x, i) { var v = s.vals[x]; if (v === null || v === undefined || !isFinite(v)) { d += ' '; return; } d += (d.trim() === '' || d.slice(-1) === ' ' ? 'M' : 'L') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1) + ' '; pts.push([i, v, x]); });
+    h += '<path d="' + d.trim() + '" fill="none" stroke="' + s.color + '" stroke-width="' + (s.w || 2) + '" stroke-linejoin="round"/>';
+    pts.forEach(function(p) {
+      h += '<circle cx="' + X(p[0]) + '" cy="' + Y(p[1]) + '" r="' + (s.labels ? 3.5 : 2.5) + '" fill="' + s.color + '"><title>' + cmpEsc(s.label + ' · semana ' + p[2] + ': ' + (o.pct ? p[1].toFixed(1) + '%' : p[1].toFixed(0))) + '</title></circle>';
+      if (s.labels) h += '<text x="' + X(p[0]) + '" y="' + (Y(p[1]) + (si % 2 === 0 ? -8 : 15)) + '" font-size="10" font-weight="600" text-anchor="middle" fill="' + s.color + '">' + (o.pct ? Math.round(p[1]) + '%' : Math.round(p[1])) + '</text>';
+    });
+  });
+  return h + '</svg>';
+}
+function cmpTarjeta(titulo, cuerpo, nota) { return '<div class="card" style="margin-bottom:14px"><div class="card-title">' + titulo + '</div>' + cuerpo + (nota ? '<div style="font-size:11px;color:var(--text3);margin-top:6px">' + nota + '</div>' : '') + '</div>'; }
+function cmpInit() {
+  var selZ = document.getElementById('cmp-zafra'); if (!selZ) return;
+  var zs = Array.from(new Set(planItems.map(function(p) { return p.zafra; }).filter(Boolean))).sort(), cur = selZ.value;
+  selZ.innerHTML = zs.map(function(z) { return '<option value="' + z + '">' + z + '</option>'; }).join('');
+  selZ.value = zs.indexOf(cur) >= 0 ? cur : (zs[zs.length - 1] || '');
+  var H = cmpHist(), st = document.getElementById('cmp-estado');
+  if (st && !/Leyendo|No se pudo|Histórico cargado/.test(st.textContent)) st.innerHTML = H ? '<span style="color:var(--text2)">Histórico: ' + Array.from(new Set(H.filas.map(function(r) { return r[0]; }))).sort().join(', ') + ' · ' + (H.n || 0).toLocaleString() + ' plantíos · ' + cmpEsc(H.arch || '') + ' · ' + String(H.fecha || '').slice(0, 10) + '</span>' : '<span style="color:var(--amber-text)">Sin histórico cargado: usa «Cargar histórico (Excel)».</span>';
+  cmpRender();
+}
+function cmpToggleSerie(id, on) { _cmpSel[id] = !!on; cmpRender(true); }
+function cmpRender(soloGraficos) {
+  var out = document.getElementById('cmp-content'); if (!out) return;
+  var zPlan = (document.getElementById('cmp-zafra') || {}).value || '', base = (document.getElementById('cmp-base') || {}).value || 'sim';
+  if (!zPlan) { out.innerHTML = '<div class="alert alert-info"><i class="ti ti-info-circle"></i><span>No hay zafras en el plan.</span></div>'; return; }
+  out.innerHTML = '<div class="alert alert-info"><i class="ti ti-loader-2"></i><span>Calculando el comparativo…</span></div>';
+  setTimeout(function() {
+    var todas;
+    try { todas = cmpSeries(zPlan, base); } catch (e) { out.innerHTML = '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>No se pudo calcular: ' + cmpEsc(e && e.message ? e.message : e) + '</span></div>'; return; }
+    if (!_cmpSel) { _cmpSel = {}; var reales = todas.filter(function(s) { return s.tipo === 'real'; }).map(function(s) { return s.id; }).sort().slice(-3); todas.forEach(function(s) { _cmpSel[s.id] = s.tipo !== 'real' || reales.indexOf(s.id) >= 0; }); }
+    todas.forEach(function(s) { if (_cmpSel[s.id] === undefined) _cmpSel[s.id] = true; });
+    var sel = todas.filter(function(s) { return _cmpSel[s.id]; });
+    var chk = document.getElementById('cmp-series');
+    if (chk) chk.innerHTML = todas.map(function(s) { return '<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px;margin-right:12px"><input type="checkbox" ' + (_cmpSel[s.id] ? 'checked' : '') + ' onchange="cmpToggleSerie(\'' + s.id + '\', this.checked)" style="width:auto;margin:0"><span style="width:10px;height:10px;background:' + s.color + ';border-radius:2px;display:inline-block"></span>' + cmpEsc(s.label) + '</label>'; }).join('');
+    if (!todas.length) { out.innerHTML = '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>Sin series: carga el histórico (Excel) o registra el plan de la zafra.</span></div>'; return; }
+    var planSel = todas.filter(function(s) { return s.tipo === 'plan'; })[0];
+    if (!planSel) { out.innerHTML = '<div class="alert alert-warn"><i class="ti ti-alert-triangle"></i><span>La zafra ' + zPlan + ' no tiene lotes con área en el plan.</span></div>'; return; }
+    var aggs = {}; todas.forEach(function(s) { aggs[s.id] = { all: cmpAgg(s.recs), A: cmpAgg(s.recs, function(r) { return r.ten === 'A'; }), P: cmpAgg(s.recs, function(r) { return r.ten === 'P'; }) }; });
+    var cats = ['1er Tercio', '2do Tercio', '3er Tercio', 'General'], valsDe = function(id, fn, grupo) { var a = aggs[id][grupo || 'all']; return a.t.map(fn).concat([fn(a.g)]); };
+    var ref = todas.filter(function(s) { return s.tipo === 'real' && s.zafra === cmpZafraAnterior(zPlan); })[0];
+    var deltas = function(fn, dec, entero) { if (!ref) return null; var p = valsDe(planSel.id, fn), r = valsDe(ref.id, fn); return p.map(function(v, i) { if (v === null || r[i] === null) return null; var d = v - r[i]; return { txt: (d >= 0 ? '+' : '−') + cmpFmtN(Math.abs(d), dec), color: d >= 0 ? '#00B050' : '#E00000' }; }); };
+    var barras = function(fn, o, extra, grupo) { return cmpSvgBarras(cats, sel.map(function(s) { return { label: s.label, color: s.color, vals: valsDe(s.id, fn, grupo), bold: s.tipo === 'plan' }; }), Object.assign({ sep: true }, o || {}, extra || {})); };
+    var nota = ref ? 'Δ = ' + planSel.label + ' − ' + ref.label + ' (zafra anterior real). Fechas del plan: ' + (base === 'sim' ? 'inicio simulado del programa optimizado' : 'fecha de inicio del plan') + '.' : 'Carga el histórico para ver la diferencia contra la zafra anterior. Fechas del plan: ' + (base === 'sim' ? 'inicio simulado' : 'inicio del plan') + '.';
+    var h = '<div style="display:grid;grid-template-columns:1fr;gap:0">';
+    h += cmpTarjeta('Toneladas de caña por hectárea (TCH) por tercio', barras(function(a) { return cmpTch(a); }, { dec: 1, h: 320 }, { deltas: deltas(cmpTch, 2) }), nota);
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
+      cmpTarjeta('Hectáreas totales', barras(function(a) { return a.ha; }, { h: 320 }, { deltas: deltas(function(a) { return a.ha; }, 0) })) +
+      cmpTarjeta('Toneladas métricas totales', barras(function(a) { return a.tm; }, { h: 320 }, { deltas: deltas(function(a) { return a.tm; }, 0) })) + '</div>';
+    var sg = sel.filter(function(s) { return true; }), maxSem = 0; sel.forEach(function(s) { Object.keys(aggs[s.id].all.w).forEach(function(k) { if (+k > maxSem) maxSem = +k; }); });
+    var xs = []; for (var i = 1; i <= maxSem; i++) xs.push(i);
+    h += '<div style="display:grid;grid-template-columns:2fr 1fr;gap:14px">' +
+      cmpTarjeta('Edad por semana de zafra (días, ponderada por TM)', cmpSvgLineas(xs, sel.map(function(s) { var v = {}; xs.forEach(function(x) { v[x] = cmpEdad(aggs[s.id].all.w[x]); }); return { label: s.label, color: s.color, vals: v, labels: s.tipo === 'plan', w: s.tipo === 'plan' ? 3 : 1.6 }; }), { h: 320 })) +
+      cmpTarjeta('Edad general', cmpSvgBarras(sel.map(function(s) { return s.label; }), [{ label: 'Edad', color: '#888', vals: sel.map(function(s) { return cmpEdad(aggs[s.id].all.g); }), colors: sel.map(function(s) { return s.color; }) }], { ymin: 250, dec: 0, h: 320 })) + '</div>';
+    h += cmpTarjeta('Edad por tercio (días)', barras(function(a) { return cmpEdad(a); }, { ymin: 250, h: 300 }));
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
+      cmpTarjeta('<span style="background:#4472C4;color:#fff;padding:2px 10px;border-radius:3px">ADMINISTRADO</span> · edad por tercio', barras(function(a) { return cmpEdad(a); }, { ymin: 250, h: 300 }, null, 'A')) +
+      cmpTarjeta('<span style="background:#843C0C;color:#fff;padding:2px 10px;border-radius:3px">PROVEEDORES</span> · edad por tercio', barras(function(a) { return cmpEdad(a); }, { ymin: 250, h: 300 }, null, 'P')) + '</div>';
+    // detalle por tenencia de la serie elegida
+    var detId = (document.getElementById('cmp-det') || {}).value || planSel.id, det = todas.filter(function(s) { return s.id === detId; })[0] || planSel;
+    var selDet = document.getElementById('cmp-det'); if (selDet) { var cd = selDet.value; selDet.innerHTML = todas.map(function(s) { return '<option value="' + s.id + '">' + cmpEsc(s.label) + '</option>'; }).join(''); selDet.value = todas.some(function(s) { return s.id === cd; }) ? cd : planSel.id; }
+    var dA = aggs[det.id].A.w, dP = aggs[det.id].P.w, all = aggs[det.id].all.w, mx = 0; Object.keys(all).forEach(function(k) { if (+k > mx) mx = +k; });
+    var xd = []; for (var j = 1; j <= mx; j++) xd.push(j);
+    var vA = {}, vP = {}, pA = {}, pP = {}; xd.forEach(function(x) { vA[x] = cmpEdad(dA[x]); vP[x] = cmpEdad(dP[x]); var ta = dA[x] ? dA[x].tm : 0, tp = dP[x] ? dP[x].tm : 0; pA[x] = (ta + tp) > 0 ? ta / (ta + tp) * 100 : null; pP[x] = (ta + tp) > 0 ? tp / (ta + tp) * 100 : null; });
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
+      cmpTarjeta('<span style="color:' + det.color + '">' + cmpEsc(det.label) + '</span> · edad por semana: Administrado vs Proveedores', cmpSvgLineas(xd, [{ label: 'ADMINISTRADO', color: '#4472C4', vals: vA, labels: true, w: 2.5 }, { label: 'PROVEEDORES', color: '#ED7D31', vals: vP, labels: true, w: 2.5 }], { h: 300 })) +
+      cmpTarjeta('<span style="color:' + det.color + '">' + cmpEsc(det.label) + '</span> · proporción de TM por semana', cmpSvgLineas(xd, [{ label: 'ADMINISTRADO', color: '#4472C4', vals: pA, labels: true, w: 2.5 }, { label: 'PROVEEDORES', color: '#ED7D31', vals: pP, labels: true, w: 2.5 }], { h: 300, pct: true, ymin: 0, ymax: 100 })) + '</div>';
+    // tabla de verificación
+    var th = '<div style="overflow-x:auto"><table style="font-size:12px"><thead><tr><th>Serie</th><th>Lotes/registros</th><th>Ha</th><th>TM</th><th>TCH</th><th>Edad</th><th>Edad Admin.</th><th>Edad Prov.</th><th>% TM Admin.</th></tr></thead><tbody>';
+    sel.forEach(function(s) { var a = aggs[s.id], tA = a.A.g.tm, tP = a.P.g.tm; th += '<tr><td><span style="display:inline-block;width:10px;height:10px;background:' + s.color + ';border-radius:2px;margin-right:6px"></span><strong>' + cmpEsc(s.label) + '</strong></td><td>' + s.recs.length.toLocaleString() + '</td><td>' + cmpFmtN(a.all.g.ha, 0) + '</td><td>' + cmpFmtN(a.all.g.tm, 0) + '</td><td>' + cmpFmtN(cmpTch(a.all.g), 1) + '</td><td>' + cmpFmtN(cmpEdad(a.all.g), 0) + '</td><td>' + cmpFmtN(cmpEdad(a.A.g), 0) + '</td><td>' + cmpFmtN(cmpEdad(a.P.g), 0) + '</td><td>' + ((tA + tP) > 0 ? cmpFmtN(tA / (tA + tP) * 100, 0) + '%' : '–') + '</td></tr>'; });
+    h += cmpTarjeta('Resumen numérico', th + '</tbody></table></div>', 'Los registros del histórico están agregados por zafra, tenencia, tercio y semana; los del plan son lotes. Edad ponderada por TM; TCH = ΣTM ÷ ΣHa.');
+    out.innerHTML = h + '</div>';
+  }, 30);
+}
+
 function renderHistorico() {
   var el = document.getElementById('historico-content');
   if (!el) return;
