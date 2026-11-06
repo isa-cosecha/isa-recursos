@@ -248,7 +248,9 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
       <button class="secundario" id="b-detalle">Descargar detalle (CSV)</button>
       <button class="secundario" id="b-plan-vel" title="Mismo formato que la «Plantilla vel. anterior» del planificador: se sube con «Importar vel. anterior»">Plantilla vel. anterior (CSV)</button>
       <button class="secundario" id="b-plan-tiempos" title="Mismo formato que la «Plantilla tiempos» del planificador: se sube con «Importar tiempos y diseño»">Plantilla tiempos y diseño (CSV)</button>
+      <button class="principal" id="b-enviar-plan" title="Guarda la propuesta en la base. El planificador la aplica cuando alguien pulsa «Importar desde el módulo de diseño»">Enviar al planificador</button>
       <span id="msg-descarga" style="font-size:14px;color:var(--tinta-2)"></span>
+      <span id="msg-envio" style="font-size:14px;color:var(--tinta-2)"></span>
     </div>
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:14px;margin:0 0 8px;color:var(--tinta)"><input type="checkbox" id="p-incluir-distinto" checked style="width:auto;margin-top:4px"> Incluir los lotes con distanciamiento distinto del planificador (se envía el distanciamiento medido, por si el lote se renovó)</label>
     <p class="nota" style="margin:0 0 12px">Las dos plantillas salen en el mismo formato que las del planificador y solo traen los lotes que tienen algo que subir: los demás no se tocan. Una celda vacía no cambia ese dato.</p>
@@ -273,6 +275,7 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
       <p class="ayuda" id="u-resumen-txt"></p>
       <div class="resumen" id="u-resumen"></div>
       <div class="fila-acciones" style="margin:0 0 12px">
+        <select id="u-f-tenencia" aria-label="Tenencia" style="max-width:240px"><option value="">Todas las tenencias</option><option>Propio</option><option>Proveedor</option></select>
         <select id="u-f-tipo" aria-label="Tipo de unión" style="max-width:240px"><option value="">Todos los tipos</option><option>Directa</option><option>Parcialmente directa</option><option>Requiere rediseño</option></select>
         <button class="secundario" id="b-unif-csv">Descargar unificaciones (CSV)</button>
         <span id="u-msg" style="font-size:14px;color:var(--tinta-2)"></span>
@@ -1497,7 +1500,7 @@ function dibujarMapaUnif(ajustar) {
   // título e información
   $('u-mapa-titulo').textContent = todas ? V.length + ' propuestas' : (mapaU.sel + 1) + ' de ' + V.length + ': ' + g.lotes.join(' + ');
   var info = '<p><strong>' + esc(g.lotes.join(' + ')) + '</strong> <span class="chip ' + (g.tipo === 'Directa' ? 'ok' : g.tipo === 'Requiere rediseño' ? 'revisar' : 'nada') + '">' + esc(g.tipo) + '</span></p>' +
-    '<p>' + esc(g.finca) + ' · ' + esc(g.dueno) + ' · ' + esc(g.variedad) + '</p><p>Área ' + fmt(g.area, 1) + ' ha · diferencia de edad ' + fmt(g.difEdad) + ' días</p>' +
+    '<p>' + esc(g.finca) + ' · ' + esc(g.tenencia || '') + ' · ' + esc(g.dueno) + ' · ' + esc(g.variedad) + '</p><p>Área ' + fmt(g.area, 1) + ' ha · diferencia de edad ' + fmt(g.difEdad) + ' días</p>' +
     '<p>Giros menos: <b>' + (g.surcosUnidos ? fmt(g.surcosUnidos) : '–') + '</b> · horas menos: <b>' + (g.horasAhorradas ? fmt(g.horasAhorradas, 1) : '–') + '</b> · traslados menos: <b>' + g.trasladosMenos + '</b></p>';
   g.pares.forEach(function(p) { info += '<div class="par"><b>' + esc(p.loteA) + ' – ' + esc(p.loteB) + '</b><br>Borde común ' + fmt(p.borde) + ' m · ' + (p.dRumbo === null ? 'rumbo sin datos' : 'rumbos a ' + fmt(p.dRumbo) + '°') + ' · ' + (p.directa ? 'une ' + fmt(p.surcosUnidos) + ' surcos' : 'requiere rediseño') + (p.alertas.length ? '<br><span style="color:var(--ocre)">' + esc(p.alertas.join('; ')) + '</span>' : '') + '</div>'; });
   if (verSurcos && !todas) info += '<p class="par" style="color:var(--tinta-2)">Se dibujan ' + fmt(nSurcos) + ' surcos' + (muestreo > 1 ? ' (1 de cada ' + muestreo + ', para que el mapa no se ponga lento)' : '') + ', un color por lote. Si los surcos de los dos lotes van en la misma dirección y se alinean en el borde, la unión es directa.</p>';
@@ -1642,8 +1645,24 @@ $('b-unif').addEventListener('click', async function() {
   } catch (e) { $('u-progreso-txt').textContent = 'No se pudo analizar: ' + e.message; }
   b.disabled = false;
 });
+function tenenciaDeGrupo(g) {   // la tenencia de los lotes de la propuesta (todos son del mismo propietario; si no coincidiera, «Mixta»)
+  var porId = {}, t = {}; (estado.plan.campos || []).forEach(function(c) { porId[c.id] = c; });
+  g.pares.forEach(function(p) { [p.a, p.b].forEach(function(id) { var c = porId[id]; t[(c && c.tenencia) || 'Sin dato'] = 1; }); });
+  var ks = Object.keys(t); return ks.length === 1 ? ks[0] : 'Mixta';
+}
+function unifPorTenencia() { var fte = $('u-f-tenencia').value; return unifEstado.res.grupos.filter(function(g) { return !fte || g.tenencia === fte; }); }
 function mostrarUnificaciones() {
-  var U = unifEstado.res, G = U.grupos; $('u-resultado').hidden = false;
+  var U = unifEstado.res; $('u-resultado').hidden = false;
+  U.grupos.forEach(function(g) { g.tenencia = tenenciaDeGrupo(g); });
+  var tens = {}; U.grupos.forEach(function(g) { tens[g.tenencia] = 1; });
+  var sel = $('u-f-tenencia'), act = sel.value;
+  sel.innerHTML = '<option value="">Todas las tenencias</option>' + ['Propio', 'Proveedor'].concat(Object.keys(tens).filter(function(t) { return t !== 'Propio' && t !== 'Proveedor'; }).sort()).map(function(t) { return '<option>' + esc(t) + '</option>'; }).join('');
+  sel.value = act;
+  pintarResumenUnif();
+  pintarUnificaciones();
+}
+function pintarResumenUnif() {
+  var U = unifEstado.res, G = unifPorTenencia(), fte = $('u-f-tenencia').value;
   var d = U.descartes;
   $('u-resumen-txt').textContent = U.nVecinos.toLocaleString('es') + ' pares de lotes se tocan. Se descartan ' + d['Distinto propietario'] + ' por distinto propietario, ' + d['Distinta variedad'] + ' por distinta variedad y ' + d['Edad muy distinta'] + ' por edad muy distinta. Quedan ' + U.pares.length + ' pares, agrupados en ' + G.length + ' posibles unificaciones.';
   var dir = G.filter(function(g) { return g.tipo !== 'Requiere rediseño'; });
@@ -1653,29 +1672,30 @@ function mostrarUnificaciones() {
     [fmt(G.reduce(function(s, g) { return s + g.surcosUnidos; }, 0)), 'giros menos por zafra'],
     [fmt(G.reduce(function(s, g) { return s + g.horasAhorradas; }, 0)), 'horas de maniobra menos por zafra'],
     [fmt(G.reduce(function(s, g) { return s + g.trasladosMenos; }, 0)), 'traslados menos por zafra']
-  ].map(function(x) { return '<div class="dato"><strong>' + x[0] + '</strong><span>' + x[1] + '</span></div>'; }).join('');
-  pintarUnificaciones();
+  ].map(function(x) { return '<div class="dato"><strong>' + x[0] + '</strong><span>' + x[1] + (fte ? ' · ' + esc(fte.toLowerCase()) : '') + '</span></div>'; }).join('');
 }
 function pintarUnificaciones() {
-  var ft = $('u-f-tipo').value, G = unifEstado.res.grupos.filter(function(g) { return !ft || g.tipo === ft; });
+  var ft = $('u-f-tipo').value, G = unifPorTenencia().filter(function(g) { return !ft || g.tipo === ft; });
   unifEstado.vista = G;
-  $('u-tabla').querySelector('thead').innerHTML = '<tr><th class="izq">Lotes</th><th class="izq">Finca</th><th class="izq">Propietario</th><th class="izq">Variedad</th><th>Área (ha)</th><th>Diferencia de edad</th><th class="izq">Tipo de unión</th><th>Borde común (m)</th><th>Giros menos</th><th>Horas menos</th><th>Traslados menos</th><th class="izq">A revisar</th></tr>';
+  $('u-tabla').querySelector('thead').innerHTML = '<tr><th class="izq">Lotes</th><th class="izq">Finca</th><th class="izq">Tenencia</th><th class="izq">Propietario</th><th class="izq">Variedad</th><th>Área (ha)</th><th>Diferencia de edad</th><th class="izq">Tipo de unión</th><th>Borde común (m)</th><th>Giros menos</th><th>Horas menos</th><th>Traslados menos</th><th class="izq">A revisar</th></tr>';
   var tb = $('u-tabla').querySelector('tbody');
-  if (!G.length) { tb.innerHTML = '<tr><td colspan="12" class="vacio izq">No hay unificaciones con estos criterios. Prueba con una diferencia de edad mayor o sin exigir la misma variedad.</td></tr>'; $('u-mapa-caja').hidden = true; return; }
+  if (!G.length) { tb.innerHTML = '<tr><td colspan="13" class="vacio izq">No hay unificaciones con estos criterios. Prueba con una diferencia de edad mayor o sin exigir la misma variedad.</td></tr>'; $('u-mapa-caja').hidden = true; return; }
   tb.innerHTML = G.map(function(g, gi) {
     var chip = g.tipo === 'Directa' ? 'ok' : g.tipo === 'Requiere rediseño' ? 'revisar' : 'nada';
-    return '<tr data-i="' + gi + '"><td class="izq"><strong>' + esc(g.lotes.join(' + ')) + '</strong></td><td class="izq">' + esc(g.finca) + '</td><td class="izq">' + esc(g.dueno) + '</td><td class="izq">' + esc(g.variedad) + '</td>' +
+    return '<tr data-i="' + gi + '"><td class="izq"><strong>' + esc(g.lotes.join(' + ')) + '</strong></td><td class="izq">' + esc(g.finca) + '</td><td class="izq">' + esc(g.tenencia || '') + '</td><td class="izq">' + esc(g.dueno) + '</td><td class="izq">' + esc(g.variedad) + '</td>' +
       '<td>' + fmt(g.area, 1) + '</td><td>' + fmt(g.difEdad) + ' días</td><td class="izq"><span class="chip ' + chip + '">' + esc(g.tipo) + '</span></td><td>' + fmt(g.borde) + '</td>' +
       '<td>' + (g.surcosUnidos ? fmt(g.surcosUnidos) : '–') + '</td><td>' + (g.horasAhorradas ? fmt(g.horasAhorradas, 1) : '–') + '</td><td>' + g.trasladosMenos + '</td><td class="izq" style="white-space:normal;min-width:180px"><small>' + esc(g.alertas.join(', ') || '—') + '</small></td></tr>';
   }).join('');
   mapaU.sel = 0; dibujarMapaUnif(true);
 }
 $('u-f-tipo').addEventListener('input', pintarUnificaciones);
+$('u-f-tenencia').addEventListener('input', function() { pintarResumenUnif(); pintarUnificaciones(); });
 $('b-unif-csv').addEventListener('click', function() {
   var U = unifEstado.res; if (!U) return;
-  var out = [['grupo', 'lotes_del_grupo', 'lote_a', 'lote_b', 'finca', 'propietario', 'variedad', 'fecha_corte_a', 'fecha_corte_b', 'diferencia_edad_dias', 'borde_comun_m', 'diferencia_rumbo_grados', 'tipo_union', 'surcos_que_se_unen', 'giros_menos', 'horas_menos', 'alertas']];
-  U.grupos.forEach(function(g, n) { g.pares.forEach(function(p) { out.push([n + 1, g.lotes.join(' + '), p.loteA, p.loteB, p.finca, p.dueno, p.variedad, p.fechas[0] || '', p.fechas[1] || '', p.difEdad, n2(p.borde, 0), p.dRumbo === null ? '' : n2(p.dRumbo, 0), p.directa ? 'Directa' : 'Requiere rediseño', p.surcosUnidos, p.girosAhorrados, n2(p.horasAhorradas, 2), p.alertas.join(', ')]); }); });
-  var msg = $('msg-descarga'); descargar('unificaciones-posibles.csv', csv(out)).then(function() { $('u-msg').textContent = msg.textContent; msg.textContent = ''; });
+  var out = [['grupo', 'lotes_del_grupo', 'lote_a', 'lote_b', 'finca', 'tenencia', 'propietario', 'variedad', 'fecha_corte_a', 'fecha_corte_b', 'diferencia_edad_dias', 'borde_comun_m', 'diferencia_rumbo_grados', 'tipo_union', 'surcos_que_se_unen', 'giros_menos', 'horas_menos', 'alertas']];
+  (unifEstado.vista || U.grupos).forEach(function(g, n) { g.pares.forEach(function(p) { out.push([n + 1, g.lotes.join(' + '), p.loteA, p.loteB, p.finca, g.tenencia || '', p.dueno, p.variedad, p.fechas[0] || '', p.fechas[1] || '', p.difEdad, n2(p.borde, 0), p.dRumbo === null ? '' : n2(p.dRumbo, 0), p.directa ? 'Directa' : 'Requiere rediseño', p.surcosUnidos, p.girosAhorrados, n2(p.horasAhorradas, 2), p.alertas.join(', ')]); }); });
+  var msg = $('msg-descarga'); var fte = $('u-f-tenencia').value, ftp = $('u-f-tipo').value, nom = 'unificaciones-posibles' + (fte ? '-' + fte.toLowerCase() : '') + (ftp ? '-' + ftp.toLowerCase().replace(/\s+/g, '-') : '') + '.csv';
+  descargar(nom, csv(out)).then(function() { $('u-msg').textContent = msg.textContent + ' (' + (unifEstado.vista || U.grupos).length + ' propuestas' + (fte || ftp ? ', con los filtros elegidos' : '') + ')'; msg.textContent = ''; });
 });
 $('b-detalle').addEventListener('click', function() {
   var F = estado.resultado.filas, out = [['lote', 'finca', 'region', 'frente', 'tenencia', 'area_ha', 'capa', 'capas_descartadas', 'surcos', 'surcos_planificador', 'distancia_km', 'distancia_planificador_km', 'diferencia_pct', 'largo_medio_m', 'pct_surcos_cortos', 'rumbo_grados', 'coherencia_rumbo', 'distanciamiento_medido_m', 'separaciones_medidas', 'distanciamiento_por_area_m', 'ancho_planificador_m', 'cobertura', 'giros', 'tiempo_giro_min', 'horas_maniobra', 'velocidad_kmh', 'horas_corte', 'pct_tiempo_maniobra', 'estado']];
@@ -1723,6 +1743,32 @@ $('b-plan-vel').addEventListener('click', function() {
   if (f.length < 2) { $('msg-descarga').textContent = 'Ningún lote tiene velocidad real: carga el registro de cosechadoras (paso 3) y vuelve a procesar.'; return; }
   descargar('plantilla-velocidad-anterior-' + hoyTxt() + '.csv', csv(f));
 });
+/* ===== Enviar al planificador =====
+   Guarda la misma «Plantilla tiempos y diseño» (y la de velocidad) en la colección propuestas_diseno de la base.
+   El planificador NO cambia nada hasta que alguien pulsa «Importar desde el módulo de diseño», elige la zafra y revisa. */
+async function enviarAlPlanificador() {
+  var msg = $('msg-envio'), b = $('b-enviar-plan'); msg.style.color = 'var(--tinta-2)';
+  var aviso = function(t, err) { msg.textContent = t; msg.style.color = err ? 'var(--barro)' : 'var(--tinta-2)'; };
+  if (typeof ISA === 'undefined' || typeof firebase === 'undefined' || !ISA.sesion().user) return aviso('Inicia sesión desde el inicio para enviar al planificador.', true);
+  if (!ISA.puedeEditar()) return aviso('Tu usuario es de solo lectura (visor): no puede enviar propuestas.', true);
+  if (!estado.resultado) return aviso('Primero pulsa Procesar.', true);
+  var ft = filasPlantilla('tiempos'), fv = filasPlantilla('vel');
+  if (ft.length < 2) return aviso('Ningún lote tiene algo que enviar.', true);
+  var csvT = csv(ft), csvV = csv(fv);
+  if (csvT.length + csvV.length > 900000) return aviso('La propuesta es demasiado grande para enviarla de una vez (' + Math.round((csvT.length + csvV.length) / 1024) + ' KB). Descarga la plantilla y súbela en el planificador.', true);
+  if (!confirm('Se enviarán al planificador ' + (ft.length - 1).toLocaleString('es') + ' lotes (tiempos y diseño).\n\nEl planificador no cambia nada hasta que alguien pulse «Importar desde el módulo de diseño», elija la zafra y revise. La propuesta enviada antes se reemplaza.\n\n¿Enviar?')) return;
+  var d = { csvTiempos: csvT, csvVel: csvV, nTiempos: ft.length - 1, nVel: fv.length - 1, autor: ISA.sesion().email, fecha: new Date().toISOString(), estado: 'pendiente',
+    origenPlan: estado.planOrigen || 'archivo', origenRegistro: estado.regOrigen || '', incluyeDistinto: !!$('p-incluir-distinto').checked, version: 1 };
+  b.disabled = true; aviso('Enviando…');
+  try {
+    var db = firebase.firestore(), id = 'p_' + d.fecha.replace(/[^0-9]/g, '').slice(0, 14);
+    await db.collection('propuestas_diseno').doc(id).set(d);                               // historial
+    await db.collection('propuestas_diseno').doc('ultima').set(Object.assign({ id: id }, d)); // la que lee el planificador
+    aviso('Enviado: ' + d.nTiempos.toLocaleString('es') + ' lotes. En el planificador pulsa «Importar desde el módulo de diseño».');
+  } catch (e) { aviso('No se pudo enviar: ' + ((e && e.code === 'permission-denied') ? 'tu usuario no tiene permiso (revisa las reglas de Firestore).' : ((e && e.message) || e)), true); }
+  finally { b.disabled = false; }
+}
+$('b-enviar-plan').addEventListener('click', enviarAlPlanificador);
 $('b-plan-tiempos').addEventListener('click', function() {
   var f = filasPlantilla('tiempos');
   if (f.length < 2) { $('msg-descarga').textContent = 'Ningún lote tiene algo que subir.'; return; }

@@ -11,7 +11,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="author" content="Carlos Rafael Colindres M.">
 <title>Planificador de Cosecha de Caña</title>
-<!-- v293: N° de serie por cosechadora (Equipos → Modelos de cosechadora). v292: red vial con geometría persistida (simplificada), validación del grafo al restaurar, salidas ordenadas por cercanía, mapa base con respaldo -->
+<!-- v294: botón «Importar desde el módulo de diseño» (Campos): aplica la última propuesta de propuestas_diseno con el mismo importador de «Importar tiempos y diseño». v293: N° de serie por cosechadora (Equipos → Modelos de cosechadora). v292: red vial con geometría persistida (simplificada), validación del grafo al restaurar, salidas ordenadas por cercanía, mapa base con respaldo -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -452,6 +452,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
             <button class="btn btn-sm" onclick="descargarPlantillaTiempos()" title="Plantilla con el tiempo por maniobra, las maniobras, los surcos, la distancia y la velocidad que tiene hoy cada campo"><i class="ti ti-clock"></i> Plantilla tiempos</button>
             <button class="btn btn-sm btn-primary" onclick="document.getElementById('tiempos-import-file').click()" title="Actualiza de una vez el tiempo por maniobra, las maniobras, los surcos, la distancia y la velocidad de muchos campos, con el CSV que genera el módulo de diseño de lotes (tiempos reales de cosechadoras y diseño)"><i class="ti ti-file-upload"></i> Importar tiempos y diseño</button>
             <input type="file" id="tiempos-import-file" accept=".csv,.txt" style="display:none" onchange="importarCSVTiempos(this)">
+            <button class="btn btn-sm btn-primary" id="btn-import-modulo-diseno" onclick="importarDesdeModuloDiseno()" title="Trae la última propuesta enviada desde el módulo «Diseño de lotes» y la aplica igual que «Importar tiempos y diseño»: solo los campos incluidos, preguntando la zafra y con opción de deshacer"><i class="ti ti-cloud-download"></i> Importar desde el módulo de diseño</button>
             <button class="btn btn-sm" id="btn-deshacer-tiempos" style="display:none" onclick="deshacerImportTiempos()" title="Vuelve los campos a como estaban antes de la última importación de tiempos y diseño"><i class="ti ti-arrow-back-up"></i> Deshacer importación</button>
             <button class="btn btn-sm btn-danger" onclick="borrarTodosCampos()"><i class="ti ti-trash"></i> Limpiar todo</button>
           </div>
@@ -11782,9 +11783,37 @@ function importarCSVTiempos(input) {
     importados.unshift({ fila: '', nombre: 'Diseño aplicado a la zafra ' + Z + (esUltima ? '' : ' (no es la más reciente del plan: los valores generales del campo no cambian)') + ' · velocidad registrada como la de la zafra ' + zDatos });
     mostrarModalCSV(importados, advertencias, errores);
     actualizarBotonDeshacerTiempos();
+    if (window._alTerminarImportTiempos && window._alTerminarImportTiempos.archivo === file.name) { var fin = window._alTerminarImportTiempos; window._alTerminarImportTiempos = null; fin.hecho(importados.length - 1, Z); }
     });
   };
   reader.readAsText(file, 'UTF-8');
+}
+/* ── Importar desde el módulo «Diseño de lotes» ──
+   El módulo guarda su propuesta en la colección propuestas_diseno (documento «ultima»): es la misma «Plantilla tiempos y diseño».
+   Aquí se aplica con el MISMO importador de «Importar tiempos y diseño»: pregunta la zafra, solo cambian los campos incluidos y se puede
+   deshacer. El planificador sigue siendo el único que escribe en sus datos; al terminar, la propuesta queda marcada como aplicada. */
+function importarDesdeModuloDiseno() {
+  if (typeof fbDb === 'undefined' || !fbDb || !fbUsuarioActual) { alert('Inicia sesión para traer la propuesta del módulo de diseño.'); return; }
+  if (fbRolActual === 'visor') { alert('Tu usuario es de solo lectura (visor): no puede importar datos.'); return; }
+  var btn = document.getElementById('btn-import-modulo-diseno'), ref = fbDb.collection('propuestas_diseno').doc('ultima');
+  if (btn) btn.disabled = true;
+  ref.get().then(function(doc) {
+    if (!doc.exists) { alert('Todavía no hay propuestas enviadas desde el módulo de diseño.'); return; }
+    var p = doc.data() || {};
+    if (!p.csvTiempos) { alert('La última propuesta no trae datos de tiempos y diseño.'); return; }
+    var f = function(iso) { return iso ? new Date(iso).toLocaleString('es') : '—'; };
+    var texto = 'Última propuesta del módulo de diseño\n\nEnviada por: ' + (p.autor || '—') + '\nFecha: ' + f(p.fecha) + '\nLotes: ' + (p.nTiempos || '—') +
+      (p.estado === 'aplicada' ? '\n\nATENCIÓN: ya fue aplicada el ' + f(p.aplicadaEl) + ' por ' + (p.aplicadaPor || '—') + ' (zafra ' + (p.aplicadaZafra || '—') + ').' : '') +
+      '\n\n¿Aplicarla? Se te preguntará la zafra; solo cambian los campos incluidos y puedes deshacer.';
+    if (!confirm(texto)) return;
+    var nombre = 'propuesta-modulo-diseno-' + (p.id || 'ultima') + '.csv';
+    window._alTerminarImportTiempos = { archivo: nombre, hecho: function(n, Z) {
+      ref.set({ estado: 'aplicada', aplicadaPor: fbUsuarioActual.email, aplicadaEl: new Date().toISOString(), aplicadaZafra: Z, aplicadaCampos: n }, { merge: true }).catch(function() {});
+    } };
+    importarCSVTiempos({ files: [new File([p.csvTiempos], nombre, { type: 'text/csv' })], value: '' });
+  }).catch(function(e) {
+    alert('No se pudo leer la propuesta del módulo de diseño: ' + ((e && e.code === 'permission-denied') ? 'tu usuario no tiene permiso (revisa las reglas de Firestore).' : ((e && e.message) || e)));
+  }).then(function() { if (btn) btn.disabled = false; });
 }
 function ultimaZafraPlan() { var zs = planItems.map(function(p) { return p.zafra; }).filter(Boolean).sort(); return zs.length ? zs[zs.length - 1] : ''; }
 function valorDisenoZafra(cp, zafra, campo) { var dz = disenoVigenteZafra(cp, zafra); return (dz && dz[campo] > 0) ? dz[campo] : (parseFloat(cp[campo]) || 0); }
