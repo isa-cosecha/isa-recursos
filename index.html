@@ -636,6 +636,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
                 <div id="fr-cosech-codigos" style="background:var(--bg);border:0.5px solid var(--border2);border-radius:var(--radius);padding:8px;max-height:170px;overflow-y:auto"></div>
                 <div style="font-size:10px;color:var(--text3);margin-top:4px" id="fr-cosech-count">0 seleccionadas</div>
                 <div id="fr-cosech-aviso" style="display:none;font-size:11px;color:var(--amber-text);margin-top:4px"></div>
+                <div id="fr-cosech-ocupadas"></div>
               </div>
               <div>
                 <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px">Autovolteos (selecciona uno o más)</label>
@@ -1797,6 +1798,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
               <div id="eq-fr-cosech-codigos" style="background:var(--bg2);border:0.5px solid var(--border2);border-radius:var(--radius);padding:8px;max-height:200px;overflow-y:auto"></div>
               <div style="font-size:10px;color:var(--text3);margin-top:4px" id="eq-fr-cosech-count">0 seleccionada(s)</div>
               <div id="eq-fr-cosech-aviso" style="display:none;font-size:11px;color:var(--amber-text);margin-top:4px"></div>
+              <div id="eq-fr-cosech-ocupadas"></div>
             </div>
             <div>
               <label style="font-size:11px;color:var(--text2);display:block;margin-bottom:4px">Autovolteos</label>
@@ -3752,19 +3754,47 @@ function frCosechSeleccion(prefijo) {
   var cls = prefijo === 'fr' ? '.fr-chk-cosech:checked' : '.eqfr-chk-cosech:checked';
   return Array.from(document.querySelectorAll(cls)).map(function(el) { return modelosCosech.find(function(m) { return m.codigo === el.value; }); }).filter(Boolean);
 }
+// Cosechadoras ya asignadas a OTRO frente → { código: nombre del frente }. Con zafra: la composición de esa zafra; sin zafra: la general.
+function cosechOcupadas(zafra, frenteId) {
+  var o = {};
+  frentes.forEach(function(fr) {
+    if (frenteId !== null && frenteId !== undefined && fr.id === frenteId) return;
+    var fe = zafra ? (getFrenteEfectivo(zafra, fr.nombre) || fr) : fr;
+    if (frenteEsManual(fe)) return;
+    var cods = (fe.cosechCodigos && fe.cosechCodigos.length) ? fe.cosechCodigos.map(function(e) { return e.codigo; }) : ((fe.modeloCosech && fe.modeloCosech.codigo) ? [fe.modeloCosech.codigo] : []);
+    cods.forEach(function(c) { if (c && !o[c]) o[c] = fr.nombre; });
+  });
+  return o;
+}
+function frContextoCosech(prefijo) {
+  if (prefijo === 'fr') return { zafra: null, id: null };
+  return { zafra: (typeof _eqFrZafra !== 'undefined' && _eqFrZafra) ? _eqFrZafra : null, id: parseInt((document.getElementById('eq-fr-id') || {}).value) || null };
+}
 function frRenderListaCosech(prefijo, codigosSel) {
   var el = document.getElementById(frSelId(prefijo) + '-cosech-codigos');
   if (!el) return;
   var cls = prefijo === 'fr' ? 'fr-chk-cosech' : 'eqfr-chk-cosech';
   var sel = codigosSel || [];
+  var ctx = frContextoCosech(prefijo), oc = cosechOcupadas(ctx.zafra, ctx.id);
   var conCodigo = modelosCosech.filter(function(m) { return m.codigo; });
-  el.innerHTML = conCodigo.length ? conCodigo.map(function(m) {
+  // Solo se listan las que NO están en otro frente (y las que ya son de este). Para usar una ocupada: quitarla del otro frente primero.
+  var libres = conCodigo.filter(function(m) { return !oc[m.codigo] || sel.indexOf(m.codigo) >= 0; });
+  var ocupadas = conCodigo.filter(function(m) { return oc[m.codigo] && sel.indexOf(m.codigo) < 0; });
+  el.innerHTML = libres.length ? libres.map(function(m) {
     return '<label class="frcos-fila" data-buscar="' + (m.codigo + ' ' + (m.nombre || '')).toLowerCase() + '" style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;font-size:12px">' +
       '<input type="checkbox" class="' + cls + '" value="' + m.codigo + '" data-nombre="' + (m.nombre || '') + '" data-costo="' + (m.costoHora || 0) + '" data-vel="' + (m.vel || 0) + '"' + (sel.indexOf(m.codigo) >= 0 ? ' checked' : '') + ' onchange="frActualizarResumenCosech(\'' + prefijo + '\')" style="width:auto;margin:0">' +
       '<span class="badge badge-gray" style="font-family:monospace">' + m.codigo + '</span><span>' + (m.nombre || '—') + '</span>' +
       '<span style="color:var(--text3);font-size:10px">' + (m.vel || '?') + ' km/h · $' + (m.costoHora || 0) + '/h</span></label>';
-  }).join('') : '<span style="font-size:11px;color:var(--text3)">No hay cosechadoras con código. Regístralas arriba en «Modelos de cosechadora».</span>';
+  }).join('') : (conCodigo.length
+      ? '<span style="font-size:11px;color:var(--amber-text)">No hay cosechadoras libres: todas están asignadas a otros frentes. Agrega un equipo en «Modelos de cosechadora» o quita la asignación de otro frente.</span>'
+      : '<span style="font-size:11px;color:var(--text3)">No hay cosechadoras con código. Regístralas arriba en «Modelos de cosechadora».</span>');
+  var info = document.getElementById(frSelId(prefijo) + '-cosech-ocupadas');
+  if (info) info.innerHTML = ocupadas.length
+    ? '<details style="font-size:10px;color:var(--text3);margin-top:4px"><summary style="cursor:pointer">' + ocupadas.length + ' asignada(s) a otros frentes (no se listan)</summary><div style="margin-top:3px">' + ocupadas.map(function(m) { return '<span class="badge badge-gray" style="font-family:monospace;margin:2px" title="Asignada al frente ' + oc[m.codigo] + '">' + m.codigo + ' → ' + oc[m.codigo] + '</span>'; }).join('') + '</div><div style="margin-top:3px">Para usarlas, quítalas primero del otro frente (Equipos → editar ese frente' + (ctx.zafra ? ', zafra ' + ctx.zafra : '') + ').</div></details>'
+    : '<div style="font-size:10px;color:var(--text3);margin-top:4px">Solo se listan las cosechadoras sin asignar a otro frente.</div>';
 }
+// Vuelve a armar la lista del formulario «Agregar frente» con las máquinas libres actuales (conserva lo marcado)
+function frRefrescarListaAgregar() { if (document.getElementById('fr-cosech-codigos')) { var m = frCosechSeleccion('fr').map(function(x) { return x.codigo; }); frRenderListaCosech('fr', m); frActualizarResumenCosech('fr', true); } }
 function frFiltrarListaCosech(prefijo, texto) {
   var el = document.getElementById(frSelId(prefijo) + '-cosech-codigos'); if (!el) return;
   var q = (texto || '').trim().toLowerCase();
@@ -4230,7 +4260,7 @@ function showPage(id) {
   document.getElementById('page-' + id).classList.add('active');
   var btn = document.querySelector('[data-page="' + id + '"]');
   if (btn) btn.classList.add('active');
-  if (id === 'equipos') { syncSelectorZafraCostos(); onCambioZafraCostos(); updateCiclos(); actualizarEjemploLowboy(); renderAVTransitoResumen(); }
+  if (id === 'equipos') { frRefrescarListaAgregar(); syncSelectorZafraCostos(); onCambioZafraCostos(); updateCiclos(); actualizarEjemploLowboy(); renderAVTransitoResumen(); }
   if (id === 'planificacion') { syncPlanSelects(); syncMtFrenteSelect(); renderPlan(); renderCumplimientoPlan(); syncAnalFrenteSelect(); }
   if (id === 'labores')   { labPoblarZafras(); renderLabores(); }
   if (id === 'diadia')    { syncDiadiaFechas(); }
@@ -5300,8 +5330,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.33', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.34', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.34', '2026-11-06', 'Equipos: al asignar cosechadoras a un frente solo se listan las libres; las de otros frentes se ven aparte y no se pueden marcar'],
   ['1.33', '2026-11-06', 'Datos maestros: Plantíos cerrados (histórico en la base de datos, compartido); el Comparativo lee de ahí y ya no sube archivo'],
   ['1.32', '2026-11-06', 'Ajustes: casillas independientes para mostrar los botones CSV y PNG de los gráficos del Comparativo'],
   ['1.31', '2026-11-06', 'Comparativo · proporción por variedad: filtro de semanas (casillas) solo para ese gráfico'],
@@ -6949,6 +6980,10 @@ function guardarEditFrente() {
   var cosechCodigos = manualEd ? [] : Array.from(document.querySelectorAll('.eqfr-chk-cosech:checked')).map(function(el){
     return { codigo: el.value, nombre: el.dataset.nombre, costoHora: parseFloat(el.dataset.costo)||0 };
   });
+  if (!manualEd) {   // una cosechadora no puede estar en dos frentes: hay que quitarla primero del otro
+    var ocE = cosechOcupadas(_eqFrZafra || null, id), choqueE = cosechCodigos.filter(function(c) { return ocE[c.codigo]; }).map(function(c) { return c.codigo + ' (frente ' + ocE[c.codigo] + ')'; });
+    if (choqueE.length) { alert('Estas cosechadoras ya están asignadas a otro frente: ' + choqueE.join(', ') + '.\n\nQuita primero la asignación del otro frente, o desmárcalas aquí.'); return; }
+  }
   var avCodigos = Array.from(document.querySelectorAll('.eqfr-chk-av:checked')).map(function(el){
     return { codigo: el.value, tipo: el.dataset.tipo, nombre: el.dataset.nombre, costoHora: parseFloat(el.dataset.costo)||0 };
   });
@@ -7144,6 +7179,10 @@ function addFrente() {
   var cosechCodigos = manualAdd ? [] : Array.from(document.querySelectorAll('.fr-chk-cosech:checked')).map(function(el){
     return { codigo: el.value, nombre: el.dataset.nombre, costoHora: parseFloat(el.dataset.costo)||0 };
   });
+  if (!manualAdd) {
+    var ocA = cosechOcupadas(null, null), choqueA = cosechCodigos.filter(function(c) { return ocA[c.codigo]; }).map(function(c) { return c.codigo + ' (frente ' + ocA[c.codigo] + ')'; });
+    if (choqueA.length) { alert('Estas cosechadoras ya están asignadas a otro frente: ' + choqueA.join(', ') + '.\n\nQuita primero la asignación del otro frente, o desmárcalas aquí.'); return; }
+  }
   var avCodigos = Array.from(document.querySelectorAll('.fr-chk-av:checked')).map(function(el){
     return { codigo: el.value, tipo: el.dataset.tipo, nombre: el.dataset.nombre, costoHora: parseFloat(el.dataset.costo)||0 };
   });
@@ -7213,6 +7252,7 @@ function restablecerFrenteZafra(id, zafra) {
 }
 function refrescarTrasCambioComposicion() {
   renderFrente();
+  frRefrescarListaAgregar();
   if (typeof renderFrenteMaquinasZafra === 'function') renderFrenteMaquinasZafra();
   recalcularCacheProd(); invalidarSimCache();
   renderPlan(); autoSave();
