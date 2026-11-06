@@ -5113,8 +5113,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.11', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.12', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.12', '2026-11-06', 'Día a día: horas efectivas de TRABAJO por lote y máquina (cada máquina suma su jornada del día) y resumen del frente con base de trabajo'],
   ['1.11', '2026-11-06', 'Día a día: el resumen del frente cuadra (Hrs efect. corte × TM/h de corte = TM/máq/día) y muestra también las horas y el TM/h de trabajo'],
   ['1.10', '2026-11-06', 'Día a día: resumen por frente (cosechadoras que participan, horas efectivas de corte, TM/h, TM/máq/día, velocidad de corte)'],
   ['1.9', '2026-11-06', 'Día a día: horas efectivas de corte por cosechadora participante en cada lote (en vez de la jornada meta)'],
@@ -15828,20 +15829,21 @@ function verDia() {
         var prefDD = fecha + '|' + fn + '|', codsDD = {}, hCorteDD = 0, hTrabDD = 0, velSumDD = 0, velHDD = 0;
         Object.keys(ddHC0).forEach(function(kk) {
           if (kk.indexOf(prefDD) !== 0) return;
-          var oo = ddHC0[kk]; oo.maqs.forEach(function(m) { codsDD[m.codigo] = true; });
-          hCorteDD += oo.hCorte; hTrabDD += oo.hCorte + oo.hMan + oo.hRal;
+          var oo = ddHC0[kk]; if (!oo.maqs) return; oo.maqs.forEach(function(m) { codsDD[m.codigo] = true; });
+          hCorteDD += oo.hCorte; hTrabDD += oo.hTrab;
           var cLt = campos.find(function(ca) { return ca.nombre === kk.slice(prefDD.length); });
           var vL = cLt ? (cLt.velFuente === 'anterior' ? cLt.velAnterior : calcTiempos(cLt).vel) : 0;
           if (vL > 0 && oo.hCorte > 0) { velSumDD += vL * oo.hCorte; velHDD += oo.hCorte; }
         });
         var nPartDD = Object.keys(codsDD).length, nAsigDD = (frEfDD && frEfDD.cosechCodigos && frEfDD.cosechCodigos.length) ? frEfDD.cosechCodigos.length : ((frEfDD && frEfDD.nCosech) || 0);
-        if (nPartDD > 0 && hCorteDD > 0) {
+        if (nPartDD > 0 && hTrabDD > 0) {
           var celdaDD = function(lab, val, sub, tip) { return '<div title="' + tip + '" style="flex:1;min-width:130px;padding:8px 14px;border-right:0.5px solid var(--border)"><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.04em">' + lab + '</div><div style="font-size:15px;font-weight:600;color:var(--text)">' + val + '</div><div style="font-size:10px;color:var(--text3)">' + sub + '</div></div>'; };
+          var hMaqDD = hTrabDD / nPartDD, tmhDD = tonFn / hTrabDD;
           html += '<div style="display:flex;flex-wrap:wrap;border-bottom:0.5px solid var(--border);background:var(--bg)">' +
-            celdaDD('Cosechadoras', nPartDD, 'participan de ' + nAsigDD + ' asignadas' + (bkDD ? ' (+ backup)' : ''), 'Cosechadoras distintas que cortaron algún lote del frente este día') +
-            celdaDD('Hrs efect. corte', (hCorteDD / nPartDD).toFixed(1) + ' h', 'por máquina · ' + hCorteDD.toFixed(1) + ' máq-h · trabajo ' + (hTrabDD / nPartDD).toFixed(1) + ' h', 'Horas efectivas de corte (sin maniobras ni ralentí) por cosechadora participante, y total del frente. Entre paréntesis de trabajo: corte + maniobras + ralentí') +
-            celdaDD('TM/h de corte', (tonFn / hCorteDD).toFixed(1), 'por hora de trabajo: ' + (tonFn / (hTrabDD || 1)).toFixed(1), 'Toneladas del día ÷ horas-máquina de corte, para que Hrs efect. corte × TM/h = TM/máq/día. Por hora de trabajo (corte + maniobras + ralentí) es la base de la columna Productividad') +
-            celdaDD('TM/máq/día', Math.round(tonFn / nPartDD).toLocaleString(), (hCorteDD / nPartDD).toFixed(1) + ' h × ' + (tonFn / hCorteDD).toFixed(1) + ' · ' + Math.round(tonFn).toLocaleString() + ' t ÷ ' + nPartDD + ' máq', 'Toneladas del día por cosechadora participante = horas de corte por máquina × TM/h de corte') +
+            celdaDD('Cosechadoras', nPartDD, 'participan de ' + nAsigDD + ' asignadas' + (bkDD ? ' (+ backup)' : ''), 'Cosechadoras distintas que trabajaron algún lote del frente este día') +
+            celdaDD('Hrs efect. (trabajo)', hMaqDD.toFixed(1) + ' h', 'por máquina · corte ' + (hCorteDD / nPartDD).toFixed(1) + ' h + maniob./ralentí ' + ((hTrabDD - hCorteDD) / nPartDD).toFixed(1) + ' h', 'Horas efectivas de trabajo por cosechadora participante: corte + maniobras + ralentí. Total del frente: ' + hTrabDD.toFixed(1) + ' máq-h') +
+            celdaDD('TM/h del día', tmhDD.toFixed(1), 'ton ÷ ' + hTrabDD.toFixed(1) + ' máq-h de trabajo', 'Toneladas del día ÷ horas-máquina de trabajo; misma base que la columna Productividad de los lotes') +
+            celdaDD('TM/máq/día', Math.round(tonFn / nPartDD).toLocaleString(), hMaqDD.toFixed(1) + ' h × ' + tmhDD.toFixed(1) + ' · ' + Math.round(tonFn).toLocaleString() + ' t ÷ ' + nPartDD + ' máq', 'Toneladas del día por cosechadora participante = horas efectivas por máquina × TM/h del día') +
             celdaDD('Vel. de corte', velHDD > 0 ? (velSumDD / velHDD).toFixed(1) + ' km/h' : '–', 'prom. ponderado por horas de corte', 'Velocidad de cosecha de los lotes del día, ponderada por sus horas de corte') +
             '</div>';
         }
@@ -15855,7 +15857,7 @@ function verDia() {
     // ── Tabla de lotes (cada fila se despliega con la secuencia de ese lote) ──
     if (lotesActFn.length) {
       html += '<div style="overflow-x:auto"><table><thead><tr>';
-      html += '<th>Lote</th><th>TCH</th><th>Máquinas</th><th style="white-space:nowrap" title="Frente de máquinas: horas EFECTIVAS DE CORTE por cosechadora que participa en el lote ese día (de la simulación; sin maniobras ni ralentí; las mismas de Logística → Cosechadoras). Frente manual: horas planificadas por persona.">' + (esManFrDD ? 'Hrs Pers. Plan' : 'Hrs efect. corte') + '</th><th>' + (esManFrDD ? 'Personas' : 'Máquinas asignadas') + '</th><th>Vel. cosecha</th><th>Productividad</th><th>Ton campo</th>';
+      html += '<th>Lote</th><th>TCH</th><th>Máquinas</th><th style="white-space:nowrap" title="Frente de máquinas: horas EFECTIVAS DE TRABAJO (corte + maniobras + ralentí) por cosechadora que participa en el lote ese día, de la simulación. Suman por máquina lo mismo que en Logística → Cosechadoras. Frente manual: horas planificadas por persona.">' + (esManFrDD ? 'Hrs Pers. Plan' : 'Hrs efect. (trabajo)') + '</th><th>' + (esManFrDD ? 'Personas' : 'Máquinas asignadas') + '</th><th>Vel. cosecha</th><th>Productividad</th><th>Ton campo</th>';
       html += '<th>Ton hoy</th><th>Ton cosechadas</th><th>% avance</th><th>Ton restantes</th>';
       html += '<th>Autovolteos</th><th>Edad cultivo</th>';
       html += '<th title="Cada cuánto tiempo se llena un camión completo, a la tasa de producción de este lote">Frecuencia camión</th>';
@@ -15916,14 +15918,14 @@ function verDia() {
         var idSecDD = 'dd-sec-' + (fn + '-' + l.nombre).replace(/[^a-zA-Z0-9_-]/g, '_');
         var piHrs = planItems.find(function(p){ return p.campoNombre === l.nombre && p.frenteNombre === fn && (!zafraDD || p.zafra === zafraDD); }) || planItems.find(function(p){ return p.campoNombre === l.nombre && (!zafraDD || p.zafra === zafraDD); });
         var horasPlanStr = piHrs ? (Math.round(horasPlanDia(piHrs.zafra, fn, fecha, piHrs) * 10) / 10) + ' h' : '–';
-        // Horas efectivas de corte de las cosechadoras que participan en ESTE lote hoy (en vez de la jornada meta del frente)
+        // Horas efectivas de TRABAJO (corte + maniobras + ralentí) de las cosechadoras que participan en ESTE lote hoy (en vez de la jornada meta)
         var loDD = (!esManFrDD && ddHC) ? ddHC[fecha + '|' + fn + '|' + l.nombre] : null, horasCelda = horasPlanStr, maqAsigLote = maqAsigHtml, tituloHoras = '';
-        if (loDD && loDD.maqs.length && loDD.hCorte > 0) {
-          horasCelda = '<strong>' + (loDD.hCorte / loDD.maqs.length).toFixed(1) + ' h</strong><div style="font-size:10px;color:var(--text3)">' + loDD.maqs.length + ' máq · ' + loDD.hCorte.toFixed(1) + ' máq-h</div>';
-          tituloHoras = 'Promedio por cosechadora participante. Jornada planificada del frente: ' + horasPlanStr + (loDD.hMan + loDD.hRal > 0 ? ' · Además: ' + loDD.hMan.toFixed(1) + ' máq-h de maniobras y ' + loDD.hRal.toFixed(1) + ' de ralentí' : '');
+        if (loDD && loDD.maqs && loDD.maqs.length && loDD.hTrab > 0) {
+          horasCelda = '<strong>' + (loDD.hTrab / loDD.maqs.length).toFixed(1) + ' h</strong><div style="font-size:10px;color:var(--text3)">' + loDD.maqs.length + ' máq · ' + loDD.hTrab.toFixed(1) + ' máq-h</div>';
+          tituloHoras = 'Promedio por cosechadora participante, de trabajo: corte ' + loDD.hCorte.toFixed(1) + ' + maniobras ' + loDD.hMan.toFixed(1) + ' + ralentí ' + loDD.hRal.toFixed(1) + ' = ' + loDD.hTrab.toFixed(1) + ' máq-h. Jornada planificada del frente: ' + horasPlanStr;
           var codsFrDD = (frEfDD && frEfDD.cosechCodigos) ? frEfDD.cosechCodigos.map(function(cc) { return cc.codigo; }) : [], partDD = {};
           loDD.maqs.forEach(function(m) { partDD[m.codigo] = true; });
-          maqAsigLote = loDD.maqs.map(function(m) { return '<span class="badge badge-gray" style="font-family:monospace;margin:1px">' + m.codigo + ' <strong>' + m.h.toFixed(1) + ' h</strong></span>'; }).join('') +
+          maqAsigLote = loDD.maqs.map(function(m) { return '<span class="badge badge-gray" style="font-family:monospace;margin:1px" title="Corte ' + m.h.toFixed(1) + ' h + maniobras y ralentí ' + (m.hT - m.h).toFixed(1) + ' h">' + m.codigo + ' <strong>' + m.hT.toFixed(1) + ' h</strong></span>'; }).join('') +
             codsFrDD.filter(function(c) { return !partDD[c]; }).map(function(c) { return '<span class="badge badge-gray" style="font-family:monospace;margin:1px;opacity:.4" title="No participa en este lote hoy">' + c + '</span>'; }).join('');
         }
         html += '<tr style="cursor:pointer" onclick="var r=document.getElementById(\'' + idSecDD + '\');if(r){var ab=r.style.display===\'none\';r.style.display=ab?\'\':\'none\';var ic=this.querySelector(\'.dd-caret\');if(ic)ic.textContent=ab?\'▾\':\'▸\';}" title="Ver la secuencia de trabajo de este lote">';
@@ -25963,16 +25965,28 @@ function logCalcularCosechadoras(data, dias, zafraOpt) {
       x.meta = meta; x.fecha = g.fecha; x.frente = g.frente;
       filasMaq.push(x);
     });
-    // Horas de corte por LOTE: horas-máquina de corte de ese lote (la fracción de corte del tiempo de trabajo, sin maniobras ni ralentí)
-    // repartidas entre las k cosechadoras que participaron (k = máximo de máquinas simultáneas en el lote ese día), según sus horas disponibles
+    // Horas efectivas de TRABAJO (corte + maniobras + ralentí) por LOTE y cosechadora. Cada lote aporta sus horas-máquina (de la simulación) y
+    // participan k máquinas (máximo simultáneo ese día); cada máquina suma EXACTAMENTE su total del día (el mismo de arriba): se reparte con un
+    // ajuste proporcional iterativo entre lotes y máquinas, así lo que ves por lote y lo que ves por máquina son la misma cifra.
     var porLoteG = {};
     g.cos.forEach(function(c) { var o = porLoteG[c.lote] = porLoteG[c.lote] || { hCorte: 0, hMan: 0, hRal: 0, k: 0, ton: 0 }, hm = (c.b - c.a) / 60 * (c.maq || 0), fr = fracciones(c.plan); o.hCorte += hm * fr.c; o.hMan += hm * fr.m; o.hRal += hm * fr.r; o.k = Math.max(o.k, c.maq || 0); o.ton += c.ton; });
-    var ordenAct = maqs.filter(function(x) { return x.disp > 0 && !x.exceso; });
-    Object.keys(porLoteG).forEach(function(lt) {
-      var o = porLoteG[lt], part = ordenAct.slice(0, Math.max(1, Math.min(Math.round(o.k) || 1, ordenAct.length))), sw = part.reduce(function(s2, x) { return s2 + (x.dispLibre || x.disp || 1); }, 0) || 1;
-      o.maqs = part.map(function(x) { return { codigo: x.codigo, h: o.hCorte * (x.dispLibre || x.disp || 1) / sw }; });
-      lotesDia[g.fecha + '|' + g.frente + '|' + lt] = o;
-    });
+    var ordenAct = maqs.filter(function(x) { return (x.asignH || 0) > 0.001 && !x.exceso; }), lts = Object.keys(porLoteG);
+    if (ordenAct.length && lts.length) {
+      var nM = ordenAct.length, Hl = lts.map(function(l) { var o = porLoteG[l]; return o.hCorte + o.hMan + o.hRal; }), Aj = ordenAct.map(function(x) { return x.asignH; });
+      var Wm = lts.map(function(l) { var kk = Math.max(1, Math.min(Math.round(porLoteG[l].k) || 1, nM)); return ordenAct.map(function(x, j) { return j < kk ? (x.dispLibre || x.disp || 1) : 0; }); });
+      var ajustaFilas = function() { Wm.forEach(function(row, i) { var sr = row.reduce(function(a, b) { return a + b; }, 0); if (sr > 0) for (var j = 0; j < nM; j++) row[j] *= Hl[i] / sr; }); };
+      for (var it = 0; it < 80; it++) {
+        ajustaFilas();
+        for (var j2 = 0; j2 < nM; j2++) { var sc = 0; Wm.forEach(function(row) { sc += row[j2]; }); if (sc > 0) { var fcj = Aj[j2] / sc; Wm.forEach(function(row) { row[j2] *= fcj; }); } }
+      }
+      ajustaFilas();   // las horas de cada lote quedan exactas
+      lts.forEach(function(lt, i) {
+        var o = porLoteG[lt], fc = Hl[i] > 0 ? o.hCorte / Hl[i] : 1;
+        o.hTrab = Hl[i];
+        o.maqs = ordenAct.map(function(x, j) { return { codigo: x.codigo, hT: Wm[i][j], h: Wm[i][j] * fc }; }).filter(function(m) { return m.hT > 0.005; });
+        lotesDia[g.fecha + '|' + g.frente + '|' + lt] = o;
+      });
+    }
     var d = porDia[g.fecha] = porDia[g.fecha] || { fecha: g.fecha, frentes: [], maq: 0, bk: 0, mtto: 0, hTrabajo: 0, hCorte: 0, hMan: 0, hRal: 0, hTras: 0, hMotor: 0, ton: 0 };
     var fr = { frente: g.frente, maqs: maqs, meta: meta, detenido: detenido, maq: maqs.filter(function(x) { return x.hTrabajo > 0.01; }).length, bk: maqs.filter(function(x) { return x.rol === 'backup' && x.hTrabajo > 0.01; }).length, mtto: maqs.filter(function(x) { return x.mtto.length; }).length, hTrabajo: hCorte + hMan + hRal + tras, hCorte: hCorte, hMan: hMan, hRal: hRal, hTras: tras, hMotor: hCorte + hMan + hRal + trasMotor, ton: ton };
     d.frentes.push(fr); d.maq += fr.maq; d.bk += fr.bk; d.mtto += fr.mtto; d.hTrabajo += fr.hTrabajo; d.hCorte += hCorte; d.hMan += hMan; d.hRal += hRal; d.hTras += tras; d.hMotor += fr.hMotor; d.ton += ton;
