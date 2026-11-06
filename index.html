@@ -2531,6 +2531,11 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
           <span id="vel-tch-pendiente" style="display:none;font-size:12px;color:var(--amber-text)"><i class="ti ti-alert-triangle" style="margin-right:4px"></i>Hay cambios sin aplicar — no afectan los cálculos hasta que presiones "Aplicar cambios"</span>
         </div>
       </div>
+      <div class="card">
+        <div class="card-title">Programa diario para Seguimiento</div>
+        <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Publica en la nube lo mismo que muestra «Día a día» (lotes que se cortan cada día, cosechadoras, horas efectivas por máquina, TM/h y toneladas) para que «Programa por frente» de Seguimiento coincida. Se actualiza solo unos segundos después de cada cambio del plan o de los ajustes (admin y editor); este botón lo fuerza. Requiere que las reglas de Firestore permitan los documentos <code>progdia_N</code>.</p>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="btn btn-sm" id="ajustes-progdia-btn" onclick="publicarProgDia(true)"><i class="ti ti-cloud-upload"></i> Publicar programa diario ahora</button><span id="ajustes-progdia-estado" style="font-size:12px"></span></div>
+      </div>
       <div id="ajustes-version" style="margin:14px 4px 6px;font-size:10px;color:var(--text3);line-height:1.5"></div>
 </div>
 
@@ -2924,9 +2929,9 @@ function construirDataCompleta() {
    de tamaño (ya implementado) sigue protegiendo al usuario. ══════════ */
 const FB_MAX_PARTES = 50; // hasta 50 documentos físicos por categoría (~35 MB de margen) — el shapefile con miles de polígonos necesita más partes que los datos tabulares
 // Categoría → nombre del campo array grande que se debe repartir en partes
-const FB_ARRAY_GRANDE = { campos: 'campos', plan: 'planItems', molienda: 'planMolienda', geodata: 'geoFeatures', labores: 'laboresPlan', vialidad: 'viaSegs' };
+const FB_ARRAY_GRANDE = { campos: 'campos', plan: 'planItems', molienda: 'planMolienda', geodata: 'geoFeatures', labores: 'laboresPlan', vialidad: 'viaSegs', progdia: 'progDiaItems' };
 // Máximo de documentos físicos por categoría. "labores" (plan de quema + madurador, ~0.4 MB) necesita pocos: así no se agregan 50 escuchas más.
-const FB_MAX_PARTES_CAT = { labores: 8, vialidad: 4 };
+const FB_MAX_PARTES_CAT = { labores: 8, vialidad: 4, progdia: 6 };
 function fbMaxPartes(cat) { return FB_MAX_PARTES_CAT[cat] || FB_MAX_PARTES; }
 /* Límite real de Firestore: 1 MiB (1,048,576 bytes) por documento. Se
    usa un margen conservador (~700 KB) por PARTE, ya que Firestore cuenta
@@ -3130,6 +3135,79 @@ function fbPublicarSelloCompleto() {
   var cats = {}, t = Date.now().toString(36);
   FB_DOCS.forEach(function(c) { cats[c] = t + '-' + c; });
   return fbDb.collection(FB_COLECCION).doc('sello').set({ cats: cats, actualizado: new Date().toISOString(), usuario: fbUsuarioActual.email }, { merge: true });
+}
+
+
+/* ══ PROGRAMA DIARIO PARA SEGUIMIENTO (categoría «progdia») ═════════════════════════════════════════════════════════
+   Seguimiento no puede correr la simulación: este bloque publica, por zafra, frente, lote y día, lo MISMO que muestra «Día a día»
+   (cosechadoras que participan, horas efectivas de trabajo y de corte por máquina, toneladas), para que ambos coincidan.
+   · Se calcula unos segundos después del último cambio de plan o de ajustes (invalidarSimCache → pdProgramar) y se escribe en
+     planificador_compartido/progdia_N con su sello. Solo roles admin/editor. Es solo escritura: este planificador no la escucha.
+   · Reglas de Firestore: agregar «progdia» a la expresión docId.matches(...) de planificador_compartido (ver firestore.rules).
+   Formato de cada ítem: lote { t:'L', z, f, id, n, d:{ 'AAAA-MM-DD': [máquinas, hTrabajo(máq-h), hCorte(máq-h), ton, 'cod:hT:hC;…'] } }
+                          frente { t:'F', z, f, d:{ 'AAAA-MM-DD': [máquinas distintas, hTrabajo, hCorte, ton] } } */
+var _pdTimer = null, _pdCalculando = false, _pdFirma = null, _pdPartesPrev = 0;
+var _pdEstado = { ts: null, items: 0, kb: 0, zafras: [], msg: 'Todavía no se ha publicado en esta sesión.', tipo: '' };
+function pdProgramar() {
+  if (_pdCalculando || !fbDb || !fbUsuarioActual || (fbRolActual !== 'admin' && fbRolActual !== 'editor') || !planItems.length) return;
+  clearTimeout(_pdTimer); _pdTimer = setTimeout(function() { publicarProgDia(false); }, 8000);
+}
+function construirProgDiaZafra(z) {
+  var data = logCalcular(z), R = logCalcularCosechadoras(data, data.dias, z), lotes = {}, fd = {};
+  var r2 = function(v) { return Math.round((v || 0) * 100) / 100; }, r1 = function(v) { return Math.round((v || 0) * 10) / 10; };
+  Object.keys(R.porLote || {}).forEach(function(k) {
+    var i1 = k.indexOf('|'), i2 = k.indexOf('|', i1 + 1), fecha = k.slice(0, i1), fr = k.slice(i1 + 1, i2), lote = k.slice(i2 + 1), o = R.porLote[k];
+    if (!o.maqs || !o.maqs.length) return;
+    var pi = planItems.find(function(p) { return p.zafra === z && p.frenteNombre === fr && p.campoNombre === lote; }); if (!pi) return;
+    var it = lotes[pi.id] || (lotes[pi.id] = { t: 'L', z: z, f: fr, id: pi.id, n: lote, d: {} });
+    it.d[fecha] = [o.maqs.length, r2(o.hTrab), r2(o.hCorte), r1(o.ton), o.maqs.map(function(m) { return m.codigo + ':' + r2(m.hT) + ':' + r2(m.h); }).join(';')];
+    var kf = fr + '|' + fecha, f = fd[kf] = fd[kf] || { codes: {}, hT: 0, hC: 0, ton: 0 };
+    o.maqs.forEach(function(m) { f.codes[m.codigo] = 1; }); f.hT += o.hTrab; f.hC += o.hCorte; f.ton += o.ton;
+  });
+  var frs = {};
+  Object.keys(fd).forEach(function(kf) { var p = kf.split('|'), o = frs[p[0]] = frs[p[0]] || { t: 'F', z: z, f: p[0], d: {} }, x = fd[kf]; o.d[p[1]] = [Object.keys(x.codes).length, r2(x.hT), r2(x.hC), r1(x.ton)]; });
+  return Object.keys(lotes).map(function(id) { return lotes[id]; }).concat(Object.keys(frs).map(function(f) { return frs[f]; }));
+}
+function publicarProgDia(manual) {
+  if (_pdCalculando) return;
+  if (!fbDb || !fbUsuarioActual) { _pdEstado.msg = 'Sin sesión en la nube: no se puede publicar.'; _pdEstado.tipo = 'err'; renderEstadoProgDia(); return; }
+  if (fbRolActual !== 'admin' && fbRolActual !== 'editor') { _pdEstado.msg = 'Tu rol es de solo lectura: no puede publicar.'; _pdEstado.tipo = 'err'; renderEstadoProgDia(); return; }
+  if (!planItems.length) { _pdEstado.msg = 'No hay lotes en el plan.'; _pdEstado.tipo = 'err'; renderEstadoProgDia(); return; }
+  _pdCalculando = true; _pdEstado.msg = 'Calculando el programa diario…'; _pdEstado.tipo = ''; renderEstadoProgDia();
+  setTimeout(function() {
+    var fin = function() { _pdCalculando = false; renderEstadoProgDia(); };
+    try {
+      var zs = Array.from(new Set(planItems.map(function(p) { return p.zafra; }).filter(Boolean))).sort().slice(-2), items = [];   // las 2 zafras más recientes
+      zs.forEach(function(z) { try { items = items.concat(construirProgDiaZafra(z)); } catch (e) { console.warn('progdia ' + z, e); } });
+      var firma = firmaTexto(JSON.stringify(items)), kb = Math.round(JSON.stringify(items).length / 1024);
+      if (!manual && firma === _pdFirma) { _pdEstado.msg = 'Sin cambios desde la última publicación (' + (_pdEstado.ts || '') + ').'; _pdEstado.tipo = ''; return fin(); }
+      var obj = { progDiaItems: items, progDiaMeta: { version: PLANIFICADOR_VERSION.v, generado: new Date().toISOString(), zafras: zs } };
+      var partes = partirCategoria('progdia', obj);
+      if (partes.length > fbMaxPartes('progdia')) { _pdEstado.msg = 'El programa diario no cabe (' + partes.length + ' documentos).'; _pdEstado.tipo = 'err'; return fin(); }
+      var errores = [];
+      var proms = partes.map(function(pd, i) {
+        return fbDb.collection(FB_COLECCION).doc('progdia_' + i).set(saneaParaFirestore(pd), { merge: false }).then(function() { return true; }, function(err) { errores.push(err); return false; });
+      });
+      Promise.all(proms).then(function(oks) {
+        if (oks.every(Boolean)) {
+          for (var k = partes.length; k < Math.max(_pdPartesPrev, fbMaxPartes('progdia')); k++) fbDb.collection(FB_COLECCION).doc('progdia_' + k).delete().catch(function() {});
+          _pdPartesPrev = partes.length; _pdFirma = firma; fbEscribirSello('progdia');
+          _pdEstado = { ts: new Date().toLocaleTimeString('es'), items: items.length, kb: kb, zafras: zs, msg: 'Publicado: ' + items.length + ' registros (' + kb + ' KB) de ' + zs.join(', ') + '.', tipo: 'ok' };
+        } else {
+          var perm = errores.some(function(e) { return e && e.code === 'permission-denied'; });
+          _pdEstado.msg = perm ? 'Sin permiso en Firestore: agrega «progdia» a la expresión docId.matches(...) de planificador_compartido en las reglas (ver firestore.rules) y publícalas.' : 'No se pudo guardar en la nube (' + (errores[0] && errores[0].code || 'error') + ').';
+          _pdEstado.tipo = 'err';
+        }
+        fin();
+      });
+    } catch (e) { console.error('publicarProgDia', e); _pdEstado.msg = 'Error al calcular: ' + (e && e.message ? e.message : e); _pdEstado.tipo = 'err'; fin(); }
+  }, 30);
+}
+function renderEstadoProgDia() {
+  var el = document.getElementById('ajustes-progdia-estado'); if (!el) return;
+  var col = _pdEstado.tipo === 'ok' ? 'var(--green-text)' : _pdEstado.tipo === 'err' ? 'var(--red-text)' : 'var(--text2)';
+  el.innerHTML = '<span style="color:' + col + '">' + _pdEstado.msg + '</span>' + (_pdEstado.ts ? ' <span style="color:var(--text3)">· ' + _pdEstado.ts + '</span>' : '');
+  var b = document.getElementById('ajustes-progdia-btn'); if (b) b.disabled = _pdCalculando;
 }
 
 function guardarEnFirestore(dataOpc) {
@@ -5113,8 +5191,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.12', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.13', fecha: '2026-11-06' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.13', '2026-11-06', 'Publica el programa diario simulado (categoría progdia) para que Seguimiento coincida con Día a día'],
   ['1.12', '2026-11-06', 'Día a día: horas efectivas de TRABAJO por lote y máquina (cada máquina suma su jornada del día) y resumen del frente con base de trabajo'],
   ['1.11', '2026-11-06', 'Día a día: el resumen del frente cuadra (Hrs efect. corte × TM/h de corte = TM/máq/día) y muestra también las horas y el TM/h de trabajo'],
   ['1.10', '2026-11-06', 'Día a día: resumen por frente (cosechadoras que participan, horas efectivas de corte, TM/h, TM/máq/día, velocidad de corte)'],
@@ -9795,6 +9874,7 @@ function aplicarDefaultZafraSiVacio(sel, cur, zafras) {
 /* ── Página Ajustes ── */
 function syncAjustesPage() {
   renderVersionPlanificador();
+  renderEstadoProgDia();
   if (typeof syncAjustesSyncCard === 'function') syncAjustesSyncCard();
   var sel = document.getElementById('config-zafra-default');
   if (!sel) return;
@@ -12511,7 +12591,7 @@ function ddHorasCorte(zafra, fecha) {
     return _ddLogCache.dias[fecha];
   } catch (e) { console.error('ddHorasCorte', e); return null; }
 }
-function invalidarSimCache() { _ddLogCache = null; _cobBkCache = {}; if (typeof _ralentiCache !== 'undefined') _ralentiCache = {}; _simCache = null; _evCache = null; _fechaInicioZafraCache = {}; _totalSemanasZafraCache = {}; _mttoPorFrenteCache = null; _eventosPorGrupoCache = {}; _planItemsPorGrupoCache = null; }
+function invalidarSimCache() { if (typeof pdProgramar === 'function') pdProgramar(); _ddLogCache = null; _cobBkCache = {}; if (typeof _ralentiCache !== 'undefined') _ralentiCache = {}; _simCache = null; _evCache = null; _fechaInicioZafraCache = {}; _totalSemanasZafraCache = {}; _mttoPorFrenteCache = null; _eventosPorGrupoCache = {}; _planItemsPorGrupoCache = null; }
 // ── CACHÉ POR GRUPO (frente+zafra) ──────────────────────────────────
 // PROBLEMA DE RENDIMIENTO GRAVE CORREGIDO: getSimKey() calculaba un
 // hash GLOBAL de TODO el plan (los 2,500+ lotes y TODOS los overrides
