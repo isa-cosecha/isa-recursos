@@ -1304,8 +1304,6 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
           <select id="cmp-zafra" onchange="cmpRender()" style="margin:0;width:130px"></select>
           <label style="margin:0;font-size:13px;color:var(--text2)">Fechas del plan:</label>
           <select id="cmp-base" onchange="cmpRender()" style="margin:0;width:230px"><option value="sim">Inicio simulado (programa optimizado)</option><option value="plan">Fecha de inicio del plan</option></select>
-          <label style="margin:0;font-size:13px;color:var(--text2)">Detalle por tenencia:</label>
-          <select id="cmp-det" onchange="cmpDibujar()" style="margin:0;width:160px"></select>
           <button class="btn btn-sm" onclick="showPage('cerrados')" title="El histórico se administra en Datos maestros"><i class="ti ti-archive"></i> Plantíos cerrados</button>
         </div>
       </div>
@@ -5360,8 +5358,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.38', fecha: '2026-11-10' };
+var PLANIFICADOR_VERSION = { v: '1.39', fecha: '2026-11-10' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.39', '2026-11-10', 'Comparativo: «Detalle por tenencia» pasa a cada gráfico de tenencia (selector Serie dentro de la tarjeta); se quita del encabezado'],
   ['1.38', '2026-11-10', 'Versiones del plan por plantío: subido (automático), optimizado (el administrador lo bloquea), operativo (se recalcula solo) y real; el gráfico Plan vs Fábrica muestra el optimizado fijo y el operativo'],
   ['1.37', '2026-11-10', 'Plan vs Fábrica: línea automática del plan subido (se fija al subir el CSV, no cambia al optimizar) y Plan optimizado (actual) como única línea que cambia'],
   ['1.36', '2026-11-06', 'Comparativo: «Comparar con» pasa a cada gráfico de tenencia (selector propio dentro de la tarjeta); se quita del encabezado'],
@@ -26855,6 +26854,8 @@ function cmpSvgApiladas(cats, series, o) {
   });
   return h + '</svg>';
 }
+var _cmpDet = {};   // serie que muestra cada gráfico de tenencia (por defecto el plan de la zafra)
+function cmpDetCambiar(cid, v) { _cmpDet[cid] = v || ''; var st = cmpEstado(cid); st.hidden = {}; st.zoom = null; st.pin = null; cmpTipOcultar(); cmpRedibujar(cid); }
 var _cmpVs = {};   // «Comparar con» de cada gráfico de tenencia: { detEdad: id de serie, detProp: id de serie }
 function cmpVsCambiar(cid, v) { _cmpVs[cid] = v || ''; var st = cmpEstado(cid); st.hidden = {}; st.zoom = null; st.pin = null; cmpTipOcultar(); cmpRedibujar(cid); }
 function cmpVarCambiar(id) { _cmpVarSel = id; var st = cmpEstado('varSem'); st.exp = {}; st.hidden = {}; st.semSel = null; st.pin = null; cmpRedibujar('varSem'); }
@@ -26961,12 +26962,9 @@ function cmpDibujar() {
   h += '<div style="display:grid;grid-template-columns:' + grid2 + ';gap:' + GAP + 'px">' +
     gBarras('edadA', '<span style="background:#4472C4;color:#fff;padding:2px 10px;border-radius:3px">ADMINISTRADO</span> · edad por tercio', cmpEdad, wH, { ymin: 250 }, 'A', 0) +
     gBarras('edadP', '<span style="background:#843C0C;color:#fff;padding:2px 10px;border-radius:3px">PROVEEDORES</span> · edad por tercio', cmpEdad, wH, { ymin: 250 }, 'P', 0) + '</div>';
-  var selDet = document.getElementById('cmp-det'), detId = (selDet && selDet.value) || planSel.id;
-  if (selDet) { selDet.innerHTML = todas.map(function(s) { return '<option value="' + s.id + '">' + cmpEsc(s.label) + '</option>'; }).join(''); selDet.value = todas.some(function(s) { return s.id === detId; }) ? detId : planSel.id; detId = selDet.value; }
-  var det = todas.filter(function(s) { return s.id === detId; })[0] || planSel;
-  // Gráficos de tenencia: cada uno tiene su PROPIO «Comparar con» (plan de la zafra anterior o zafra anterior real), dentro de la tarjeta; se dibuja punteado
+  // Gráficos de tenencia: cada uno elige su PROPIA serie y su PROPIO «Comparar con», dentro de la tarjeta
   var etVs = function(S) { return S.tipo === 'real' ? S.label + ' (real)' : S.label; };
-  var opcionesVs = function() { return todas.filter(function(s) { return s.id !== det.id; }).sort(function(a, b) { var ra = a.tipo === 'planAnt' ? 0 : a.tipo === 'real' ? 1 : 2, rb = b.tipo === 'planAnt' ? 0 : b.tipo === 'real' ? 1 : 2; return (ra - rb) || (ra === 1 ? String(b.zafra).localeCompare(String(a.zafra)) : 0); }); };
+  var ordenSeries = function(excluir) { return todas.filter(function(s) { return s.id !== excluir; }).sort(function(a, b) { var ra = a.tipo === 'plan' ? -1 : a.tipo === 'planAnt' ? 0 : a.tipo === 'real' ? 1 : 2, rb = b.tipo === 'plan' ? -1 : b.tipo === 'planAnt' ? 0 : b.tipo === 'real' ? 1 : 2; return (ra - rb) || (ra === 1 ? String(b.zafra).localeCompare(String(a.zafra)) : 0); }); };
   var semMax = function(S) { var m = 0; Object.keys(aggs[S.id].all.w).forEach(function(k) { if (+k > m) m = +k; }); return m; };
   var porSem = function(S, xd) {   // edad y % de TM de Administrado / Proveedores por semana
     var A = aggs[S.id].A.w, P = aggs[S.id].P.w, o = { eA: {}, eP: {}, pA: {}, pP: {} };
@@ -26979,6 +26977,7 @@ function cmpDibujar() {
   var gTenencia = function(cid, esProp, W) {
     var def = {}, fmtTip = esProp ? function(v) { return v.toFixed(1) + '%'; } : function(v) { return v.toFixed(0) + ' días'; };
     var calc = function() {
+      var detId = _cmpDet[cid] || '', det = todas.filter(function(s) { return s.id === detId; })[0] || planSel;
       var vsId = _cmpVs[cid] || '', vsS = (vsId && vsId !== det.id) ? (todas.filter(function(s) { return s.id === vsId; })[0] || null) : null;
       var mx = Math.max(semMax(det), vsS ? semMax(vsS) : 0), xd = []; for (var j = 1; j <= mx; j++) xd.push(j);
       var m1 = porSem(det, xd), m2 = vsS ? porSem(vsS, xd) : null, nm = function(b, S) { return vsS ? b + ' · ' + etVs(S) : b; };
@@ -26988,17 +26987,19 @@ function cmpDibujar() {
       var nota = '';
       if (vsS) {
         var g1 = gen(det), g2 = gen(vsS);
-        nota = 'Continua = ' + cmpEsc(det.label) + '; punteada = ' + cmpEsc(etVs(vsS)) + '. ' + (esProp
+        nota = 'Continua = ' + cmpEsc(etVs(det)) + '; punteada = ' + cmpEsc(etVs(vsS)) + '. ' + (esProp
           ? '% de TM Administrado en toda la zafra: ' + cmpFmtN(g1.pA, 1) + '% vs ' + cmpFmtN(g2.pA, 1) + '% (' + sgn(g1.pA, g2.pA, true) + ').'
           : 'Edad general: Administrado ' + cmpFmtN(g1.eA, 0) + ' vs ' + cmpFmtN(g2.eA, 0) + ' (' + sgn(g1.eA, g2.eA, false) + ') · Proveedores ' + cmpFmtN(g1.eP, 0) + ' vs ' + cmpFmtN(g2.eP, 0) + ' (' + sgn(g1.eP, g2.eP, false) + ').');
       }
-      return { vsS: vsS, xd: xd, sr: sr, m1: m1, m2: m2, nota: nota };
+      return { det: det, vsS: vsS, xd: xd, sr: sr, m1: m1, m2: m2, nota: nota };
     };
     def.build = function(st) { var C = def.C = calc(); def.labels = C.sr.map(function(x) { return x.label; }); return cmpSvgLineas(C.xd, C.sr, Object.assign({ W: W, h: H, st: st, reg: def, cid: def.cid }, esProp ? { pct: true, ymin: 0, ymax: 100 } : {})); };
     def.filtro = function(st) {
-      var cur = _cmpVs[cid] || '', C = def.C || calc();
-      return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11px;color:var(--text2)"><span style="font-weight:600">Comparar con:</span><select onchange="cmpVsCambiar(\'' + cid + '\', this.value)" style="margin:0;width:auto;font-size:12px"><option value="">— sin comparar —</option>' +
-        opcionesVs().map(function(s) { return '<option value="' + s.id + '"' + (s.id === cur ? ' selected' : '') + '>' + cmpEsc(etVs(s)) + '</option>'; }).join('') + '</select>' + (C.vsS ? '<span style="color:var(--text3)">' + C.nota + '</span>' : '') + '</div>';
+      var C = def.C || calc(), selSt = 'margin:0;width:auto;font-size:12px';
+      return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11px;color:var(--text2)">' +
+        '<span style="font-weight:600">Serie:</span><select onchange="cmpDetCambiar(\'' + cid + '\', this.value)" style="' + selSt + '">' + ordenSeries(null).map(function(s) { return '<option value="' + s.id + '"' + (s.id === C.det.id ? ' selected' : '') + '>' + cmpEsc(etVs(s)) + '</option>'; }).join('') + '</select>' +
+        '<span style="font-weight:600;margin-left:6px">Comparar con:</span><select onchange="cmpVsCambiar(\'' + cid + '\', this.value)" style="' + selSt + '"><option value="">— sin comparar —</option>' + ordenSeries(C.det.id).map(function(s) { return '<option value="' + s.id + '"' + (C.vsS && s.id === C.vsS.id ? ' selected' : '') + '>' + cmpEsc(etVs(s)) + '</option>'; }).join('') + '</select>' +
+        (C.vsS ? '<span style="color:var(--text3)">' + C.nota + '</span>' : '') + '</div>';
     };
     def.tip = function(i) {
       var C = def.C, x = C.xd[i], h = '<div style="font-weight:600;margin-bottom:3px">Semana ' + x + '</div>';
@@ -27007,13 +27008,12 @@ function cmpDibujar() {
       return h + pista;
     };
     def.drill = function(i) {
-      var x = def.C.xd[i];
+      var C = def.C, x = C.xd[i], det = C.det;
       if (det.tipo === 'real') return '<div style="margin-top:10px;font-size:12px;color:var(--text3)">El histórico está agregado por semana: no tiene detalle por lote. <button class="btn btn-xs" onclick="cmpCerrarDrill(\'' + def.cid + '\')">Cerrar</button></div>';
       return cmpDrillHTML(def.cid, det.label + ' · semana ' + x, det.recs.filter(function(r) { return r.sem === x; }));
     };
     def.tabla = function() { var C = def.C; return { head: ['Semana'].concat(def.labels), rows: C.xd.map(function(x) { return [x].concat(C.sr.map(function(r) { return r2(r.vals[x]); })); }) }; };
-    var tit = '<span style="color:' + det.color + '">' + cmpEsc(det.label) + '</span>' + (esProp ? ' · proporción de TM por semana' : ' · edad por semana: Administrado vs Proveedores');
-    return cmpGrafico(cid, tit, def);
+    return cmpGrafico(cid, esProp ? 'Proporción de TM por semana: Administrado vs Proveedores' : 'Edad por semana: Administrado vs Proveedores', def);
   };
   h += '<div style="display:grid;grid-template-columns:' + grid2 + ';gap:' + GAP + 'px">' + gTenencia('detEdad', false, wH) + gTenencia('detProp', true, wH) + '</div>';
   // proporción de TM por semana y variedad (zafra del plan, plan anterior o zafras reales), con [+] por semana para ver los días
