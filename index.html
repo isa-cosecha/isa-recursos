@@ -5330,8 +5330,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.36', fecha: '2026-11-06' };
+var PLANIFICADOR_VERSION = { v: '1.37', fecha: '2026-11-10' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.37', '2026-11-10', 'Plan vs Fábrica: línea automática del plan subido (se fija al subir el CSV, no cambia al optimizar) y Plan optimizado (actual) como única línea que cambia'],
   ['1.36', '2026-11-06', 'Comparativo: «Comparar con» pasa a cada gráfico de tenencia (selector propio dentro de la tarjeta); se quita del encabezado'],
   ['1.35', '2026-11-06', 'Comparativo: «Comparar con» (plan de la zafra anterior o zafra anterior real) superpuesto en los gráficos de tenencia'],
   ['1.34', '2026-11-06', 'Equipos: al asignar cosechadoras a un frente solo se listan las libres; las de otros frentes se ven aparte y no se pueden marcar'],
@@ -8718,22 +8719,25 @@ function getTotalSemanasZafra(zafra) {
 // demanda", para que el gráfico comparativo nunca pueda mostrar un
 // número distinto a esas vistas. Devuelve un array ordenado por semana:
 // [{ semana, demanda, produccion }, ...]
-// Guarda una "foto" de la producción real actual por semana, con una
-// etiqueta libre (ej. "Plan original", "Antes de optimizar") — usada
-// como serie de comparación en el gráfico "Plan vs Fábrica". Solo se
-// guarda cuando el usuario lo pide explícitamente (botón), nunca
-// automático, para que sea siempre clara la foto que se está viendo.
-function guardarPlanReferencia(zafra, etiqueta) {
-  var porSemana = getComparativoPlanVsFabricaPorSemana(zafra);
-  if (!porSemana.length) { showToast('No hay datos suficientes para guardar un plan de referencia de esta zafra.'); return; }
-  planesReferencia[zafra] = {
-    etiqueta: etiqueta || 'Plan de referencia',
-    guardadoEl: new Date().toISOString(),
-    porSemana: porSemana.map(function(s){ return { semana: s.semana, produccion: s.produccion }; })
-  };
-  autoSave();
-  showToast('Guardado como referencia: "' + planesReferencia[zafra].etiqueta + '" (' + porSemana.length + ' semana(s))');
+// «Plan subido»: foto AUTOMÁTICA de la producción simulada por día de la zafra, tal como quedó al subir el plan (CSV). Es la línea de referencia
+// del gráfico «Comparativo Plan vs Fábrica»: no cambia al optimizar ni al editar; solo la reemplaza una nueva subida del plan de esa zafra.
+// Si una zafra nunca tuvo subida registrada, se fija una vez justo antes de la primera optimización (origen 'antes-optimizar').
+function capturarPlanSubido(zafra, etiqueta, origen) {
+  try { recalcularCacheProd(); invalidarSimCache(); } catch (e) {}
+  var sim = simularProduccionDiaria(zafra) || {}, prodDia = {}, n = 0;
+  Object.keys(sim).forEach(function(f) { var t = Object.keys(sim[f]).reduce(function(a, k) { return a + sim[f][k]; }, 0); if (t > 0) { prodDia[f] = Math.round(t); n++; } });
+  if (!n) return false;
+  planesReferencia[zafra] = { etiqueta: etiqueta, guardadoEl: new Date().toISOString(), origen: origen || 'subido', prodDia: prodDia };
+  return true;
 }
+function planAsegurarReferencia() {   // una sola vez por zafra, antes de la primera optimización si aún no hay línea del plan subido
+  var hoy = new Date().toISOString().split('T')[0], hecho = false;
+  Array.from(new Set(planItems.map(function(p) { return p.zafra; }).filter(Boolean))).forEach(function(z) {
+    if (!planesReferencia[z] && capturarPlanSubido(z, 'Plan antes de optimizar (' + hoy + ')', 'antes-optimizar')) hecho = true;
+  });
+  return hecho;
+}
+function guardarPlanReferencia(zafra, etiqueta) { return capturarPlanSubido(zafra, etiqueta || 'Plan de referencia', 'manual'); }
 function borrarPlanReferencia(zafra) {
   if (!planesReferencia[zafra]) return;
   if (!confirm('¿Quitar el plan de referencia guardado ("' + planesReferencia[zafra].etiqueta + '") de la comparación?')) return;
@@ -9590,6 +9594,7 @@ function eqDescargarCSV() {
 }
 
 function guardarSnapshotPlan(descripcion) {
+  if (/Optimizaci|Reconstruir|Equilibrar|Ajustar secuencia/.test(descripcion || '')) { try { planAsegurarReferencia(); } catch (eRef) { console.warn('No se pudo fijar la referencia', eRef); } }
   if (!window._planUndoStack) window._planUndoStack = [];
   window._planUndoStack.push({
     descripcion: descripcion || 'cambio en el plan',
@@ -12471,6 +12476,7 @@ function importarCSVPlan(input) {
     // del push que fallaba), pero la excepción cortaba el resto del
     // archivo justo después.
     var errores = [], importados = [], advertencias = [];
+    var zafrasSubidas = {};   // zafras a las que este archivo agregó lotes: se fija su «plan subido» al terminar
     var vistosEnEsteArchivo = {}; // detecta duplicados DENTRO del mismo CSV
     lineas.slice(1).forEach(function(linea, i) {
       if (!linea.trim() || linea.trim().startsWith('#')) return;
@@ -12596,9 +12602,12 @@ function importarCSVPlan(input) {
         edadDias: calcEdad(fechaCorteFinal, fechaInicio) || null,
         _seq: (!isNaN(secuenciaCsv) && secuenciaCsv > 0) ? secuenciaCsv : undefined
       });
+      zafrasSubidas[zafraVal] = true;
       importados.push({fila: nF, nombre: campoNombre + (nMaqCsv ? ' (' + nMaqCsv + ' máq.)' : '') + (nAVCsv ? ' (' + nAVCsv + ' AV)' : '') + (tchCsv ? ' (TCH ' + tchCsv + ')' : '')});
     });
     if (sinColumnaArea && importados.length) advertencias.unshift({fila: 1, nombre: '(encabezado)', advertencias: ['El archivo no tiene la columna "area" (ha): en todas las filas se usó el área registrada en Campos.']});
+    // Línea de referencia del gráfico Plan vs Fábrica: el plan tal como se subió (automático; la optimización no la modifica)
+    try { var hoySub = new Date().toISOString().split('T')[0]; Object.keys(zafrasSubidas).forEach(function(z) { capturarPlanSubido(z, 'Plan subido (' + hoySub + ')', 'subido'); }); } catch (eSub) { console.warn('No se pudo fijar el plan subido', eSub); }
     renderPlan(); autoSave();
     mostrarModalCSV(importados, advertencias, errores);
   };
@@ -14687,38 +14696,29 @@ function calcular() {
       var etiquetasSem = comparativoSemanal.map(function(s){ return modoDiario ? s.fecha : s.semana; });
       var seriesComparativo = [
         { nombre: 'Fábrica (demanda)', color: '#E24B4A', valores: comparativoSemanal.map(function(s){ return s.demanda; }) },
-        { nombre: 'Plan (actual)', color: '#1D9E75', valores: comparativoSemanal.map(function(s){ return s.produccion; }) }
+        { nombre: 'Plan optimizado (actual)', color: '#1D9E75', valores: comparativoSemanal.map(function(s){ return s.produccion; }) }
       ];
-      // La referencia guardada solo existe a nivel semanal — en modo
-      // diario no hay forma de desglosarla sin haber guardado ese
-      // detalle, así que simplemente no se grafica esa serie aquí (se
-      // avisa en el texto de abajo) en vez de mostrar un dato incorrecto.
-      if (refGuardada && !modoDiario) {
-        var refPorSemana = {};
-        refGuardada.porSemana.forEach(function(s){ refPorSemana[s.semana] = s.produccion; });
-        seriesComparativo.push({
-          nombre: refGuardada.etiqueta, color: '#378ADD',
-          valores: etiquetasSem.map(function(sem){ return refPorSemana.hasOwnProperty(sem) ? refPorSemana[sem] : null; })
-        });
-      }
-      html += '<div class="card" style="margin-bottom:16px">';
-      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">';
-      html += '<div class="card-title" style="margin:0">Comparativo Plan vs Fábrica por ' + (modoDiario ? 'día' : 'semana') + '</div>';
-      html += '<div style="display:flex;gap:8px;align-items:center">';
-      if (!modoDiario) {
-        html += '<button class="btn btn-xs" onclick="var et=prompt(\'Nombre para este plan de referencia:\', \'Plan original\'); if(et) { guardarPlanReferencia(\'' + filtroZafraRes + '\', et); calcular(); }"><i class="ti ti-camera"></i> Guardar plan actual como referencia</button>';
-        if (refGuardada) {
-          html += '<button class="btn btn-xs btn-danger" onclick="borrarPlanReferencia(\'' + filtroZafraRes + '\')"><i class="ti ti-x"></i> Quitar "' + refGuardada.etiqueta + '"</button>';
+      // Plan subido (referencia fija): producción simulada de la versión que se subió, sumada sobre los mismos días con demanda que el plan actual
+      if (refGuardada) {
+        var molF = {}, fIniZ = getFechaInicioZafra(filtroZafraRes), refMap = {};
+        planMolienda.forEach(function(d) { if (d.zafra === filtroZafraRes) molF[d.fecha] = true; });
+        if (refGuardada.prodDia) {
+          Object.keys(refGuardada.prodDia).forEach(function(f) { if (!molF[f]) return; var k = modoDiario ? f : getSemanaZafra(f, fIniZ); if (!k) return; refMap[k] = (refMap[k] || 0) + refGuardada.prodDia[f]; });
+        } else if (!modoDiario && refGuardada.porSemana) {   // referencias antiguas (guardadas por semana)
+          refGuardada.porSemana.forEach(function(s) { refMap[s.semana] = s.produccion; });
         }
+        if (Object.keys(refMap).length) seriesComparativo.splice(1, 0, { nombre: refGuardada.etiqueta, color: '#378ADD', valores: etiquetasSem.map(function(k) { return refMap.hasOwnProperty(k) ? refMap[k] : null; }) });
       }
-      html += '</div></div>';
+      var hayRef = seriesComparativo.length > 2, iOpt = hayRef ? 2 : 1;
+      html += '<!--RES-COMP-INI--><div class="card" style="margin-bottom:16px">';
+      html += '<div class="card-title" style="margin-bottom:8px">Comparativo Plan vs Fábrica por ' + (modoDiario ? 'día' : 'semana') + '</div>';
       html += '<p style="font-size:11px;color:var(--text2);margin-bottom:10px">' +
-        (modoDiario
-          ? 'Ton por día-zafra, acotado a la semana filtrada. "Plan (actual)" es la producción real simulada ahora mismo — la misma que ves en Día a día.' + (refGuardada ? ' La referencia guardada ("' + refGuardada.etiqueta + '") solo está disponible a nivel semanal — quita el filtro de semana para compararla.' : '')
-          : 'Ton por semana-zafra (miércoles a martes). "Plan (actual)" es la producción real simulada ahora mismo — la misma que ves en Día a día. ' +
-            (refGuardada ? 'La serie "' + refGuardada.etiqueta + '" es una foto guardada el ' + refGuardada.guardadoEl.split('T')[0] + ', útil para comparar antes/después de optimizar.' : 'Guarda el plan actual como referencia (ej. antes de optimizar) para poder comparar el efecto de un cambio más adelante.')
-        ) + '</p>';
-      html += svgLineChartMultiSerie(etiquetasSem, seriesComparativo, { height: 320, id: 'resPlanFabrica', unidad: ' ton', titulo: function(et) { return (modoDiario ? 'Día ' : 'Semana ') + et; }, difs: [{ a: 1, b: 0, txt: 'Plan − Fábrica' }].concat(seriesComparativo.length > 2 ? [{ a: 1, b: 2, txt: 'Plan − ' + seriesComparativo[2].nombre }] : []) });
+        (modoDiario ? 'Ton por día-zafra, acotado a la semana filtrada. ' : 'Ton por semana-zafra (miércoles a martes). ') +
+        (hayRef
+          ? '<strong style="color:#378ADD">' + refGuardada.etiqueta + '</strong>: el plan tal como se subió (' + (refGuardada.origen === 'antes-optimizar' ? 'foto previa a la primera optimización' : 'se fija sola al subir el plan') + '); no cambia al optimizar ni al editar. <strong style="color:#1D9E75">Plan optimizado (actual)</strong>: producción simulada ahora mismo (la misma de Día a día); es la única línea que cambia.'
+          : '<strong style="color:#1D9E75">Plan optimizado (actual)</strong> es la producción simulada ahora mismo (la misma de Día a día). La línea del plan subido aparece sola cuando subes el CSV del plan' + (refGuardada ? ' (la referencia guardada no tiene datos para este rango).' : ' o en la primera optimización.')) +
+        '</p>';
+      html += svgLineChartMultiSerie(etiquetasSem, seriesComparativo, { height: 320, id: 'resPlanFabrica', unidad: ' ton', titulo: function(et) { return (modoDiario ? 'Día ' : 'Semana ') + et; }, difs: [{ a: iOpt, b: 0, txt: 'Optimizado − Fábrica' }].concat(hayRef ? [{ a: iOpt, b: 1, txt: 'Optimizado − ' + refGuardada.etiqueta }] : []) });
       html += '</div>';
     }
   }
@@ -18344,16 +18344,7 @@ function aplicarPlanOptimoZafra() {
 
   guardarSnapshotPlan('Reconstruir plan óptimo día a día');
 
-  // Guarda automáticamente el estado ANTES de esta optimización como
-  // referencia para el gráfico "Comparativo Plan vs Fábrica" — así el
-  // usuario ve de inmediato el antes/después de cada vez que optimiza,
-  // sin tener que acordarse de presionar "Guardar como referencia" a
-  // mano antes de cada corrida. Se guarda con una etiqueta reconocible y
-  // SE SOBRESCRIBE en cada optimización (siempre refleja el estado justo
-  // antes de la última vez que se aplicó un plan óptimo) — si el usuario
-  // ya había guardado una referencia manual con otro nombre, esa no se
-  // toca aquí.
-  guardarPlanReferencia(data.zafra, 'Antes de optimizar (' + new Date().toISOString().split('T')[0] + ')');
+  // La línea «plan subido» del gráfico Plan vs Fábrica se fija sola al subir el plan y NO se toca al optimizar: aquí solo cambia el plan actual.
 
   // Nota: antes aquí se sobrescribía la fecha de inicio del primer lote
   // de cada frente "reactivado" con la fecha en que el optimizador
