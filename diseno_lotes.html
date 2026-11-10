@@ -265,7 +265,8 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
       <div><label for="u-rumbo">Diferencia de rumbo para unión directa (°)</label><input type="number" id="u-rumbo" value="10" min="0" max="90" step="1"></div>
       <div><label for="u-borde">Borde común mínimo (m)</label><input type="number" id="u-borde" value="50" min="0" step="10"></div>
       <div><label for="u-tol">Separación máxima entre bordes (m)</label><input type="number" id="u-tol" value="5" min="0" step="1"></div>
-      <div><label for="u-var" style="margin-bottom:10px">Variedad</label><label style="display:flex;gap:8px;align-items:center;color:var(--tinta)"><input type="checkbox" id="u-var" checked style="width:auto"> Exigir la misma variedad</label></div>
+      <div><label for="u-costo-traslado" title="El planificador no tiene una tarifa para el traslado de un frente entre lotes. Si la conoces (lowboy, horas de máquinas paradas, etc.), ponla aquí y se suma al ahorro.">Costo de un traslado evitado ($, opcional)</label><input type="number" id="u-costo-traslado" value="" min="0" step="10" placeholder="0"></div>
+          <div><label for="u-var" style="margin-bottom:10px">Variedad</label><label style="display:flex;gap:8px;align-items:center;color:var(--tinta)"><input type="checkbox" id="u-var" checked style="width:auto"> Exigir la misma variedad</label></div>
     </div>
     <div class="fila-acciones">
       <button class="principal" id="b-unif">Buscar unificaciones</button>
@@ -274,6 +275,7 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
     <div id="u-resultado" hidden style="margin-top:20px">
       <p class="ayuda" id="u-resumen-txt"></p>
       <div class="resumen" id="u-resumen"></div>
+        <p class="ayuda" id="u-costo-nota" style="margin-top:6px"></p>
       <div class="fila-acciones" style="margin:0 0 12px">
         <select id="u-f-tenencia" aria-label="Tenencia" style="max-width:240px"><option value="">Todas las tenencias</option><option>Propio</option><option>Proveedor</option></select>
         <select id="u-f-tipo" aria-label="Tipo de unión" style="max-width:240px"><option value="">Todos los tipos</option><option>Directa</option><option>Parcialmente directa</option><option>Requiere rediseño</option></select>
@@ -1501,8 +1503,9 @@ function dibujarMapaUnif(ajustar) {
   $('u-mapa-titulo').textContent = todas ? V.length + ' propuestas' : (mapaU.sel + 1) + ' de ' + V.length + ': ' + g.lotes.join(' + ');
   var info = '<p><strong>' + esc(g.lotes.join(' + ')) + '</strong> <span class="chip ' + (g.tipo === 'Directa' ? 'ok' : g.tipo === 'Requiere rediseño' ? 'revisar' : 'nada') + '">' + esc(g.tipo) + '</span></p>' +
     '<p>' + esc(g.finca) + ' · ' + esc(g.tenencia || '') + ' · ' + esc(g.dueno) + ' · ' + esc(g.variedad) + '</p><p>Área ' + fmt(g.area, 1) + ' ha · diferencia de edad ' + fmt(g.difEdad) + ' días</p>' +
-    '<p>Giros menos: <b>' + (g.surcosUnidos ? fmt(g.surcosUnidos) : '–') + '</b> · horas menos: <b>' + (g.horasAhorradas ? fmt(g.horasAhorradas, 1) : '–') + '</b> · traslados menos: <b>' + g.trasladosMenos + '</b></p>';
-  g.pares.forEach(function(p) { info += '<div class="par"><b>' + esc(p.loteA) + ' – ' + esc(p.loteB) + '</b><br>Borde común ' + fmt(p.borde) + ' m · ' + (p.dRumbo === null ? 'rumbo sin datos' : 'rumbos a ' + fmt(p.dRumbo) + '°') + ' · ' + (p.directa ? 'une ' + fmt(p.surcosUnidos) + ' surcos' : 'requiere rediseño') + (p.alertas.length ? '<br><span style="color:var(--ocre)">' + esc(p.alertas.join('; ')) + '</span>' : '') + '</div>'; });
+    '<p>Giros menos: <b>' + (g.surcosUnidos ? fmt(g.surcosUnidos) : '–') + '</b> · horas menos: <b>' + (g.horasAhorradas ? fmt(g.horasAhorradas, 1) : '–') + '</b> · traslados menos: <b>' + g.trasladosMenos + '</b></p>' +
+    '<p>Ahorro por zafra: <b>' + dinero(g.ahorroTotal) + '</b> (cosechadoras ' + dinero(g.ahorroCosech) + ' · autovolteos ' + dinero(g.ahorroAV) + (g.ahorroTraslados ? ' · traslados ' + dinero(g.ahorroTraslados) : '') + ')' + (g.costoIncompleto ? '<br><small style="color:var(--ocre)">Algún lote no tiene frente o tarifa en el plan.</small>' : '') + '</p>';
+  g.pares.forEach(function(p) { info += '<div class="par"><b>' + esc(p.loteA) + ' – ' + esc(p.loteB) + '</b><br>Borde común ' + fmt(p.borde) + ' m · ' + (p.dRumbo === null ? 'rumbo sin datos' : 'rumbos a ' + fmt(p.dRumbo) + '°') + ' · ' + (p.directa ? 'une ' + fmt(p.surcosUnidos) + ' surcos' + (p.ahorro > 0 ? ' · ahorra ' + dinero(p.ahorro) : '') : 'requiere rediseño') + (p.tarifa ? '<br><small>Frente ' + esc(p.tarifa.frente) + ': cosechadora ' + dinero(p.tarifa.chC) + '/h · autovolteo ' + dinero(p.tarifa.chAV) + '/h · ' + fmt(p.tarifa.tM, 2) + ' min por giro</small>' : '') + (p.alertas.length ? '<br><span style="color:var(--ocre)">' + esc(p.alertas.join('; ')) + '</span>' : '') + '</div>'; });
   if (verSurcos && !todas) info += '<p class="par" style="color:var(--tinta-2)">Se dibujan ' + fmt(nSurcos) + ' surcos' + (muestreo > 1 ? ' (1 de cada ' + muestreo + ', para que el mapa no se ponga lento)' : '') + ', un color por lote. Si los surcos de los dos lotes van en la misma dirección y se alinean en el borde, la unión es directa.</p>';
   $('u-mapa-info').innerHTML = info;
   $('u-tabla').querySelectorAll('tbody tr').forEach(function(tr) { var on = +tr.getAttribute('data-i') === mapaU.sel; tr.classList.toggle('sel', on); });
@@ -1640,6 +1643,7 @@ $('b-unif').addEventListener('click', async function() {
   var b = $('b-unif'); b.disabled = true; $('u-progreso').hidden = false;
   var params = { edadMax: parseFloat($('u-edad').value) || 0, rumboMax: parseFloat($('u-rumbo').value) || 0, minBorde: parseFloat($('u-borde').value) || 0, tol: parseFloat($('u-tol').value) || 0, mismaVariedad: $('u-var').checked, giro: parseFloat($('p-giro').value) || 1.25, zafra: $('p-zafra').value };
   try {
+    unifEstado.params = params;
     unifEstado.res = await analizarUnificaciones(estado.plan, estado.resultado.idx, estado.resultado.filas, params, function(f, t) { $('u-barra').style.width = (f * 100).toFixed(1) + '%'; $('u-progreso-txt').textContent = t; });
     mostrarUnificaciones();
   } catch (e) { $('u-progreso-txt').textContent = 'No se pudo analizar: ' + e.message; }
@@ -1651,9 +1655,75 @@ function tenenciaDeGrupo(g) {   // la tenencia de los lotes de la propuesta (tod
   var ks = Object.keys(t); return ks.length === 1 ? ks[0] : 'Mixta';
 }
 function unifPorTenencia() { var fte = $('u-f-tenencia').value; return unifEstado.res.grupos.filter(function(g) { return !fte || g.tenencia === fte; }); }
+/* ============ COSTO DE LAS UNIFICACIONES (con las tarifas del planificador) ============
+   Por cada giro menos se ahorra lo mismo que el planificador cobra por una maniobra (ver calcTiempos y calcCostoLote en index.html):
+     · cosechadora: la maniobra + su espera al inicio de la cabecera (medida en el registro, o modelada con el % del autovolteo × 75 %)
+     · autovolteo: su maniobra (la de la cosechadora + la espera medida, o la de la cosechadora × (1 + % del modelo de autovolteo))
+   Tarifas: las de la zafra elegida arriba; la cosechadora es la del frente de cada lote (sus máquinas o su modelo, con los ajustes de esa zafra)
+   y el autovolteo es tractor + volteo. Los traslados no tienen tarifa en el planificador: se suman solo si se da un costo por traslado. */
+var RAL_COSECH_PCT_U = 75;   // % por defecto del planificador (ese ajuste no viaja en los datos)
+function frenteEfectivoU(plan, zafra, nombre) {
+  var fr = (plan.frentes || []).find(function(f) { return f.nombre === nombre; }); if (!fr) return null;
+  var porId = function(lista, id) { return (lista || []).find(function(m) { return m.id === id; }) || null; };
+  var ef = Object.assign({}, fr, { modeloCosech: fr.modeloCosech ? (porId(plan.modelosCosech, fr.modeloCosech.id) || fr.modeloCosech) : null, modeloAV: fr.modeloAV ? (porId(plan.modelosAV, fr.modeloAV.id) || fr.modeloAV) : null });
+  var cfg = (zafra && plan.frenteMaquinasPorZafra) ? plan.frenteMaquinasPorZafra[zafra + '||' + nombre] : null;
+  if (cfg) {
+    if (cfg.modeloCosechId) ef.modeloCosech = porId(plan.modelosCosech, cfg.modeloCosechId) || ef.modeloCosech;
+    if (cfg.modeloAVId) ef.modeloAV = porId(plan.modelosAV, cfg.modeloAVId) || ef.modeloAV;
+    if (cfg.cosechCodigos && cfg.cosechCodigos.length) ef.cosechCodigos = cfg.cosechCodigos;
+  }
+  return ef;
+}
+function tarifaZafraU(m, campo, campoZafra, z) { if (!m) return 0; if (z && m[campoZafra] && m[campoZafra][z] !== undefined && m[campoZafra][z] !== null) return parseFloat(m[campoZafra][z]) || 0; return parseFloat(m[campo]) || 0; }
+function tarifaCosechU(plan, fr, z) {
+  if (!fr || fr.tipo === 'manual') return 0;   // un frente manual no hace maniobras de cosechadora
+  var maq = (fr.cosechCodigos || []).map(function(cc) { return (plan.modelosCosech || []).find(function(m) { return m.codigo === cc.codigo; }); }).filter(Boolean);
+  if (maq.length) return maq.reduce(function(t, m) { return t + tarifaZafraU(m, 'costoHora', 'costoHoraPorZafra', z); }, 0) / maq.length;
+  return tarifaZafraU(fr.modeloCosech, 'costoHora', 'costoHoraPorZafra', z);
+}
+function tarifaAVU(m, z) { return m ? tarifaZafraU(m, 'costoTractor', 'costoTractorPorZafra', z) + tarifaZafraU(m, 'costoVolteo', 'costoVolteoPorZafra', z) : 0; }
+function costoPorGiroLote(campo, fila, z, plan, giroDefecto) {   // $ por cada maniobra de ese lote
+  if (!campo) return null;
+  var pis = (plan.planItems || []).filter(function(p) { return p.campoId === campo.id && p.frenteNombre; });
+  var p = pis.filter(function(x) { return x.zafra === z; })[0] || pis.sort(function(a, b) { return String(b.zafra).localeCompare(String(a.zafra)); })[0];
+  if (!p) return { sinFrente: true };
+  var fr = frenteEfectivoU(plan, p.zafra, p.frenteNombre); if (!fr) return { sinFrente: true };
+  var tM = (window.tGiroReal && window.tGiroReal(campo.nombre)) || (campo.tManiobra > 0 ? campo.tManiobra : giroDefecto);
+  var espS = (fila && fila.esperaS > 0) ? fila.esperaS : 0, pct = fr.modeloAV ? (parseFloat(fr.modeloAV.pct) || 0) : 0;
+  var minC = tM + (espS > 0 ? espS / 60 : tM * pct / 100 * RAL_COSECH_PCT_U / 100);
+  var minAV = fr.modeloAV ? (espS > 0 ? tM + espS / 60 : tM * (1 + pct / 100)) : 0;
+  var chC = tarifaCosechU(plan, fr, z), chAV = tarifaAVU(fr.modeloAV, z);
+  if (!(chC > 0) && !(chAV > 0)) return { sinTarifa: true, frente: p.frenteNombre };
+  return { cosech: chC * minC / 60, av: chAV * minAV / 60, total: chC * minC / 60 + chAV * minAV / 60, chC: chC, chAV: chAV, frente: p.frenteNombre, tM: tM, espS: espS };
+}
+function calcularCostosUnif() {
+  var U = unifEstado.res; if (!U || !estado.plan) return;
+  var plan = estado.plan, z = $('p-zafra').value || '', giroDef = (unifEstado.params && unifEstado.params.giro) || 1.25, ct = parseFloat($('u-costo-traslado').value) || 0;
+  var porId = {}; (plan.campos || []).forEach(function(c) { porId[c.id] = c; });
+  var filaDe = {}; ((estado.resultado && estado.resultado.filas) || []).forEach(function(r) { filaDe[r.campoId] = r; });
+  var cache = {}, cg = function(id) { if (cache[id] === undefined) cache[id] = costoPorGiroLote(porId[id], filaDe[id], z, plan, giroDef); return cache[id]; }, sinTarifa = {};
+  U.grupos.forEach(function(g) {
+    var cos = 0, av = 0, faltan = 0;
+    g.pares.forEach(function(p) {
+      var a = cg(p.a), b = cg(p.b), ok = [a, b].filter(function(x) { return x && x.total > 0; });
+      [[p.a, a], [p.b, b]].forEach(function(x) { if (!x[1] || !(x[1].total > 0)) sinTarifa[x[0]] = 1; });
+      p.tarifa = ok[0] || null;
+      if (!p.surcosUnidos) { p.ahorroCosech = 0; p.ahorroAV = 0; p.ahorro = 0; return; }
+      if (!ok.length) { p.ahorroCosech = p.ahorroAV = p.ahorro = null; faltan++; return; }
+      var cC = ok.reduce(function(t, x) { return t + x.cosech; }, 0) / ok.length, cA = ok.reduce(function(t, x) { return t + x.av; }, 0) / ok.length;   // promedio de los dos lotes del borde
+      p.ahorroCosech = p.surcosUnidos * cC; p.ahorroAV = p.surcosUnidos * cA; p.ahorro = p.ahorroCosech + p.ahorroAV;
+      cos += p.ahorroCosech; av += p.ahorroAV;
+    });
+    g.ahorroCosech = cos; g.ahorroAV = av; g.ahorroManiobras = cos + av; g.ahorroTraslados = ct * g.trasladosMenos; g.ahorroTotal = g.ahorroManiobras + g.ahorroTraslados; g.costoIncompleto = faltan > 0;
+    g.ahorroHa = g.area > 0 ? g.ahorroTotal / g.area : 0;
+  });
+  unifEstado.costos = { zafra: z, costoTraslado: ct, lotesSinTarifa: Object.keys(sinTarifa).length };
+}
+function dinero(v) { return (v === null || v === undefined || isNaN(v)) ? '–' : '$ ' + fmt(v, 0); }
 function mostrarUnificaciones() {
   var U = unifEstado.res; $('u-resultado').hidden = false;
   U.grupos.forEach(function(g) { g.tenencia = tenenciaDeGrupo(g); });
+  calcularCostosUnif();
   var tens = {}; U.grupos.forEach(function(g) { tens[g.tenencia] = 1; });
   var sel = $('u-f-tenencia'), act = sel.value;
   sel.innerHTML = '<option value="">Todas las tenencias</option>' + ['Propio', 'Proveedor'].concat(Object.keys(tens).filter(function(t) { return t !== 'Propio' && t !== 'Proveedor'; }).sort()).map(function(t) { return '<option>' + esc(t) + '</option>'; }).join('');
@@ -1671,29 +1741,36 @@ function pintarResumenUnif() {
     ['' + dir.length, 'con unión directa de surcos'],
     [fmt(G.reduce(function(s, g) { return s + g.surcosUnidos; }, 0)), 'giros menos por zafra'],
     [fmt(G.reduce(function(s, g) { return s + g.horasAhorradas; }, 0)), 'horas de maniobra menos por zafra'],
-    [fmt(G.reduce(function(s, g) { return s + g.trasladosMenos; }, 0)), 'traslados menos por zafra']
+    [fmt(G.reduce(function(s, g) { return s + g.trasladosMenos; }, 0)), 'traslados menos por zafra'],
+    [dinero(G.reduce(function(s, g) { return s + (g.ahorroTotal || 0); }, 0)), 'menos por zafra' + ((unifEstado.costos && unifEstado.costos.costoTraslado) ? ' (maniobras y traslados)' : ' en maniobras')]
   ].map(function(x) { return '<div class="dato"><strong>' + x[0] + '</strong><span>' + x[1] + (fte ? ' · ' + esc(fte.toLowerCase()) : '') + '</span></div>'; }).join('');
+  var C = unifEstado.costos || {}, gc = G.reduce(function(s, g) { return s + (g.ahorroCosech || 0); }, 0), ga = G.reduce(function(s, g) { return s + (g.ahorroAV || 0); }, 0), gt = G.reduce(function(s, g) { return s + (g.ahorroTraslados || 0); }, 0);
+  $('u-costo-nota').textContent = 'Ahorro con las tarifas del planificador' + (C.zafra ? ' de la zafra ' + C.zafra : '') + ': cosechadoras ' + dinero(gc) + ' y autovolteos ' + dinero(ga) +
+    (C.costoTraslado ? ', traslados ' + dinero(gt) + ' (' + dinero(C.costoTraslado) + ' cada uno).' : '. Los traslados no tienen tarifa en el planificador: si conoces su costo, ponlo en «Costo de un traslado evitado».') +
+    ' Por cada giro menos se ahorra la maniobra de la cosechadora, su espera al inicio de la cabecera y la maniobra del autovolteo, con las tarifas del frente de cada lote.' +
+    (C.lotesSinTarifa ? ' ' + C.lotesSinTarifa + ' lotes no tienen frente o tarifa en el plan: sus giros no suman costo.' : '');
 }
 function pintarUnificaciones() {
   var ft = $('u-f-tipo').value, G = unifPorTenencia().filter(function(g) { return !ft || g.tipo === ft; });
   unifEstado.vista = G;
-  $('u-tabla').querySelector('thead').innerHTML = '<tr><th class="izq">Lotes</th><th class="izq">Finca</th><th class="izq">Tenencia</th><th class="izq">Propietario</th><th class="izq">Variedad</th><th>Área (ha)</th><th>Diferencia de edad</th><th class="izq">Tipo de unión</th><th>Borde común (m)</th><th>Giros menos</th><th>Horas menos</th><th>Traslados menos</th><th class="izq">A revisar</th></tr>';
+  $('u-tabla').querySelector('thead').innerHTML = '<tr><th class="izq">Lotes</th><th class="izq">Finca</th><th class="izq">Tenencia</th><th class="izq">Propietario</th><th class="izq">Variedad</th><th>Área (ha)</th><th>Diferencia de edad</th><th class="izq">Tipo de unión</th><th>Borde común (m)</th><th>Giros menos</th><th>Horas menos</th><th>Traslados menos</th><th>Ahorro ($/zafra)</th><th>Ahorro ($/ha)</th><th class="izq">A revisar</th></tr>';
   var tb = $('u-tabla').querySelector('tbody');
-  if (!G.length) { tb.innerHTML = '<tr><td colspan="13" class="vacio izq">No hay unificaciones con estos criterios. Prueba con una diferencia de edad mayor o sin exigir la misma variedad.</td></tr>'; $('u-mapa-caja').hidden = true; return; }
+  if (!G.length) { tb.innerHTML = '<tr><td colspan="15" class="vacio izq">No hay unificaciones con estos criterios. Prueba con una diferencia de edad mayor o sin exigir la misma variedad.</td></tr>'; $('u-mapa-caja').hidden = true; return; }
   tb.innerHTML = G.map(function(g, gi) {
     var chip = g.tipo === 'Directa' ? 'ok' : g.tipo === 'Requiere rediseño' ? 'revisar' : 'nada';
     return '<tr data-i="' + gi + '"><td class="izq"><strong>' + esc(g.lotes.join(' + ')) + '</strong></td><td class="izq">' + esc(g.finca) + '</td><td class="izq">' + esc(g.tenencia || '') + '</td><td class="izq">' + esc(g.dueno) + '</td><td class="izq">' + esc(g.variedad) + '</td>' +
       '<td>' + fmt(g.area, 1) + '</td><td>' + fmt(g.difEdad) + ' días</td><td class="izq"><span class="chip ' + chip + '">' + esc(g.tipo) + '</span></td><td>' + fmt(g.borde) + '</td>' +
-      '<td>' + (g.surcosUnidos ? fmt(g.surcosUnidos) : '–') + '</td><td>' + (g.horasAhorradas ? fmt(g.horasAhorradas, 1) : '–') + '</td><td>' + g.trasladosMenos + '</td><td class="izq" style="white-space:normal;min-width:180px"><small>' + esc(g.alertas.join(', ') || '—') + '</small></td></tr>';
+      '<td>' + (g.surcosUnidos ? fmt(g.surcosUnidos) : '–') + '</td><td>' + (g.horasAhorradas ? fmt(g.horasAhorradas, 1) : '–') + '</td><td>' + g.trasladosMenos + '</td><td title="' + esc('Cosechadoras ' + dinero(g.ahorroCosech) + ' · autovolteos ' + dinero(g.ahorroAV) + ' · traslados ' + dinero(g.ahorroTraslados) + (g.costoIncompleto ? ' · faltan tarifas de algún lote' : '')) + '"><b>' + (g.ahorroTotal > 0 ? dinero(g.ahorroTotal) : '–') + '</b>' + (g.costoIncompleto ? ' <small style="color:var(--ocre)">*</small>' : '') + '</td><td>' + (g.ahorroHa > 0 ? dinero(g.ahorroHa) : '–') + '</td><td class="izq" style="white-space:normal;min-width:180px"><small>' + esc(g.alertas.join(', ') || '—') + '</small></td></tr>';
   }).join('');
   mapaU.sel = 0; dibujarMapaUnif(true);
 }
 $('u-f-tipo').addEventListener('input', pintarUnificaciones);
 $('u-f-tenencia').addEventListener('input', function() { pintarResumenUnif(); pintarUnificaciones(); });
+['u-costo-traslado', 'p-zafra'].forEach(function(id) { $(id).addEventListener(id === 'p-zafra' ? 'change' : 'input', function() { if (!unifEstado.res) return; calcularCostosUnif(); pintarResumenUnif(); pintarUnificaciones(); }); });
 $('b-unif-csv').addEventListener('click', function() {
   var U = unifEstado.res; if (!U) return;
-  var out = [['grupo', 'lotes_del_grupo', 'lote_a', 'lote_b', 'finca', 'tenencia', 'propietario', 'variedad', 'fecha_corte_a', 'fecha_corte_b', 'diferencia_edad_dias', 'borde_comun_m', 'diferencia_rumbo_grados', 'tipo_union', 'surcos_que_se_unen', 'giros_menos', 'horas_menos', 'alertas']];
-  (unifEstado.vista || U.grupos).forEach(function(g, n) { g.pares.forEach(function(p) { out.push([n + 1, g.lotes.join(' + '), p.loteA, p.loteB, p.finca, g.tenencia || '', p.dueno, p.variedad, p.fechas[0] || '', p.fechas[1] || '', p.difEdad, n2(p.borde, 0), p.dRumbo === null ? '' : n2(p.dRumbo, 0), p.directa ? 'Directa' : 'Requiere rediseño', p.surcosUnidos, p.girosAhorrados, n2(p.horasAhorradas, 2), p.alertas.join(', ')]); }); });
+  var out = [['grupo', 'lotes_del_grupo', 'lote_a', 'lote_b', 'finca', 'tenencia', 'propietario', 'variedad', 'fecha_corte_a', 'fecha_corte_b', 'diferencia_edad_dias', 'borde_comun_m', 'diferencia_rumbo_grados', 'tipo_union', 'surcos_que_se_unen', 'giros_menos', 'horas_menos', 'frente_tarifa', 'tarifa_cosechadora_h', 'tarifa_autovolteo_h', 'ahorro_cosechadora_par', 'ahorro_autovolteo_par', 'ahorro_maniobras_par', 'ahorro_traslados_grupo', 'ahorro_total_grupo', 'zafra_tarifas', 'alertas']];
+  (unifEstado.vista || U.grupos).forEach(function(g, n) { g.pares.forEach(function(p) { out.push([n + 1, g.lotes.join(' + '), p.loteA, p.loteB, p.finca, g.tenencia || '', p.dueno, p.variedad, p.fechas[0] || '', p.fechas[1] || '', p.difEdad, n2(p.borde, 0), p.dRumbo === null ? '' : n2(p.dRumbo, 0), p.directa ? 'Directa' : 'Requiere rediseño', p.surcosUnidos, p.girosAhorrados, n2(p.horasAhorradas, 2), p.tarifa ? p.tarifa.frente : '', p.tarifa ? n2(p.tarifa.chC, 2) : '', p.tarifa ? n2(p.tarifa.chAV, 2) : '', p.ahorroCosech == null ? '' : n2(p.ahorroCosech, 2), p.ahorroAV == null ? '' : n2(p.ahorroAV, 2), p.ahorro == null ? '' : n2(p.ahorro, 2), n2(g.ahorroTraslados || 0, 2), n2(g.ahorroTotal || 0, 2), (unifEstado.costos || {}).zafra || '', p.alertas.join(', ')]); }); });
   var msg = $('msg-descarga'); var fte = $('u-f-tenencia').value, ftp = $('u-f-tipo').value, nom = 'unificaciones-posibles' + (fte ? '-' + fte.toLowerCase() : '') + (ftp ? '-' + ftp.toLowerCase().replace(/\s+/g, '-') : '') + '.csv';
   descargar(nom, csv(out)).then(function() { $('u-msg').textContent = msg.textContent + ' (' + (unifEstado.vista || U.grupos).length + ' propuestas' + (fte || ftp ? ', con los filtros elegidos' : '') + ')'; msg.textContent = ''; });
 });
