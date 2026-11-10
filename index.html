@@ -351,6 +351,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
     <hr class="nav-divider">
     <div class="nav-label">Operación</div>
     <button class="nav-item" onclick="showPage('planificacion')" data-page="planificacion"><i class="ti ti-calendar-stats"></i> Planificación</button>
+    <button class="nav-item" onclick="showPage('versiones')" data-page="versiones"><i class="ti ti-git-branch"></i> Versiones del plan</button>
     <button class="nav-item" onclick="showPage('resultados')" data-page="resultados"><i class="ti ti-chart-bar"></i> Resultados</button>
     <button class="nav-item" onclick="showPage('comparativo')" data-page="comparativo"><i class="ti ti-chart-dots"></i> Comparativo</button>
     <button class="nav-item" onclick="showPage('diadia')" data-page="diadia"><i class="ti ti-calendar-search"></i> Día a día</button>
@@ -1245,6 +1246,29 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
     </div>
 
     <!-- DÍA A DÍA -->
+    <!-- VERSIONES DEL PLAN (subido · optimizado fijo · operativo · real, por plantío) -->
+    <div id="page-versiones" class="page">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:10px">
+        <div class="page-title" style="margin:0">Versiones del plan por plantío</div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label style="margin:0;font-size:13px;color:var(--text2)">Zafra:</label>
+          <select id="ver-zafra" onchange="verCambioZafra()" style="margin:0;width:120px"></select>
+          <span id="ver-botones"></span>
+          <button class="btn btn-sm" onclick="verDescargarCSV()"><i class="ti ti-download"></i> CSV</button>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Una fila por plantío con cada versión en columnas. <strong>Subido</strong>: el plan del CSV, fijado al subirlo. <strong>Optimizado</strong>: mientras planificas es provisional y cambia con cada ajuste; cuando un <strong>administrador lo bloquea</strong> queda fijo. <strong>Operativo</strong>: nace como copia del optimizado y se recalcula solo (secuencia, frente, adelantos y atrasos) con los mismos parámetros del motor. <strong>Real</strong>: de Ejecución. Fr·sec = frente y secuencia de corte; fechas en MM-DD.</p>
+      <div id="ver-estado"></div>
+      <div class="card">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+          <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">Frente</label><select id="ver-f-frente" onchange="verFiltroCambio()" style="margin:0;width:110px"></select></div>
+          <div><label style="font-size:11px;color:var(--text2);display:block;margin-bottom:3px">Buscar plantío</label><input type="text" id="ver-f-buscar" oninput="verFiltroCambio()" placeholder="Filtrar…" style="margin:0;width:180px"></div>
+          <label style="font-size:12px;display:inline-flex;align-items:center;gap:5px;margin-bottom:6px;cursor:pointer"><input type="checkbox" id="ver-f-cambios" onchange="verFiltroCambio()" style="width:auto;margin:0"> Solo con cambios (operativo ≠ optimizado)</label>
+        </div>
+        <div id="ver-tabla"></div>
+      </div>
+    </div>
+
     <!-- PLANTÍOS CERRADOS (histórico en la base de datos) -->
     <div id="page-cerrados" class="page">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:10px">
@@ -2647,7 +2671,7 @@ const firebaseConfig = {
 
 // Colección raíz — todos los documentos del plan compartido viven aquí
 const FB_COLECCION = 'planificador_compartido';
-const FB_DOCS = ['campos','plan','molienda','equipos','ejecucion','geodata','vialidad','labores','cerrados'];
+const FB_DOCS = ['campos','plan','molienda','equipos','ejecucion','geodata','vialidad','labores','cerrados','versiones'];
 
 let fbApp = null, fbAuth = null, fbDb = null;
 let fbListeners = [];          // listeners onSnapshot activos, para poder desconectar al salir
@@ -2953,7 +2977,7 @@ function construirDataCompleta() {
     velVPQ: [0,1,2,3].map(function(i) { return fv('vpq-' + i); }),
     velVVV: [0,1,2,3].map(function(i) { return fv('vvv-' + i); }),
     velVVQ: [0,1,2,3].map(function(i) { return fv('vvq-' + i); }),
-    velPctTCH: leerVelPctTCH(), velPctEdad: leerVelPctEdad(), horasMaxEdad: leerTopesHorasEdad(), curvaEdad: leerCurvaEdad(), plantiosCerrados: plantiosCerrados, comparativoOpc: comparativoOpc, intervalosMtto: intervalosMtto,
+    velPctTCH: leerVelPctTCH(), velPctEdad: leerVelPctEdad(), horasMaxEdad: leerTopesHorasEdad(), curvaEdad: leerCurvaEdad(), plantiosCerrados: plantiosCerrados, planVersiones: planVersiones, versionesMeta: versionesMeta, comparativoOpc: comparativoOpc, intervalosMtto: intervalosMtto,
     camion: {
       carretasInt: fv('e-carretasInterno'), volCarretaInt: fv('e-volCarretaInterno'),
       camIntActivos: fv('e-camIntActivos'), camIntBackup: fv('e-camIntBackup'), camExt: fv('e-camExt'), tCambioCarretas: fv('e-tCambioCarretas'),
@@ -2991,9 +3015,9 @@ function construirDataCompleta() {
    de tamaño (ya implementado) sigue protegiendo al usuario. ══════════ */
 const FB_MAX_PARTES = 50; // hasta 50 documentos físicos por categoría (~35 MB de margen) — el shapefile con miles de polígonos necesita más partes que los datos tabulares
 // Categoría → nombre del campo array grande que se debe repartir en partes
-const FB_ARRAY_GRANDE = { campos: 'campos', plan: 'planItems', molienda: 'planMolienda', geodata: 'geoFeatures', labores: 'laboresPlan', vialidad: 'viaSegs', progdia: 'progDiaItems', cerrados: 'plantiosCerrados' };
+const FB_ARRAY_GRANDE = { campos: 'campos', plan: 'planItems', molienda: 'planMolienda', geodata: 'geoFeatures', labores: 'laboresPlan', vialidad: 'viaSegs', progdia: 'progDiaItems', cerrados: 'plantiosCerrados', versiones: 'planVersiones' };
 // Máximo de documentos físicos por categoría. "labores" (plan de quema + madurador, ~0.4 MB) necesita pocos: así no se agregan 50 escuchas más.
-const FB_MAX_PARTES_CAT = { labores: 8, vialidad: 4, progdia: 6, cerrados: 8 };
+const FB_MAX_PARTES_CAT = { labores: 8, vialidad: 4, progdia: 6, cerrados: 8, versiones: 8 };
 function fbMaxPartes(cat) { return FB_MAX_PARTES_CAT[cat] || FB_MAX_PARTES; }
 /* Límite real de Firestore: 1 MiB (1,048,576 bytes) por documento. Se
    usa un margen conservador (~700 KB) por PARTE, ya que Firestore cuenta
@@ -3060,6 +3084,7 @@ function categoriasDeData(d) {
     },
     geodata: { geoFeatures: d.geoFeatures },
     // Plantíos cerrados (histórico): filas con los textos en diccionario (cerradosDic va en la parte 0)
+    versiones: { planVersiones: d.planVersiones || [], versionesMeta: d.versionesMeta || {} },
     cerrados: (function() { var c = cerCodificar(d.plantiosCerrados || []); return { plantiosCerrados: c.rows, cerradosDic: c.dic }; })(),
     // Plan de quema + plan de madurador: un solo arreglo grande (cada fila lleva tipo 'Q' o 'M'); la ficha de versiones va en la parte 0.
     labores: { laboresPlan: (d.planMadurador || []).map(function(r) { return Object.assign({ tipo: 'M' }, r); }).concat((d.planQuema || []).map(function(r) { return Object.assign({ tipo: 'Q' }, r); })), laboresMeta: d.laboresMeta || {} },
@@ -3334,12 +3359,14 @@ function guardarEnFirestore(dataOpc) {
   var firmas = {}, cambiadas = [];
   FB_DOCS.forEach(function(nombreCat) {
     if (nombreCat === 'labores' && !labHayDatos()) return;   // hasta que se cargue el primer plan no se crea nada en la nube
-    if (nombreCat === 'cerrados' && !_cerradosEditado) return;   // solo se escribe cuando alguien carga o borra plantíos cerrados (nunca un arreglo vacío por no haber llegado aún de la nube)
+    if (nombreCat === 'cerrados' && !_cerradosEditado) return;
+    if (nombreCat === 'versiones' && !_versionesEditado) return;   // solo se escribe cuando se captura, bloquea o recalcula una versión (nunca un arreglo vacío por no haber llegado aún de la nube)   // solo se escribe cuando alguien carga o borra plantíos cerrados (nunca un arreglo vacío por no haber llegado aún de la nube)
     firmas[nombreCat] = firmaTexto(JSON.stringify(categorias[nombreCat]));
     if (fbFirmaCat[nombreCat] !== firmas[nombreCat]) cambiadas.push(nombreCat);
   });
   if (!cambiadas.length) { if (badge) badge.textContent = 'Guardado ☁'; return; }   // nada nuevo que enviar
   if (cambiadas.some(function(c) { return c !== 'geodata' && c !== 'vialidad'; })) pdProgramar();   // cambió algo del plan/ajustes: el programa diario que lee Seguimiento se actualiza solo
+  if (cambiadas.some(function(c) { return c !== 'geodata' && c !== 'vialidad' && c !== 'versiones' && c !== 'cerrados'; })) verProgramarOperativo();   // con el optimizado bloqueado, el plan operativo recalcula solo sus fechas
 
   // ── 2) Partir en documentos SOLO lo que cambió ──
   var partesPorCategoria = {};
@@ -4271,6 +4298,7 @@ function showPage(id) {
   if (id === 'historico') { renderHistorico(); }
   if (id === 'comparativo') { cmpInit(); }
   if (id === 'cerrados') { renderCerrados(); }
+  if (id === 'versiones') { renderVersiones(); }
   if (id === 'ejecucion') { syncExecSelects(); syncParoSelects(); renderRealRecords(); renderParoRecords(); renderBalanceRecords(); renderExecKPIs(); showExecTab(execTabActual||'registro'); showRegSubtab('prod'); }
   // "Resultados" (Cumplimiento diario, Análisis de horas, etc.) era la
   // ÚNICA página que NO se recalculaba sola al entrar — se quedaba
@@ -4986,7 +5014,7 @@ function saveAll() {
   // ── Capa 1: localStorage (respaldo local/offline, rápido) ──
   // Sin los geodatos (el shapefile pesa ≈12 MB): con ellos la copia superaba el límite del navegador (~5 MB) y fallaba
   // en silencio, dejando SIN respaldo local. Los geodatos viven en la nube y se pueden volver a cargar del shapefile.
-  try { var dataLocal = Object.assign({}, data); delete dataLocal.geoFeatures; delete dataLocal.plantiosCerrados; localStorage.setItem(STORAGE_KEY, JSON.stringify(dataLocal)); } catch(e) {}
+  try { var dataLocal = Object.assign({}, data); delete dataLocal.geoFeatures; delete dataLocal.plantiosCerrados; delete dataLocal.planVersiones; localStorage.setItem(STORAGE_KEY, JSON.stringify(dataLocal)); } catch(e) {}
   // ── Capa 2: Firestore (compartido en tiempo real con otros usuarios) ──
   // Si fbAplicandoRemoto es true, significa que ESTE guardado fue
   // disparado por datos que acaban de llegar de Firestore (otro
@@ -5064,6 +5092,8 @@ function _cargarDesdeLocalStorage() {
 function _aplicarDatos(d) {
   try {
     var d = d;
+    if (Array.isArray(d.planVersiones)) { planVersiones = d.planVersiones; _verLive = null; }
+    if (d.versionesMeta && typeof d.versionesMeta === 'object') versionesMeta = d.versionesMeta;
     if (Array.isArray(d.plantiosCerrados)) { plantiosCerrados = d.cerradosDic ? cerDecodificar(d.plantiosCerrados, d.cerradosDic) : d.plantiosCerrados; _cerradosVer++; }
     campos = d.campos || [];
     // Plan de quema / madurador: solo se reemplaza si el dato vino en el objeto (un JSON viejo o un guardado aún no devuelto por la nube no lo borran)
@@ -5330,8 +5360,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.37', fecha: '2026-11-10' };
+var PLANIFICADOR_VERSION = { v: '1.38', fecha: '2026-11-10' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.38', '2026-11-10', 'Versiones del plan por plantío: subido (automático), optimizado (el administrador lo bloquea), operativo (se recalcula solo) y real; el gráfico Plan vs Fábrica muestra el optimizado fijo y el operativo'],
   ['1.37', '2026-11-10', 'Plan vs Fábrica: línea automática del plan subido (se fija al subir el CSV, no cambia al optimizar) y Plan optimizado (actual) como única línea que cambia'],
   ['1.36', '2026-11-06', 'Comparativo: «Comparar con» pasa a cada gráfico de tenencia (selector propio dentro de la tarjeta); se quita del encabezado'],
   ['1.35', '2026-11-06', 'Comparativo: «Comparar con» (plan de la zafra anterior o zafra anterior real) superpuesto en los gráficos de tenencia'],
@@ -5448,6 +5479,7 @@ function onCurvaEdad() {
   if (a > 0 && a <= 24) curvaEdad.bkMin = a; if (b > 0 && b <= 24) curvaEdad.bkMax = Math.max(b, curvaEdad.bkMin);
   refrescarCurvaEdad(); marcarCambiosVelocidadPendientes();
 }
+var planVersiones = [], versionesMeta = {}, _versionesEditado = false;   /* Versiones del plan por plantío (categoría «versiones» en la nube) */
 var plantiosCerrados = [], _cerradosVer = 0, _cerradosEditado = false;   /* Datos maestros → Plantíos cerrados: histórico en la base de datos (categoría «cerrados»); lo lee el Comparativo */
 var comparativoOpc = { csv: true, png: true };   /* botones de descarga de los gráficos del Comparativo (Ajustes → Comparativo): CSV y PNG se activan por separado */   /* comparativo: histórico agregado del Excel (ver módulo COMPARATIVO); se declara aquí para que la carga de datos lo encuentre */
 var PREFIJOS_VEL_TCH = ['vpv', 'vpq', 'vvv', 'vvq'];
@@ -8724,6 +8756,7 @@ function getTotalSemanasZafra(zafra) {
 // Si una zafra nunca tuvo subida registrada, se fija una vez justo antes de la primera optimización (origen 'antes-optimizar').
 function capturarPlanSubido(zafra, etiqueta, origen) {
   try { recalcularCacheProd(); invalidarSimCache(); } catch (e) {}
+  if (origen !== 'manual') { try { verCapturarSubido(zafra, origen); } catch (eV) { console.warn('Versiones: no se pudo fijar el plan subido', eV); } }   // base por plantío: frente, secuencia, inicio y fin tal como se subió
   var sim = simularProduccionDiaria(zafra) || {}, prodDia = {}, n = 0;
   Object.keys(sim).forEach(function(f) { var t = Object.keys(sim[f]).reduce(function(a, k) { return a + sim[f][k]; }, 0); if (t > 0) { prodDia[f] = Math.round(t); n++; } });
   if (!n) return false;
@@ -14694,31 +14727,40 @@ function calcular() {
     if (comparativoSemanal.length) {
       var refGuardada = planesReferencia[filtroZafraRes];
       var etiquetasSem = comparativoSemanal.map(function(s){ return modoDiario ? s.fecha : s.semana; });
+      var vmZ = versionesMeta[filtroZafraRes] || {}, optFijo = !!(vmZ.opt && vmZ.opt.bloqueado && vmZ.opt.prodDia);
+      var molF = {}, fIniZ = getFechaInicioZafra(filtroZafraRes);
+      planMolienda.forEach(function(d) { if (d.zafra === filtroZafraRes) molF[d.fecha] = true; });
+      // Producción simulada guardada por día → suma sobre los mismos días con demanda que el plan actual (por semana o por día)
+      var agruparProd = function(prodDia) { var mp = {}; Object.keys(prodDia).forEach(function(f) { if (!molF[f]) return; var k = modoDiario ? f : getSemanaZafra(f, fIniZ); if (!k) return; mp[k] = (mp[k] || 0) + prodDia[f]; }); return mp; };
+      var nomAct = optFijo ? 'Plan operativo (actual)' : 'Plan optimizado (actual)';
       var seriesComparativo = [
         { nombre: 'Fábrica (demanda)', color: '#E24B4A', valores: comparativoSemanal.map(function(s){ return s.demanda; }) },
-        { nombre: 'Plan optimizado (actual)', color: '#1D9E75', valores: comparativoSemanal.map(function(s){ return s.produccion; }) }
+        { nombre: nomAct, color: '#1D9E75', valores: comparativoSemanal.map(function(s){ return s.produccion; }) }
       ];
-      // Plan subido (referencia fija): producción simulada de la versión que se subió, sumada sobre los mismos días con demanda que el plan actual
-      if (refGuardada) {
-        var molF = {}, fIniZ = getFechaInicioZafra(filtroZafraRes), refMap = {};
-        planMolienda.forEach(function(d) { if (d.zafra === filtroZafraRes) molF[d.fecha] = true; });
-        if (refGuardada.prodDia) {
-          Object.keys(refGuardada.prodDia).forEach(function(f) { if (!molF[f]) return; var k = modoDiario ? f : getSemanaZafra(f, fIniZ); if (!k) return; refMap[k] = (refMap[k] || 0) + refGuardada.prodDia[f]; });
-        } else if (!modoDiario && refGuardada.porSemana) {   // referencias antiguas (guardadas por semana)
-          refGuardada.porSemana.forEach(function(s) { refMap[s.semana] = s.produccion; });
-        }
-        if (Object.keys(refMap).length) seriesComparativo.splice(1, 0, { nombre: refGuardada.etiqueta, color: '#378ADD', valores: etiquetasSem.map(function(k) { return refMap.hasOwnProperty(k) ? refMap[k] : null; }) });
+      var serieDe = function(nombre, color, mp) { return { nombre: nombre, color: color, valores: etiquetasSem.map(function(k) { return mp.hasOwnProperty(k) ? mp[k] : null; }) }; };
+      if (refGuardada) {   // plan subido (referencia fija)
+        var refMap = refGuardada.prodDia ? agruparProd(refGuardada.prodDia) : {};
+        if (!refGuardada.prodDia && !modoDiario && refGuardada.porSemana) refGuardada.porSemana.forEach(function(s) { refMap[s.semana] = s.produccion; });   // referencias antiguas (por semana)
+        if (Object.keys(refMap).length) seriesComparativo.splice(seriesComparativo.length - 1, 0, serieDe(refGuardada.etiqueta, '#378ADD', refMap));
       }
-      var hayRef = seriesComparativo.length > 2, iOpt = hayRef ? 2 : 1;
+      var nomFijo = '';
+      if (optFijo) {   // plan optimizado BLOQUEADO (fijo): ya no cambia; el operativo es la única línea que se mueve
+        var optMap = agruparProd(vmZ.opt.prodDia); nomFijo = 'Plan optimizado (bloqueado ' + String(vmZ.opt.fecha).slice(0, 10) + ')';
+        if (Object.keys(optMap).length) seriesComparativo.splice(seriesComparativo.length - 1, 0, serieDe(nomFijo, '#EF9F27', optMap));
+      }
+      var iAct = seriesComparativo.length - 1, iRef = -1;
+      for (var q = 1; q < iAct; q++) { if (seriesComparativo[q].nombre === nomFijo) iRef = q; else if (iRef < 0 && refGuardada && seriesComparativo[q].nombre === refGuardada.etiqueta) iRef = q; }
+      var nA = optFijo ? 'Operativo' : 'Optimizado';
       html += '<!--RES-COMP-INI--><div class="card" style="margin-bottom:16px">';
       html += '<div class="card-title" style="margin-bottom:8px">Comparativo Plan vs Fábrica por ' + (modoDiario ? 'día' : 'semana') + '</div>';
       html += '<p style="font-size:11px;color:var(--text2);margin-bottom:10px">' +
         (modoDiario ? 'Ton por día-zafra, acotado a la semana filtrada. ' : 'Ton por semana-zafra (miércoles a martes). ') +
-        (hayRef
-          ? '<strong style="color:#378ADD">' + refGuardada.etiqueta + '</strong>: el plan tal como se subió (' + (refGuardada.origen === 'antes-optimizar' ? 'foto previa a la primera optimización' : 'se fija sola al subir el plan') + '); no cambia al optimizar ni al editar. <strong style="color:#1D9E75">Plan optimizado (actual)</strong>: producción simulada ahora mismo (la misma de Día a día); es la única línea que cambia.'
-          : '<strong style="color:#1D9E75">Plan optimizado (actual)</strong> es la producción simulada ahora mismo (la misma de Día a día). La línea del plan subido aparece sola cuando subes el CSV del plan' + (refGuardada ? ' (la referencia guardada no tiene datos para este rango).' : ' o en la primera optimización.')) +
+        (refGuardada && seriesComparativo.some(function(x) { return x.nombre === refGuardada.etiqueta; }) ? '<strong style="color:#378ADD">' + refGuardada.etiqueta + '</strong>: el plan tal como se subió; no cambia. ' : '') +
+        (optFijo
+          ? '<strong style="color:#EF9F27">' + nomFijo + '</strong>: el plan óptimo fijado por el administrador; no se puede modificar. <strong style="color:#1D9E75">Plan operativo (actual)</strong>: parte del optimizado y se recalcula con los cambios de secuencia, frente y adelantos o atrasos (la misma producción simulada de Día a día); es la única línea que cambia.'
+          : '<strong style="color:#1D9E75">Plan optimizado (actual)</strong>: producción simulada ahora mismo (la misma de Día a día); es la única línea que cambia mientras planificas. Cuando un administrador bloquea el optimizado (Versiones del plan), esa versión queda fija y se genera el plan operativo.') +
         '</p>';
-      html += svgLineChartMultiSerie(etiquetasSem, seriesComparativo, { height: 320, id: 'resPlanFabrica', unidad: ' ton', titulo: function(et) { return (modoDiario ? 'Día ' : 'Semana ') + et; }, difs: [{ a: iOpt, b: 0, txt: 'Optimizado − Fábrica' }].concat(hayRef ? [{ a: iOpt, b: 1, txt: 'Optimizado − ' + refGuardada.etiqueta }] : []) });
+      html += svgLineChartMultiSerie(etiquetasSem, seriesComparativo, { height: 320, id: 'resPlanFabrica', unidad: ' ton', titulo: function(et) { return (modoDiario ? 'Día ' : 'Semana ') + et; }, difs: [{ a: iAct, b: 0, txt: nA + ' − Fábrica' }].concat(iRef > 0 ? [{ a: iAct, b: iRef, txt: nA + ' − ' + seriesComparativo[iRef].nombre }] : []) });
       html += '</div>';
     }
   }
@@ -26143,6 +26185,209 @@ function svgBarChart(datos, valueKey, opts) {
 }
 
 /* ── Render de la pestaña Histórico ── */
+/* ══ VERSIONES DEL PLAN (base por plantío) ══════════════════════════════════════════════════════════════════════════
+   Una fila por plantío y zafra, con cada versión en columnas (no se duplican filas):
+     SUBIDO     (sf, ss, si, se)  frente · secuencia · inicio · fin: se fija solo al subir el CSV del plan; no cambia.
+     OPTIMIZADO (of, os, oi, oe)  mientras se planifica es el plan de trabajo (provisional, cambia con cada ajuste); el ADMINISTRADOR lo
+                                  BLOQUEA cuando queda el plan óptimo: se congela y ya no se puede modificar.
+     OPERATIVO  (pf, ps, pi, pe)  se genera al bloquear (copia del optimizado) y después se recalcula solo: si cambia la secuencia, el frente o
+                                  hay adelanto/atraso, el motor de simulación (mismos parámetros) reescribe inicio y fin de cada plantío.
+     REAL                         de Ejecución (registros con el nombre del plantío): inicio, fin y TM reales.
+   Inicio y fin = primer y último evento de cosecha de la simulación (igual que «Día a día»); secuencia = orden de corte dentro del frente.
+   Columnas fijas por fila: z zafra · id · k plantío (campo) · h ha · t TM. Metadatos por zafra en versionesMeta[zafra]:
+     { subido:{fecha,origen,n,usuario}, opt:{bloqueado,fecha,usuario,n,prodDia}, op:{generado,actualizado,cambios} }. */
+var _verPag = 0, _verLive = null, _verTimer = null, _verCalculando = false;
+var VER_COLS = { s: ['sf', 'ss', 'si', 'se'], o: ['of', 'os', 'oi', 'oe'], p: ['pf', 'ps', 'pi', 'pe'] };
+function verEsAdmin() { return !fbDb || fbRolActual === 'admin'; }
+function verPuedeEditar() { return !fbDb || fbRolActual === 'admin' || fbRolActual === 'editor'; }
+function verUsuario() { return (fbUsuarioActual && fbUsuarioActual.email) || ''; }
+function verBloqueado(z) { var m = versionesMeta[z]; return !!(m && m.opt && m.opt.bloqueado); }
+// Estado actual del plan por plantío: frente, secuencia (orden de corte en el frente), inicio y fin simulados
+function verFilasActuales(z) {
+  var ev = simularEventosPorFrente(z) || {}, ini = {}, fin = {};
+  Object.keys(ev).forEach(function(fn) { Object.keys(ev[fn]).forEach(function(f) { (ev[fn][f] || []).forEach(function(e) {
+    if (e.tipo === 'traslado' || !e.dtIni) return;
+    var k = fn + '|' + e.lote;
+    if (!ini[k] || e.minIni < ini[k].m) ini[k] = { m: e.minIni, f: e.dtIni.fecha };
+    if (!fin[k] || e.minFin > fin[k].m) fin[k] = { m: e.minFin, f: e.dtFin.fecha };
+  }); }); });
+  var porFrente = {};
+  planItems.filter(function(p) { return p.zafra === z; }).forEach(function(p) { (porFrente[p.frenteNombre] = porFrente[p.frenteNombre] || []).push(p); });
+  var out = [];
+  Object.keys(porFrente).forEach(function(fn) {
+    var l = porFrente[fn].map(function(p) { var k = fn + '|' + p.campoNombre; return { p: p, i: ini[k] ? ini[k].f : p.fechaInicio, e: fin[k] ? fin[k].f : p.fechaFin, m: ini[k] ? ini[k].m : null }; });
+    l.sort(function(a, b) { return ((a.m !== null && b.m !== null) ? a.m - b.m : String(a.i).localeCompare(String(b.i))) || ((a.p._seq || 0) - (b.p._seq || 0)); });
+    l.forEach(function(x, idx) { out.push({ id: x.p.id, k: x.p.campoNombre, h: x.p.area || 0, t: Math.round(x.p.tonCampo || 0), f: fn, s: idx + 1, i: x.i, e: x.e }); });
+  });
+  return out;
+}
+// Escribe una versión ('s' subido, 'o' optimizado, 'p' operativo) en la base por plantío. Devuelve cuántos valores cambiaron.
+function verFusionar(z, filas, tipo) {
+  var porId = {}, porK = {}, cols = VER_COLS[tipo], vistos = {}, cambios = 0;
+  planVersiones.forEach(function(r) { if (r.z === z) { porId[r.id] = r; porK[r.k] = r; } });
+  filas.forEach(function(f) {
+    var r = porId[f.id] || porK[f.k];
+    if (!r) { r = { z: z, id: f.id, k: f.k, h: f.h, t: f.t }; planVersiones.push(r); porId[f.id] = r; porK[f.k] = r; cambios++; }
+    else { if (r.id !== f.id || r.h !== f.h || r.t !== f.t) { cambios++; r.id = f.id; r.h = f.h; r.t = f.t; } }
+    var nuevos = [f.f, f.s, f.i, f.e];
+    cols.forEach(function(c, j) { if (r[c] !== nuevos[j]) { r[c] = nuevos[j]; cambios++; } });
+    vistos[r.k] = true;
+  });
+  if (tipo === 'p') planVersiones.forEach(function(r) { if (r.z === z && !vistos[r.k] && r[cols[0]] !== undefined) { cols.forEach(function(c) { delete r[c]; }); cambios++; } });   // el plantío ya no está en el plan operativo
+  return cambios;
+}
+function verMeta(z) { return versionesMeta[z] || (versionesMeta[z] = {}); }
+// SUBIDO: se fija solo al subir el CSV del plan (o, si la zafra nunca tuvo una subida registrada, una vez antes de la primera optimización). Con el optimizado bloqueado no cambia.
+function verCapturarSubido(z, origen) {
+  if (verBloqueado(z)) return false;
+  var m = verMeta(z); if (origen === 'antes-optimizar' && m.subido) return false;
+  var filas = verFilasActuales(z); if (!filas.length) return false;
+  verFusionar(z, filas, 's');
+  m.subido = { fecha: new Date().toISOString(), origen: origen || 'subido', n: filas.length, usuario: verUsuario() };
+  _versionesEditado = true; _verLive = null; return true;
+}
+// Producción simulada por día (para dibujar la línea fija del optimizado en el gráfico Plan vs Fábrica)
+function verProdDia(z) {
+  var sim = simularProduccionDiaria(z) || {}, o = {};
+  Object.keys(sim).forEach(function(f) { var t = Object.keys(sim[f]).reduce(function(a, k) { return a + sim[f][k]; }, 0); if (t > 0) o[f] = Math.round(t); });
+  return o;
+}
+// BLOQUEAR el plan optimizado (solo administrador): congela frente/secuencia/inicio/fin, genera el plan operativo como copia y lo deja recalculándose solo
+function verBloquear(z) {
+  if (!verEsAdmin()) { showToast('Solo un administrador puede bloquear el plan optimizado.'); return; }
+  if (verBloqueado(z)) return;
+  if (!confirm('¿Bloquear el plan optimizado de la zafra ' + z + '?\n\nQueda FIJO y ya no se podrá modificar. Desde ese momento los cambios (secuencia, frente, adelantos o atrasos) se hacen en el plan operativo, que parte como copia del optimizado y recalcula solo las fechas de inicio y fin de cada plantío.\n\nSolo un administrador podrá desbloquearlo.')) return;
+  try { recalcularCacheProd(); invalidarSimCache(); } catch (e) {}
+  var filas = verFilasActuales(z); if (!filas.length) { showToast('La zafra ' + z + ' no tiene lotes en el plan.'); return; }
+  verFusionar(z, filas, 'o'); verFusionar(z, filas, 'p');
+  var m = verMeta(z), ahora = new Date().toISOString();
+  m.opt = { bloqueado: true, fecha: ahora, usuario: verUsuario(), n: filas.length, prodDia: verProdDia(z) };
+  m.op = { generado: ahora, actualizado: ahora, cambios: 0 };
+  _versionesEditado = true; _verLive = null; autoSave(); renderVersiones();
+  showToast('Plan optimizado BLOQUEADO (' + filas.length + ' plantíos). Plan operativo generado.');
+}
+function verDesbloquear(z) {
+  if (!verEsAdmin()) { showToast('Solo un administrador puede desbloquear el plan optimizado.'); return; }
+  if (!verBloqueado(z)) return;
+  if (!confirm('¿DESBLOQUEAR el plan optimizado de la zafra ' + z + '?\n\nSe elimina el plan optimizado fijado y el plan operativo generado a partir de él (el plan subido se conserva). Tendrás que volver a bloquearlo.\n\nUsa esto solo si hay que rehacer el plan antes de arrancar la zafra.')) return;
+  planVersiones.forEach(function(r) { if (r.z === z) { VER_COLS.o.concat(VER_COLS.p).forEach(function(c) { delete r[c]; }); } });
+  var m = verMeta(z); delete m.opt; delete m.op;
+  _versionesEditado = true; _verLive = null; autoSave(); renderVersiones();
+  showToast('Plan optimizado desbloqueado.');
+}
+// OPERATIVO: con el optimizado bloqueado se recalcula solo (unos segundos después de cada guardado): reescribe frente, secuencia, inicio y fin con el motor de simulación
+function verProgramarOperativo() {
+  if (!verPuedeEditar() || !Object.keys(versionesMeta).some(verBloqueado)) return;
+  if (_verCalculando) { _verTimer = setTimeout(verProgramarOperativo, 4000); return; }
+  clearTimeout(_verTimer); _verTimer = setTimeout(verRefrescarOperativo, 6000);
+}
+function verRefrescarOperativo() {
+  if (_verCalculando) return; _verCalculando = true;
+  try {
+    var cambiosTotal = 0;
+    Object.keys(versionesMeta).filter(verBloqueado).forEach(function(z) {
+      var filas = verFilasActuales(z), c = verFusionar(z, filas, 'p'), m = verMeta(z);
+      if (c > 0) { m.op = m.op || {}; m.op.actualizado = new Date().toISOString(); m.op.cambios = (m.op.cambios || 0) + c; cambiosTotal += c; }
+    });
+    if (cambiosTotal > 0) { _versionesEditado = true; _verLive = null; autoSave(); if (document.getElementById('page-versiones') && document.getElementById('page-versiones').classList.contains('active')) renderVersiones(); }
+  } catch (e) { console.warn('Plan operativo: no se pudo recalcular', e); }
+  finally { _verCalculando = false; }
+}
+// REAL por plantío (Ejecución con el nombre del plantío): inicio, fin y TM
+function verRealPorPlantio(z) {
+  var m = {};
+  realRecords.forEach(function(r) {
+    if (r.zafra !== z || !r.loteNombre || !(r.ton > 0)) return;
+    var k = realNormTxt(r.loteNombre), a = m[k] || (m[k] = { i: r.fecha, e: r.fecha, t: 0 });
+    if (r.fecha < a.i) a.i = r.fecha; if (r.fecha > a.e) a.e = r.fecha; a.t += r.ton;
+  });
+  return m;
+}
+function verDias(a, b) { if (!a || !b) return null; return Math.round((new Date(a + 'T00:00:00') - new Date(b + 'T00:00:00')) / 86400000); }
+// Filas para mostrar: subido y operativo guardados; optimizado guardado (bloqueado) o el plan de trabajo actual (provisional); real de Ejecución
+function verFilasMostrar(z) {
+  var bloq = verBloqueado(z), real = verRealPorPlantio(z), out = [];
+  if (!bloq && (!_verLive || _verLive.z !== z)) { try { _verLive = { z: z, filas: verFilasActuales(z) }; } catch (e) { _verLive = { z: z, filas: [] }; } }
+  var vivos = (!bloq && _verLive) ? _verLive.filas : [], vivoK = {}; vivos.forEach(function(f) { vivoK[f.k] = f; });
+  var claves = {};
+  planVersiones.forEach(function(r) { if (r.z === z) claves[r.k] = r; });
+  vivos.forEach(function(f) { if (!claves[f.k]) claves[f.k] = { z: z, id: f.id, k: f.k, h: f.h, t: f.t }; });
+  Object.keys(claves).forEach(function(k) {
+    var r = claves[k], v = vivoK[k], S = r.sf !== undefined ? { f: r.sf, s: r.ss, i: r.si, e: r.se } : null;
+    var O = bloq ? (r.of !== undefined ? { f: r.of, s: r.os, i: r.oi, e: r.oe } : null) : (v ? { f: v.f, s: v.s, i: v.i, e: v.e, prov: true } : null);
+    var P = bloq ? (r.pf !== undefined ? { f: r.pf, s: r.ps, i: r.pi, e: r.pe } : null) : null;
+    var R = real[realNormTxt(r.k)] || null, Rcompleto = !!(R && r.t > 0 && R.t >= r.t * 0.97);
+    out.push({ k: r.k, h: r.h || (v && v.h) || 0, t: r.t || (v && v.t) || 0, S: S, O: O, P: P, R: R ? { i: R.i, e: R.e, t: R.t, completo: Rcompleto } : null,
+      dOPi: (P && O) ? verDias(P.i, O.i) : null, dOPe: (P && O) ? verDias(P.e, O.e) : null,
+      dROi: (R && O) ? verDias(R.i, O.i) : null, dROe: (R && O && Rcompleto) ? verDias(R.e, O.e) : null });
+  });
+  out.sort(function(a, b) { var fa = (a.P || a.O || a.S || {}).f || '', fb = (b.P || b.O || b.S || {}).f || ''; return String(fa).localeCompare(String(fb), 'es', { numeric: true }) || (((a.P || a.O || a.S || {}).s || 0) - ((b.P || b.O || b.S || {}).s || 0)); });
+  return out;
+}
+function verFiltradas(z) {
+  var g = function(id) { var e = document.getElementById(id); return e ? e.value : ''; }, fr = g('ver-f-frente'), q = cmpNorm(g('ver-f-buscar')), soloCamb = !!(document.getElementById('ver-f-cambios') || {}).checked;
+  return verFilasMostrar(z).filter(function(r) {
+    if (fr && ((r.P || r.O || r.S || {}).f) !== fr) return false;
+    if (q && cmpNorm(r.k).indexOf(q) < 0) return false;
+    if (soloCamb && !((r.dOPi || r.dOPe) || (r.P && r.O && (r.P.f !== r.O.f || r.P.s !== r.O.s)))) return false;
+    return true;
+  });
+}
+function verFmtD(a) { return a ? String(a).slice(5) : '–'; }   // MM-DD
+function verCelda(V) { return V ? '<td style="white-space:nowrap;border-left:1px solid var(--border)' + (V.prov ? ';color:var(--text3);font-style:italic' : '') + '">' + cmpEsc(V.f) + '·' + V.s + '</td><td>' + verFmtD(V.i) + '</td><td>' + verFmtD(V.e) + '</td>' : '<td colspan="3" style="color:var(--text3);text-align:center;border-left:1px solid var(--border)">–</td>'; }
+function verDif(d) { if (d === null || d === undefined) return '<td class="n" style="color:var(--text3)">–</td>'; return '<td class="n" style="font-weight:600;color:' + (d > 0 ? '#c0392b' : d < 0 ? '#0a7f4f' : 'var(--text3)') + '">' + (d > 0 ? '+' : '') + d + '</td>'; }
+function verZafraActual() { var e = document.getElementById('ver-zafra'); return e ? e.value : ''; }
+function renderVersiones() {
+  var selZ = document.getElementById('ver-zafra'); if (!selZ) return;
+  var zs = Array.from(new Set(planItems.map(function(p) { return p.zafra; }).concat(Object.keys(versionesMeta)).filter(Boolean))).sort(), cur = selZ.value;
+  selZ.innerHTML = zs.map(function(z) { return '<option value="' + z + '">' + z + '</option>'; }).join('');
+  selZ.value = zs.indexOf(cur) >= 0 ? cur : (zs[zs.length - 1] || '');
+  var z = selZ.value, est = document.getElementById('ver-estado'), cont = document.getElementById('ver-tabla'); if (!est || !cont) return;
+  if (!z) { est.innerHTML = '<div class="alert alert-info"><i class="ti ti-info-circle"></i><span>No hay zafras con plan. Sube el plan de la zafra (Planificación).</span></div>'; cont.innerHTML = ''; return; }
+  var m = versionesMeta[z] || {}, bloq = verBloqueado(z), adm = verEsAdmin(), f = function(iso) { return iso ? String(iso).slice(0, 16).replace('T', ' ') : ''; };
+  var filas = verFilasMostrar(z), nOp = filas.filter(function(r) { return r.P; }).length;
+  var atras = filas.filter(function(r) { return r.dOPe > 0; }).length, adel = filas.filter(function(r) { return r.dOPe < 0; }).length, difs = filas.filter(function(r) { return r.dOPe !== null; }), prom = difs.length ? difs.reduce(function(a, r) { return a + r.dOPe; }, 0) / difs.length : null;
+  var card = function(tit, val, sub, col) { return '<div class="metric-card"><div class="metric-label">' + tit + '</div><div class="metric-value" style="' + (col ? 'color:' + col : '') + ';font-size:20px">' + val + '</div><div class="metric-unit">' + sub + '</div></div>'; };
+  est.innerHTML = '<div class="grid4" style="margin-bottom:12px">' +
+    card('Plan subido (CSV)', m.subido ? m.subido.n + ' plantíos' : 'sin registro', m.subido ? (m.subido.origen === 'antes-optimizar' ? 'foto previa a optimizar · ' : 'fijado al subir · ') + f(m.subido.fecha) : 'se fija solo al subir el plan') +
+    card('Plan optimizado', bloq ? '🔒 BLOQUEADO' : 'En construcción', bloq ? f(m.opt.fecha) + ' · ' + cmpEsc(m.opt.usuario || '') : 'provisional: cambia con cada ajuste', bloq ? 'var(--green-text)' : 'var(--amber-text)') +
+    card('Plan operativo', bloq ? nOp + ' plantíos' : 'se genera al bloquear', bloq ? 'recalculado ' + f(m.op && m.op.actualizado) : 'parte como copia del optimizado') +
+    card('Operativo vs optimizado', bloq ? (atras + ' atrasados · ' + adel + ' adelantados') : '–', bloq ? (prom === null ? '' : 'fin promedio ' + (prom >= 0 ? '+' : '') + prom.toFixed(1) + ' días') : 'se mide tras el bloqueo') + '</div>';
+  var botones = bloq
+    ? (adm ? '<button class="btn btn-sm btn-danger" onclick="verDesbloquear(\'' + cmpEsc(z) + '\')"><i class="ti ti-lock-open"></i> Desbloquear optimizado</button>' : '<span style="font-size:12px;color:var(--text3)">Solo un administrador puede desbloquearlo.</span>')
+    : (adm ? '<button class="btn btn-sm btn-primary" onclick="verBloquear(\'' + cmpEsc(z) + '\')"><i class="ti ti-lock"></i> Bloquear plan optimizado y generar operativo</button>' : '<span style="font-size:12px;color:var(--text3)">Solo un administrador puede bloquear el plan optimizado.</span>');
+  var bt = document.getElementById('ver-botones'); if (bt) bt.innerHTML = botones;
+  var frs = Array.from(new Set(filas.map(function(r) { return (r.P || r.O || r.S || {}).f; }).filter(Boolean))).sort(function(a, b) { return String(a).localeCompare(String(b), 'es', { numeric: true }); }), sf = document.getElementById('ver-f-frente'), cf = sf ? sf.value : '';
+  if (sf) { sf.innerHTML = '<option value="">Todos</option>' + frs.map(function(x) { return '<option value="' + cmpEsc(x) + '"' + (x === cf ? ' selected' : '') + '>' + cmpEsc(x) + '</option>'; }).join(''); }
+  renderVersionesTabla();
+}
+function renderVersionesTabla() {
+  var z = verZafraActual(), cont = document.getElementById('ver-tabla'); if (!cont || !z) return;
+  var l = verFiltradas(z), PAG = 100, np = Math.max(1, Math.ceil(l.length / PAG)); if (_verPag >= np) _verPag = np - 1;
+  var ini = _verPag * PAG, vis = l.slice(ini, ini + PAG), bloq = verBloqueado(z);
+  var h = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px;font-size:12px;color:var(--text2);flex-wrap:wrap"><span>' + l.length.toLocaleString() + ' plantío(s) · mostrando ' + (l.length ? ini + 1 : 0) + '–' + (ini + vis.length) + (bloq ? '' : ' · <i>cursiva = optimizado provisional (se fija al bloquear)</i>') + '</span><span><button class="btn btn-xs" onclick="verPagina(-1)" ' + (_verPag <= 0 ? 'disabled' : '') + '>‹ Anterior</button> Página ' + (_verPag + 1) + ' de ' + np + ' <button class="btn btn-xs" onclick="verPagina(1)" ' + (_verPag >= np - 1 ? 'disabled' : '') + '>Siguiente ›</button></span></div>';
+  h += '<div style="overflow:auto;max-height:560px"><table class="thead-fijo" style="font-size:11px;white-space:nowrap"><thead><tr><th rowspan="2">Plantío</th><th rowspan="2" class="n">Ha</th><th rowspan="2" class="n">TM</th>' +
+    '<th colspan="3" style="text-align:center;border-left:1px solid var(--border)">Subido (CSV)</th><th colspan="3" style="text-align:center;border-left:1px solid var(--border)">Optimizado' + (bloq ? ' 🔒' : ' (prov.)') + '</th><th colspan="3" style="text-align:center;border-left:1px solid var(--border)">Operativo</th><th colspan="3" style="text-align:center;border-left:1px solid var(--border)">Real (Ejecución)</th><th colspan="2" style="text-align:center;border-left:1px solid var(--border)" title="Días: operativo − optimizado">Δ Op − Opt</th><th colspan="2" style="text-align:center;border-left:1px solid var(--border)" title="Días: real − optimizado">Δ Real − Opt</th></tr><tr>' +
+    '<th style="border-left:1px solid var(--border)">Fr·sec</th><th>Inicio</th><th>Fin</th><th style="border-left:1px solid var(--border)">Fr·sec</th><th>Inicio</th><th>Fin</th><th style="border-left:1px solid var(--border)">Fr·sec</th><th>Inicio</th><th>Fin</th><th style="border-left:1px solid var(--border)">Inicio</th><th>Fin</th><th class="n">TM</th><th class="n" style="border-left:1px solid var(--border)">Inicio</th><th class="n">Fin</th><th class="n" style="border-left:1px solid var(--border)">Inicio</th><th class="n">Fin</th></tr></thead><tbody>';
+  vis.forEach(function(r) {
+    h += '<tr><td><strong>' + cmpEsc(r.k) + '</strong></td><td class="n">' + cmpFmtN(r.h, 1) + '</td><td class="n">' + cmpFmtN(r.t, 0) + '</td>' + verCelda(r.S) + verCelda(r.O) + verCelda(r.P) +
+      (r.R ? '<td style="border-left:1px solid var(--border)">' + verFmtD(r.R.i) + '</td><td' + (r.R.completo ? '' : ' style="color:var(--text3);font-style:italic" title="Parcial: aún no se completa el plantío"') + '>' + verFmtD(r.R.e) + (r.R.completo ? '' : '*') + '</td><td class="n">' + cmpFmtN(r.R.t, 0) + '</td>' : '<td colspan="3" style="color:var(--text3);text-align:center;border-left:1px solid var(--border)">–</td>') +
+      verDif(r.dOPi) + verDif(r.dOPe) + verDif(r.dROi) + verDif(r.dROe) + '</tr>';
+  });
+  if (!vis.length) h += '<tr><td colspan="20" style="text-align:center;color:var(--text3);padding:14px">Sin plantíos con esos filtros.</td></tr>';
+  cont.innerHTML = h + '</tbody></table></div>';
+}
+function verPagina(d) { _verPag = Math.max(0, _verPag + d); renderVersionesTabla(); }
+function verFiltroCambio() { _verPag = 0; renderVersionesTabla(); }
+function verCambioZafra() { _verPag = 0; _verLive = null; renderVersiones(); }
+function verDescargarCSV() {
+  var z = verZafraActual(); if (!z) return; var l = verFiltradas(z);
+  var q = function(v) { v = v === null || v === undefined ? '' : String(v); return /[",\n;]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  var cab = ['Zafra', 'Plantío', 'Ha', 'TM', 'Subido frente', 'Subido sec', 'Subido inicio', 'Subido fin', 'Optimizado frente', 'Optimizado sec', 'Optimizado inicio', 'Optimizado fin', 'Operativo frente', 'Operativo sec', 'Operativo inicio', 'Operativo fin', 'Real inicio', 'Real fin', 'Real TM', 'Δ inicio Op-Opt', 'Δ fin Op-Opt', 'Δ inicio Real-Opt', 'Δ fin Real-Opt'];
+  var g = function(V, c) { return V ? V[c] : ''; };
+  cmpDescargar('versiones-plan-' + z + '.csv', new Blob(['\ufeff' + [cab].concat(l.map(function(r) { return [z, r.k, r.h, r.t, g(r.S, 'f'), g(r.S, 's'), g(r.S, 'i'), g(r.S, 'e'), g(r.O, 'f'), g(r.O, 's'), g(r.O, 'i'), g(r.O, 'e'), g(r.P, 'f'), g(r.P, 's'), g(r.P, 'i'), g(r.P, 'e'), r.R ? r.R.i : '', r.R ? r.R.e : '', r.R ? r.R.t : '', r.dOPi, r.dOPe, r.dROi, r.dROe]; })).map(function(f) { return f.map(q).join(','); }).join('\n')], { type: 'text/csv;charset=utf-8' }));
+}
+
 /* ══ PLANTÍOS CERRADOS (Datos maestros) ═════════════════════════════════════════════════════════════════════════════
    Histórico de plantíos cosechados por zafra (Excel «Histórico plantíos cerrados (cosechados)»). Vive en la base de datos compartida
    (categoría «cerrados», en partes de ~700 KB como el plan): todos los usuarios lo ven y el Comparativo lo lee de aquí.
