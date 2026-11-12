@@ -5361,8 +5361,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.40', fecha: '2026-11-11' };
+var PLANIFICADOR_VERSION = { v: '1.41', fecha: '2026-11-12' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.41', '2026-11-12', 'Costos por distanciamiento: la velocidad optimizada pasa a ser la «Vel. sugerida» del ajuste por cambio de TCH (opción de volver a la de la tabla)'],
   ['1.40', '2026-11-11', 'Costos: filtro de distanciamiento por bandas estándar (1.50, 1.60, 1.65, 1.75, 1.80 DS, 2.20 DS, 2.40 DS, Otros) según el diseño de cada zafra; nueva pestaña «Costos por distanciamiento» con CAT directo (cosechadoras + autovolteos) a velocidad anterior y optimizada, desplegable por tenencia, finca y lote'],
   ['1.39', '2026-11-10', 'Comparativo: «Detalle por tenencia» pasa a cada gráfico de tenencia (selector Serie dentro de la tarjeta); se quita del encabezado'],
   ['1.38', '2026-11-10', 'Versiones del plan por plantío: subido (automático), optimizado (el administrador lo bloquea), operativo (se recalcula solo) y real; el gráfico Plan vs Fábrica muestra el optimizado fijo y el operativo'],
@@ -22029,7 +22030,7 @@ function calcCostoLote(campo, overrideTch, overrideNCosech, overrideTipoCamion, 
     ahorroTablaVsAnt: ahorroTablaVsAnt,
     // Costo por componente en cada escenario de velocidad (para «Costos por distanciamiento»)
     costCAnt: costCAnt, costAVAnt: costAVAnt, costCTabla: costCTabla, costAVTabla: costAVTabla,
-    surcoAnchoUsado: campoA.surcoAncho, hayVelAnterior: (parseFloat(campoEfectivo.velAnterior) > 0),
+    campoEfectivo: campoEfectivo, surcoAnchoUsado: campoA.surcoAncho, hayVelAnterior: (parseFloat(campoEfectivo.velAnterior) > 0),
     // Extra
     tonCampo: t.tonCampo, area: campoA.area, tch: tchUsado,
     productividad: t.productividad, tTrabajoH: t.tTrabajoH,
@@ -22187,7 +22188,7 @@ function renderCostos() {
 
   // Render tabs
   renderCostRanking(datos, costoTonProm);
-  renderCostDist(datos);
+  costDistActualizar(datos);
   renderCostVelocidad(datos, costoTonProm);
   renderCostSim(datos);
   renderCostTransporte(datos);
@@ -22233,6 +22234,36 @@ var costDistDesglose = false;
 var costDistAbiertos = {};    // ruta del nodo → true si está desplegado
 var costDistRutas = [];       // índice → ruta (para los clics, sin meter nombres en el HTML)
 var costDistDatosUlt = [];
+var costDistVelModo = 'sug';  // 'sug' = velocidad sugerida por el ajuste de TCH (Análisis de velocidad) · 'tabla' = velocidad de la tabla de velocidades
+
+// Calcula, para cada lote, el costo (cosechadora y autovolteo) con la velocidad OPTIMIZADA elegida.
+function costDistPrepararVel(datos) {
+  var sugPorLote = {};
+  if (costDistVelModo === 'sug') {
+    var fuenteTch = (document.getElementById('ajvel-fuente') || {}).value || 'campos';
+    var elTope = document.getElementById('ajvel-topetabla'), topeTabla = elTope ? elTope.checked : false;
+    var zafras = {}; datos.forEach(function(d) { zafras[d.zafra] = true; });
+    Object.keys(zafras).forEach(function(z) {
+      var items = datos.filter(function(d) { return d.zafra === z; });
+      var filas = [];
+      try { filas = calcFilasAjusteVelTCH(items, z, fuenteTch, topeTabla); } catch (e) { filas = []; }
+      filas.forEach(function(f) { if (f.velSug > 0) sugPorLote[z + '|' + f.campoId] = f.velSug; });
+    });
+  }
+  datos.forEach(function(d) {
+    var vs = sugPorLote[d.zafra + '|' + d.campo.id];
+    if (costDistVelModo === 'sug' && vs > 0 && d.campoEfectivo) {
+      var tS = calcTiempos(Object.assign({}, d.campoEfectivo, { velFuente: 'manual', velManual: vs }));
+      d.costCOpt = d.chC * (tS.tPorCosechMin / 60) * d.nCosechUsado;
+      d.costAVOpt = d.costAV + d.chAV * (tS.tAVTotal - d.t.tAVTotal) / 60;
+      d.velOpt = vs;
+    } else {   // modo tabla, o lote sin velocidad sugerida (p. ej. frente manual: la velocidad no influye)
+      d.costCOpt = d.costCTabla; d.costAVOpt = d.costAVTabla; d.velOpt = d.velTabla;
+    }
+  });
+}
+function costDistActualizar(datos) { costDistPrepararVel(datos || []); renderCostDist(datos); }
+function costDistCambiarVel(v) { costDistVelModo = v; costDistActualizar(costDistDatosUlt); }
 
 function costDistNuevoNodo(ruta, nombre, orden, nivel) {
   return { ruta: ruta, nombre: nombre, orden: orden, nivel: nivel, hijos: {}, lotes: [],
@@ -22241,7 +22272,7 @@ function costDistNuevoNodo(ruta, nombre, orden, nivel) {
 function costDistAcumular(nodo, d) {
   nodo.n++; nodo.ha += d.area || 0; nodo.ton += d.tonCampo || 0;
   nodo.cCosAnt += d.costCAnt || 0; nodo.cAVAnt += d.costAVAnt || 0;
-  nodo.cCosOpt += d.costCTabla || 0; nodo.cAVOpt += d.costAVTabla || 0;
+  nodo.cCosOpt += d.costCOpt || 0; nodo.cAVOpt += d.costAVOpt || 0;
   if (!d.hayVelAnterior) nodo.sinVelAnt++;
 }
 function costDistConstruir(datos, orden) {
@@ -22318,10 +22349,10 @@ function costDistFilasNodo(nodo, visible, totalHa, out) {
     costDistFilasNodo(h, visible && abierto, totalHa, out);
   });
   lotes.forEach(function(d) {
-    var sub = 'ant. ' + (d.hayVelAnterior ? d.velAnterior.toFixed(1) : 'sin dato') + ' → opt. ' + d.velTabla.toFixed(1) + ' km/h';
+    var sub = 'ant. ' + (d.hayVelAnterior ? d.velAnterior.toFixed(1) : 'sin dato') + ' → opt. ' + (d.velOpt || d.velTabla).toFixed(1) + ' km/h';
     out.push(costDistFilaHtml({ idx: -1, nivel: nodo.nivel + 1, nombre: d.campo.nombre, sub: sub, esLote: true, n: 1, ha: d.area || 0,
       pctHa: totalHa > 0 ? (d.area || 0) / totalHa * 100 : 0, ton: d.tonCampo || 0,
-      cCosAnt: d.costCAnt, cAVAnt: d.costAVAnt, cCosOpt: d.costCTabla, cAVOpt: d.costAVTabla, visible: visible, abierto: false, tieneHijos: false }));
+      cCosAnt: d.costCAnt, cAVAnt: d.costAVAnt, cCosOpt: d.costCOpt, cAVOpt: d.costAVOpt, visible: visible, abierto: false, tieneHijos: false }));
   });
 }
 
@@ -22358,7 +22389,7 @@ function renderCostDist(datos) {
     (costDistDesglose ? '<th ' + th + ' title="Costo de cosechadoras por tonelada con la velocidad anterior">Cosech. ant. ($/ton)</th><th ' + th + ' title="Costo de autovolteos por tonelada con la velocidad anterior">AV ant. ($/ton)</th>' : '') +
     '<th ' + th + ' title="(Cosechadoras + autovolteos) ÷ toneladas, con la velocidad de la zafra anterior">CAT directo vel. anterior ($/ton)</th>' +
     (costDistDesglose ? '<th ' + th + ' title="Costo de cosechadoras por tonelada con la velocidad optimizada sugerida">Cosech. opt. ($/ton)</th><th ' + th + ' title="Costo de autovolteos por tonelada con la velocidad optimizada sugerida">AV opt. ($/ton)</th>' : '') +
-    '<th ' + th + ' title="(Cosechadoras + autovolteos) ÷ toneladas, con la velocidad optimizada sugerida (tabla)">CAT directo vel. optimizada ($/ton)</th>' +
+    '<th ' + th + ' title="(Cosechadoras + autovolteos) ÷ toneladas, con la velocidad optimizada">CAT directo vel. optimizada ($/ton)</th>' +
     '<th ' + th + ' title="Anterior menos optimizada. Verde = la velocidad optimizada es más barata">Diferencia ($/ton)</th>' +
     '<th ' + th + ' title="Costo total (cosechadoras + autovolteos) con velocidad anterior menos con velocidad optimizada">Ahorro potencial ($)</th></tr>';
 
@@ -22374,13 +22405,18 @@ function renderCostDist(datos) {
     '</select>' +
     '<button class="btn btn-sm" onclick="costDistExpandir(true)">Expandir todo</button>' +
     '<button class="btn btn-sm" onclick="costDistExpandir(false)">Contraer todo</button>' +
+    '<label style="font-size:12px;color:var(--text2)">Vel. optimizada</label>' +
+    '<select style="margin:0;width:250px;font-size:12px" onchange="costDistCambiarVel(this.value)">' +
+      '<option value="sug"' + (costDistVelModo === 'sug' ? ' selected' : '') + '>Sugerida (ajuste por cambio de TCH)</option>' +
+      '<option value="tabla"' + (costDistVelModo === 'tabla' ? ' selected' : '') + '>De la tabla de velocidades</option>' +
+    '</select>' +
     '<label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" style="margin:0"' + (costDistDesglose ? ' checked' : '') + ' onchange="costDistCambiarDesglose(this.checked)"> Ver desglose cosechadora / autovolteo</label>' +
     '</div>';
   h += '<div style="overflow-x:auto"><table style="min-width:760px"><thead>' + cabecera + '</thead><tbody>' + filas.join('') + total + '</tbody></table></div>';
 
   var notas = [];
   notas.push('<strong>CAT directo</strong> = (costo de cosechadoras + costo de autovolteos) ÷ toneladas. No incluye transporte. Los promedios son ponderados por tonelada.');
-  notas.push('<strong>Vel. anterior</strong> = velocidad medida la zafra pasada. <strong>Vel. optimizada</strong> = la velocidad sugerida por la tabla de velocidad (TCH, tenencia, tipo de caña y antigüedad de la cosechadora). El ralentí del autovolteo se mantiene igual en ambos escenarios.');
+  notas.push('<strong>Vel. anterior</strong> = velocidad medida la zafra pasada. <strong>Vel. optimizada</strong> = la «Vel. sugerida» del Análisis de velocidad (ajuste por cambio de TCH, con sus topes) o, si lo eliges arriba, la velocidad de la tabla de velocidades. El ralentí del autovolteo se mantiene igual en ambos escenarios.');
   if (raiz.sinVelAnt > 0) notas.push('<span style="color:var(--amber-text)">' + raiz.sinVelAnt + ' de ' + raiz.n + ' lotes no tienen velocidad anterior registrada: en esos lotes el escenario «anterior» usa la velocidad de tabla (diferencia = 0).</span>');
   if (!zafSel) notas.push('<span style="color:var(--amber-text)">Estás viendo «Todas las zafras»: un mismo lote aparece una vez por zafra y su área se suma cada vez. Elige una zafra para comparar con el área real.</span>');
   h += '<div style="font-size:11px;color:var(--text2);margin-top:10px;line-height:1.6">' + notas.join('<br>') + '</div>';
@@ -22394,11 +22430,11 @@ function costExpDist() {
     'diferencia_ton', 'ahorro_total']];
   datos.forEach(function(d) {
     var p = d.planItem || {}, ton = d.tonCampo || 0;
-    var catA = ton > 0 ? (d.costCAnt + d.costAVAnt) / ton : 0, catO = ton > 0 ? (d.costCTabla + d.costAVTabla) / ton : 0;
+    var catA = ton > 0 ? (d.costCAnt + d.costAVAnt) / ton : 0, catO = ton > 0 ? (d.costCOpt + d.costAVOpt) / ton : 0;
     filas.push([d.zafra || '', p.tenencia || d.campo.tenencia || '', distBanda(d.surcoAnchoUsado).etiqueta, d.surcoAnchoUsado || '', d.campo.finca || '', d.campo.nombre,
-      d.campo.frente ? d.campo.frente.nombre : '', (d.area || 0).toFixed(2), Math.round(ton), d.velAnterior.toFixed(2), d.hayVelAnterior ? 'si' : 'no', d.velTabla.toFixed(2),
-      Math.round(d.costCAnt), Math.round(d.costAVAnt), catA.toFixed(2), Math.round(d.costCTabla), Math.round(d.costAVTabla), catO.toFixed(2),
-      (catA - catO).toFixed(2), Math.round((d.costCAnt + d.costAVAnt) - (d.costCTabla + d.costAVTabla))]);
+      d.campo.frente ? d.campo.frente.nombre : '', (d.area || 0).toFixed(2), Math.round(ton), d.velAnterior.toFixed(2), d.hayVelAnterior ? 'si' : 'no', (d.velOpt || d.velTabla).toFixed(2),
+      Math.round(d.costCAnt), Math.round(d.costAVAnt), catA.toFixed(2), Math.round(d.costCOpt), Math.round(d.costAVOpt), catO.toFixed(2),
+      (catA - catO).toFixed(2), Math.round((d.costCAnt + d.costAVAnt) - (d.costCOpt + d.costAVOpt))]);
   });
   return { etiqueta: COST_TAB_NOMBRES.dist, filas: filas };
 }
