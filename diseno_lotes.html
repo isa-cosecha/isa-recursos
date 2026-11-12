@@ -159,6 +159,7 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
   <nav class="paginas" role="tablist" aria-label="Páginas del módulo">
     <button role="tab" id="tab-diseno" aria-selected="true">Diseño de lotes</button>
     <button role="tab" id="tab-maq" aria-selected="false">Análisis por máquina<span class="punto" id="punto-maq" hidden title="Análisis actualizado"></span></button>
+    <button role="tab" id="tab-sim" aria-selected="false">Simular distanciamiento</button>
   </nav>
   <div id="pag-diseno">
   <section aria-labelledby="t-cargar">
@@ -290,6 +291,8 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
           <label><input type="checkbox" id="u-ver-surcos"> Mostrar los surcos</label>
           <label><input type="checkbox" id="u-ver-todas"> Ver todas las propuestas</label>
           <button class="secundario" id="u-ajustar">Ajustar la vista</button>
+          <button class="secundario" id="u-png" title="Imagen del mapa como se ve ahora (una propuesta o todas), con título, leyenda y datos">Descargar mapa (PNG)</button>
+          <button class="secundario" id="u-kml" title="Las propuestas que se ven en la lista (con los filtros), para abrir en Google Earth o en el celular">Descargar para Google Earth (KML)</button>
         </div>
         <div class="mapa-cuerpo"><svg id="u-mapa" role="img" aria-label="Mapa de la unificación seleccionada"></svg><div id="u-mapa-info"></div></div>
         <div class="mapa-leyenda"><span><i style="background:var(--brote)"></i>Unión directa</span><span><i style="background:var(--ocre)"></i>Parcialmente directa</span><span><i style="background:var(--barro)"></i>Requiere rediseño</span><span><i style="background:var(--foco)"></i>Borde común</span><span><i style="background:var(--surco);border:1px solid var(--linea)"></i>Otros lotes</span><span>Rueda del ratón: acercar · arrastrar: mover · clic en un lote: elegir esa propuesta</span></div>
@@ -335,6 +338,40 @@ h3.sub { font-size: 18px; margin: 26px 0 4px; font-weight: 600; }
         <p class="nota" id="m-opermsg"></p>
         <div id="m-oper"></div>
         <div class="fila-acciones" style="margin:10px 0 0"><button class="secundario" id="b-m-oper-csv">Descargar operadores (CSV)</button><button class="secundario" id="b-m-oper-copiar">Copiar tabla</button></div>
+      </div>
+    </section>
+  </div>
+
+  <div id="pag-sim" hidden>
+    <section aria-labelledby="t-sim">
+      <h2 id="t-sim">Simular un cambio de distanciamiento</h2>
+      <p class="nota" style="margin-top:0">Elige lotes y un distanciamiento nuevo. Para cada lote se trazan las líneas nuevas <b>sobre su polígono real</b>, con la misma dirección de surco de su diseño, recortadas contra el borde: cada tramo es un surco con su giro y se suman sus metros reales. El mismo trazado se hace con el distanciamiento actual y la diferencia se aplica al diseño real del lote, para que cabeceras y bordes irregulares pesen igual antes y después.</p>
+      <p class="nota" id="s-vacio">Primero pulsa <b>Procesar</b> en «Diseño de lotes»: la simulación usa el polígono de cada lote y la dirección de sus surcos.</p>
+      <div id="s-contenido" hidden>
+        <div class="params">
+          <div><label for="s-tenencia">Tenencia</label><select id="s-tenencia"></select></div>
+          <div><label for="s-dueno">Propietario</label><select id="s-dueno"></select></div>
+          <div><label for="s-finca">Finca</label><select id="s-finca"></select></div>
+          <div><label for="s-dist">Distanciamiento actual</label><select id="s-dist"></select></div>
+          <div><label for="s-nuevo">Distanciamiento nuevo (m)</label><input type="number" id="s-nuevo" value="1.75" min="0.8" max="3" step="0.05"></div>
+          <div><label for="s-tch" title="Por si quieres probar que el rendimiento cambie con el distanciamiento. 0 = el mismo TCH.">Cambio de TCH (%, opcional)</label><input type="number" id="s-tch" value="0" step="1"></div>
+          <div><label for="s-min" title="Los tramos de surco más cortos que esto no se cuentan (puntas en bordes irregulares).">Surco mínimo (m)</label><input type="number" id="s-min" value="10" min="0" step="1"></div>
+        </div>
+        <div class="fila-acciones" style="margin:12px 0">
+          <button class="principal" id="b-sim">Simular</button>
+          <button class="secundario" id="b-sim-csv" disabled>Descargar resultado (CSV)</button>
+          <span id="s-msg" style="font-size:14px;color:var(--tinta-2)"></span>
+        </div>
+        <div class="resumen" id="s-kpis"></div>
+        <p class="nota" id="s-nota"></p>
+        <div class="mapa-caja" id="s-mapa-caja" hidden>
+          <div class="mapa-barra"><strong id="s-mapa-titulo"></strong>
+            <label><input type="checkbox" id="s-ver-actual" checked> Surcos actuales</label>
+            <label><input type="checkbox" id="s-ver-nuevo" checked> Surcos simulados</label></div>
+          <div class="mapa-cuerpo"><svg id="s-mapa" role="img" aria-label="Lote con los surcos actuales y los simulados" style="width:100%;height:460px;display:block;background:var(--papel)"></svg><div id="s-mapa-info" style="padding:12px 14px;font-size:14px;border-left:1px solid var(--linea)"></div></div>
+        </div>
+        <div class="tabla-caja"><table id="s-tabla"><thead></thead><tbody></tbody></table></div>
+        <p class="nota">Escenario A: la velocidad de cosecha no cambia (la limita el terreno, como en la tabla del planificador). Escenario B: la máquina va al tope de toneladas por hora, así que con más caña por metro de surco va más lenta; solo se ahorran las maniobras. El ahorro real queda entre los dos. Los costos son los de cosechadora y autovolteo en campo (corte y maniobras) con las tarifas del frente de cada lote; el transporte por tonelada no cambia. No se evalúa si el ancho de las máquinas es compatible con el distanciamiento nuevo.</p>
       </div>
     </section>
   </div>
@@ -1335,15 +1372,18 @@ function refrescarMaquinas(marcarListo) {
 }
 window.refrescarMaquinas = refrescarMaquinas;
 function mostrarPagina(p) {
-  var m = p === 'maquinas';
-  $('pag-diseno').hidden = m; $('pag-maquinas').hidden = !m;
-  $('tab-diseno').setAttribute('aria-selected', String(!m)); $('tab-maq').setAttribute('aria-selected', String(m));
-  if (m) { $('punto-maq').hidden = true; refrescarMaquinas(); }
-  try { history.replaceState(null, '', m ? '#maquinas' : '#diseno'); } catch (e) {}
+  var pags = { diseno: 'pag-diseno', maquinas: 'pag-maquinas', sim: 'pag-sim' }, tabs = { diseno: 'tab-diseno', maquinas: 'tab-maq', sim: 'tab-sim' };
+  if (!pags[p]) p = 'diseno';
+  Object.keys(pags).forEach(function(k) { $(pags[k]).hidden = k !== p; $(tabs[k]).setAttribute('aria-selected', String(k === p)); });
+  if (p === 'maquinas') { $('punto-maq').hidden = true; refrescarMaquinas(); }
+  if (p === 'sim') prepararSimulacion();
+  try { history.replaceState(null, '', '#' + p); } catch (e) {}
 }
+function paginaDeHash() { return { '#maquinas': 'maquinas', '#sim': 'sim' }[location.hash] || 'diseno'; }
 $('tab-diseno').addEventListener('click', function() { mostrarPagina('diseno'); });
 $('tab-maq').addEventListener('click', function() { mostrarPagina('maquinas'); });
-window.addEventListener('hashchange', function() { mostrarPagina(location.hash === '#maquinas' ? 'maquinas' : 'diseno'); });
+window.addEventListener('hashchange', function() { mostrarPagina(paginaDeHash()); });
+$('tab-sim').addEventListener('click', function() { mostrarPagina('sim'); });
 $('pag-maquinas').addEventListener('click', function(ev) {   // desplegar o plegar los turnos y las máquinas de cada operador
   var b = ev.target.closest && ev.target.closest('button.exp'); if (!b) return;
   var key = b.getAttribute('data-k'), abre = b.getAttribute('aria-expanded') !== 'true'; MAQ.abiertos[key] = abre;
@@ -1405,7 +1445,7 @@ $('b-m-vel-csv').addEventListener('click', function() { descargar('velocidad-por
 $('b-m-vel-copiar').addEventListener('click', function() { copiarTexto(tablaATexto(filasVelocidad(), '\t')); });
 $('b-m-oper-csv').addEventListener('click', function() { descargar('operadores-' + hoyTxt() + '.csv', csv(filasOperadores())); });
 $('b-m-oper-copiar').addEventListener('click', function() { copiarTexto(tablaATexto(filasOperadores(), '\t')); });
-if (location.hash === '#maquinas') mostrarPagina('maquinas');
+if (location.hash === '#maquinas' || location.hash === '#sim') mostrarPagina(paginaDeHash());
 
 /* ============ MAPA DE LAS UNIFICACIONES ============
    Dibuja en SVG (sin mapa de fondo) los lotes de la propuesta elegida, el borde que comparten y, si se pide, los surcos de diseño de cada lote.
@@ -1719,6 +1759,249 @@ function calcularCostosUnif() {
   });
   unifEstado.costos = { zafra: z, costoTraslado: ct, lotesSinTarifa: Object.keys(sinTarifa).length };
 }
+/* ============ SIMULAR UN CAMBIO DE DISTANCIAMIENTO ============
+   Para cada lote elegido se trazan líneas paralelas a la dirección de sus surcos sobre su POLÍGONO REAL, recortadas contra el borde
+   (y contra los huecos, si los hay): cada tramo de al menos «Surco mínimo» metros es un surco (un giro) y se suman sus metros.
+   Se traza con el distanciamiento actual y con el nuevo (promediando 4 posiciones de arranque, para que no dependa de dónde cae la
+   primera línea) y la proporción se aplica al diseño real del lote (sus surcos y sus metros del maestro de líneas). */
+var SIM = { excluidos: {}, res: null, foco: null };
+function distActualFila(r) { return (r.espMedido > 0 && r.nSeparaciones >= MIN_SEPARACIONES) ? r.espMedido : (r.anchoPlan > 0 ? r.anchoPlan : 0); }
+function trazarLineas(anillos, rumbo, d, minLen, guardar) {
+  var th = rumbo * Math.PI / 180, ux = Math.sin(th), uy = Math.cos(th), vx = Math.cos(th), vy = -Math.sin(th), E = [], tmin = Infinity, tmax = -Infinity;
+  anillos.forEach(function(r) {
+    var n = r.length / 2;
+    for (var k = 0; k < n; k++) {
+      var k2 = (k + 1) % n, x1 = r[2 * k], y1 = r[2 * k + 1], x2 = r[2 * k2], y2 = r[2 * k2 + 1];
+      var s1 = x1 * ux + y1 * uy, t1 = x1 * vx + y1 * vy, s2 = x2 * ux + y2 * uy, t2 = x2 * vx + y2 * vy;
+      if (t1 < tmin) tmin = t1; if (t1 > tmax) tmax = t1;
+      if (t1 === t2) continue;
+      E.push(t1 < t2 ? [t1, s1, t2, s2] : [t2, s2, t1, s1]);
+    }
+  });
+  E.sort(function(a, b) { return a[0] - b[0]; });
+  var fases = [0.125, 0.375, 0.625, 0.875], tn = 0, tL = 0, dib = [];
+  fases.forEach(function(fa, fi) {
+    var act = [], p = 0, n = 0, Lt = 0;
+    for (var t = tmin + fa * d; t < tmax; t += d) {
+      while (p < E.length && E[p][0] <= t) act.push(E[p++]);
+      act = act.filter(function(e) { return e[2] > t; });
+      var xs = act.map(function(e) { return e[1] + (t - e[0]) * (e[3] - e[1]) / (e[2] - e[0]); }).sort(function(a, b) { return a - b; });
+      for (var q = 0; q + 1 < xs.length; q += 2) { var len = xs[q + 1] - xs[q]; if (len >= minLen) { n++; Lt += len; if (guardar && fi === 1) dib.push([xs[q], xs[q + 1], t]); } }
+    }
+    tn += n; tL += Lt;
+  });
+  var res = { n: tn / fases.length, L: tL / fases.length };
+  if (guardar) res.lineas = dib.map(function(sg) { return [sg[0] * ux + sg[2] * vx, sg[0] * uy + sg[2] * vy, sg[1] * ux + sg[2] * vx, sg[1] * uy + sg[2] * vy]; });
+  return res;
+}
+window.trazarLineas = trazarLineas;
+function datosLotesSim() {   // filas del diseño con lo necesario para filtrar
+  var porId = {}; (estado.plan.campos || []).forEach(function(c) { porId[c.id] = c; });
+  var dueno = {}; estado.resultado.idx.feats.forEach(function(f) { var d = f.props && (f.props.Propietari || f.props.Propietario); if (d && !dueno[f.campoId]) dueno[f.campoId] = String(d).trim(); });
+  return estado.resultado.filas.map(function(r) {
+    var c = porId[r.campoId] || {}, d0 = distActualFila(r);
+    return { r: r, campo: c, dueno: dueno[r.campoId] || '', d0: d0, d0txt: d0 > 0 ? d0.toFixed(2) : '' };
+  });
+}
+function opcionesSim(id, valores, todos) {
+  var sel = $(id), act = sel.value, cuenta = {}; valores.forEach(function(v) { if (v) cuenta[v] = (cuenta[v] || 0) + 1; });
+  sel.innerHTML = '<option value="">' + todos + '</option>' + Object.keys(cuenta).sort(function(a, b) { return a.localeCompare(b, 'es', { numeric: true }); }).map(function(v) { return '<option value="' + esc(v) + '">' + esc(id === 's-dist' ? fmt(parseFloat(v), 2) + ' m' : v) + ' (' + cuenta[v] + ')</option>'; }).join('');
+  if (Object.prototype.hasOwnProperty.call(cuenta, act)) sel.value = act;
+}
+function prepararSimulacion() {
+  var hay = !!(estado.resultado && estado.resultado.filas && estado.resultado.filas.length);
+  $('s-vacio').hidden = hay; $('s-contenido').hidden = !hay; if (!hay) return;
+  var L = datosLotesSim();
+  opcionesSim('s-tenencia', L.map(function(x) { return x.r.tenencia; }), 'Todas');
+  opcionesSim('s-dueno', L.filter(function(x) { return !$('s-tenencia').value || x.r.tenencia === $('s-tenencia').value; }).map(function(x) { return x.dueno; }), 'Todos');
+  opcionesSim('s-finca', L.map(function(x) { return x.r.finca; }), 'Todas');
+  opcionesSim('s-dist', L.map(function(x) { return x.d0txt; }), 'Todos');
+}
+function lotesFiltradosSim() {
+  var te = $('s-tenencia').value, du = $('s-dueno').value, fi = $('s-finca').value, di = $('s-dist').value;
+  return datosLotesSim().filter(function(x) { return (!te || x.r.tenencia === te) && (!du || x.dueno === du) && (!fi || x.r.finca === fi) && (!di || x.d0txt === di); });
+}
+function simularLote(x, dN, pTch, minLen, anillos, z, giroDef) {
+  var r = x.r, c = x.campo, d0 = x.d0, o = { x: x, lote: r.lote, finca: r.finca, tenencia: r.tenencia, dueno: x.dueno, d0: d0, d1: dN };
+  if (!anillos) return Object.assign(o, { error: 'sin polígono' });
+  if (!(d0 > 0)) return Object.assign(o, { error: 'sin distanciamiento actual' });
+  if (!(r.giros > 0) || !(r.distKm > 0) || !(r.rumbo >= 0)) return Object.assign(o, { error: 'sin diseño (sin líneas)' });
+  var a = trazarLineas(anillos, r.rumbo, d0, minLen), b = trazarLineas(anillos, r.rumbo, dN, minLen);
+  if (!(a.n > 0) || !(a.L > 0)) return Object.assign(o, { error: 'el polígono no admite líneas' });
+  o.trazo0 = a; o.trazo1 = b; o.rN = b.n / a.n; o.rL = b.L / a.L;
+  o.giros0 = r.giros; o.giros1 = Math.max(0, Math.round(r.giros * o.rN)); o.km0 = r.distKm; o.km1 = r.distKm * o.rL;
+  o.ton0 = (parseFloat(c.tch) || 0) * (r.area || parseFloat(c.area) || 0); o.ton1 = o.ton0 * (1 + pTch);
+  var vel = r.vel > 0 ? r.vel : 4.5, tM = r.tGiro > 0 ? r.tGiro : giroDef;
+  o.vel0 = vel; o.velA = vel; o.velB = vel * (d0 / dN) / (1 + pTch);
+  o.hC0 = o.km0 / vel; o.hCA = o.km1 / o.velA; o.hCB = o.km1 / o.velB;
+  o.hM0 = o.giros0 * tM / 60; o.hM1 = o.giros1 * tM / 60;
+  var cg = costoPorGiroLote(c, r, z, estado.plan, giroDef);
+  if (cg && cg.total > 0) {
+    var hora = cg.chC + cg.chAV;   // en el corte, la cosechadora y el autovolteo que la acompaña
+    o.tarifa = cg; o.cost0 = hora * o.hC0 + o.giros0 * cg.total; o.costA = hora * o.hCA + o.giros1 * cg.total; o.costB = hora * o.hCB + o.giros1 * cg.total;
+    if (o.ton0 > 0) { o.ct0 = o.cost0 / o.ton0; o.ctA = o.costA / o.ton1; o.ctB = o.costB / o.ton1; }
+  }
+  return o;
+}
+function simular() {
+  var dN = parseFloat($('s-nuevo').value), pTch = (parseFloat($('s-tch').value) || 0) / 100, minLen = Math.max(0, parseFloat($('s-min').value) || 0);
+  if (!(dN >= 0.8 && dN <= 3)) { $('s-msg').textContent = 'Pon un distanciamiento nuevo entre 0,8 y 3 m.'; return; }
+  var porCampo = lotesPorCampoU(), z = $('p-zafra').value || '', giroDef = parseFloat($('p-giro') ? $('p-giro').value : '') || 1.25;
+  var lista = lotesFiltradosSim().map(function(x) { var b = porCampo[x.r.campoId]; return simularLote(x, dN, pTch, minLen, b ? b.anillos : null, z, giroDef); });
+  SIM.res = { lista: lista, dN: dN, pTch: pTch, minLen: minLen, zafra: z }; SIM.foco = null;
+  pintarSimulacion(); $('b-sim-csv').disabled = !lista.length;
+  var ok = lista.filter(function(o) { return !o.error; });
+  if (ok.length) mostrarLoteSim(ok[0]);
+}
+function pctCambio(a, b) { return (a > 0 && b !== undefined && b !== null) ? (b - a) / a * 100 : null; }
+function txtPct(v) { return v === null || isNaN(v) ? '' : ' (' + (v > 0 ? '+' : '') + fmt(v, 1) + ' %)'; }
+function pintarSimulacion() {
+  var R = SIM.res; if (!R) return;
+  var ok = R.lista.filter(function(o) { return !o.error && !SIM.excluidos[o.x.r.campoId]; }), err = R.lista.filter(function(o) { return o.error; });
+  var S = function(k) { return ok.reduce(function(t, o) { return t + (o[k] || 0); }, 0); }, conC = ok.filter(function(o) { return o.ct0 !== undefined; });
+  var SC = function(k) { return conC.reduce(function(t, o) { return t + (o[k] || 0); }, 0); };
+  var ct0 = SC('ton0') > 0 ? SC('cost0') / SC('ton0') : null, ctA = SC('ton1') > 0 ? SC('costA') / SC('ton1') : null, ctB = SC('ton1') > 0 ? SC('costB') / SC('ton1') : null;
+  $('s-kpis').innerHTML = [
+    [ok.length + ' lotes', fmt(ok.reduce(function(t, o) { return t + (o.x.r.area || 0); }, 0), 1) + ' ha simuladas a ' + fmt(R.dN, 2) + ' m'],
+    [fmt(S('giros0')) + ' → ' + fmt(S('giros1')), 'surcos y giros' + txtPct(pctCambio(S('giros0'), S('giros1')))],
+    [fmt(S('km0'), 0) + ' → ' + fmt(S('km1'), 0) + ' km', 'de surco por recorrer' + txtPct(pctCambio(S('km0'), S('km1')))],
+    [fmt(S('hM0'), 0) + ' → ' + fmt(S('hM1'), 0) + ' h', 'de maniobra' + txtPct(pctCambio(S('hM0'), S('hM1')))],
+    [fmt(S('hC0') + S('hM0'), 0) + ' → ' + fmt(S('hCA') + S('hM1'), 0) + ' / ' + fmt(S('hCB') + S('hM1'), 0) + ' h', 'de cosecha (corte + maniobra), escenario A / B'],
+    [ct0 === null ? '–' : dinero2(ct0) + ' → ' + dinero2(ctA) + ' / ' + dinero2(ctB), 'costo por tonelada, A' + txtPct(pctCambio(ct0, ctA)) + ' / B' + txtPct(pctCambio(ct0, ctB))],
+    [dinero(SC('cost0') - SC('costA')) + ' / ' + dinero(SC('cost0') - SC('costB')), 'menos por zafra, escenario A / B']
+  ].map(function(k) { return '<div class="dato"><strong>' + esc(k[0]) + '</strong><span>' + esc(k[1]) + '</span></div>'; }).join('');
+  $('s-nota').textContent = (err.length ? err.length + ' lotes no se pudieron simular (' + Object.keys(err.reduce(function(o, e) { o[e.error] = 1; return o; }, {})).join(', ') + '). ' : '') +
+    (ok.length - conC.length > 0 ? (ok.length - conC.length) + ' lotes sin frente, tarifa o TCH: entran en surcos y horas, pero no en el costo. ' : '') +
+    'Tarifas de la zafra ' + (R.zafra || '—') + (R.pTch ? '; TCH ' + (R.pTch > 0 ? '+' : '') + fmt(R.pTch * 100, 0) + ' %' : '') + '. Haz clic en un lote para verlo en el mapa.';
+  var cab = ['', 'Lote', 'Finca', 'Tenencia', 'Propietario', 'Dist. actual', 'Surcos', 'Km de surco', 'Horas de maniobra', 'Horas de corte A', 'Horas de corte B', '$/t actual', '$/t A', '$/t B', 'Ahorro $/zafra A / B'];
+  $('s-tabla').querySelector('thead').innerHTML = '<tr>' + cab.map(function(c, i) { return '<th' + (i > 0 && i < 5 ? ' style="text-align:left"' : '') + '>' + esc(c) + '</th>'; }).join('') + '</tr>';
+  var flecha = function(a, b, d) { return fmt(a, d) + ' → <b>' + fmt(b, d) + '</b>'; };
+  $('s-tabla').querySelector('tbody').innerHTML = R.lista.map(function(o, i) {
+    var id = o.x.r.campoId, fuera = !!SIM.excluidos[id];
+    var ini = '<tr data-i="' + i + '" style="cursor:pointer' + (fuera ? ';opacity:.45' : '') + '"><td><input type="checkbox" data-c="' + esc(String(id)) + '"' + (fuera ? '' : ' checked') + ' title="Incluir en los totales" style="width:auto;margin:0"></td><td style="text-align:left"><b>' + esc(o.lote) + '</b></td><td style="text-align:left">' + esc(o.finca) + '</td><td style="text-align:left">' + esc(o.tenencia) + '</td><td style="text-align:left">' + esc(o.dueno) + '</td><td>' + (o.d0 > 0 ? fmt(o.d0, 2) + ' m' : '–') + '</td>';
+    if (o.error) return ini + '<td colspan="9" style="text-align:left;color:var(--tinta-3)">' + esc(o.error) + '</td></tr>';
+    return ini + '<td>' + flecha(o.giros0, o.giros1, 0) + '</td><td>' + flecha(o.km0, o.km1, 1) + '</td><td>' + flecha(o.hM0, o.hM1, 1) + '</td><td>' + flecha(o.hC0, o.hCA, 1) + '</td><td>' + flecha(o.hC0, o.hCB, 1) + '</td>' +
+      '<td>' + (o.ct0 !== undefined ? dinero2(o.ct0) : '–') + '</td><td>' + (o.ctA !== undefined ? dinero2(o.ctA) + '<small>' + txtPct(pctCambio(o.ct0, o.ctA)) + '</small>' : '–') + '</td><td>' + (o.ctB !== undefined ? dinero2(o.ctB) + '<small>' + txtPct(pctCambio(o.ct0, o.ctB)) + '</small>' : '–') + '</td>' +
+      '<td>' + (o.cost0 !== undefined ? dinero(o.cost0 - o.costA) + ' / ' + dinero(o.cost0 - o.costB) : '–') + '</td></tr>';
+  }).join('');
+}
+function dinero2(v) { return (v === null || v === undefined || isNaN(v)) ? '–' : '$ ' + fmt(v, 2); }
+function mostrarLoteSim(o) {
+  SIM.foco = o; var caja = $('s-mapa-caja'); caja.hidden = false;
+  var b = lotesPorCampoU()[o.x.r.campoId], svg = $('s-mapa'); if (!b) { caja.hidden = true; return; }
+  var nuevo = trazarLineas(b.anillos, o.x.r.rumbo, SIM.res.dN, SIM.res.minLen, true), partes = ['<path d="' + trazoLoteU(b) + '" fill-rule="evenodd" style="fill:var(--surco);stroke:var(--tinta-2);stroke-width:1.5;vector-effect:non-scaling-stroke"/>'];
+  if ($('s-ver-actual').checked && estado.resultado.lineas) {
+    var R = estado.resultado, L = R.lineas, A = R.asign, feats = R.idx.feats, propias = [];
+    for (var k = 0; k < L.n; k++) { var f = A[k]; if (f >= 0 && feats[f].campoId === o.x.r.campoId) propias.push(k); }
+    var paso = Math.max(1, Math.ceil(propias.length / 3000));
+    for (var q = 0; q < propias.length; q += paso) { var k2 = propias[q], an = L.ang[k2] * Math.PI / 180, h = L.largo[k2] / 2, dx = Math.sin(an) * h, dy = Math.cos(an) * h;
+      partes.push('<line x1="' + (L.mx[k2] - dx).toFixed(1) + '" y1="' + (-(L.my[k2] - dy)).toFixed(1) + '" x2="' + (L.mx[k2] + dx).toFixed(1) + '" y2="' + (-(L.my[k2] + dy)).toFixed(1) + '" style="stroke:var(--tinta-3);stroke-width:1;opacity:.55;vector-effect:non-scaling-stroke"/>'); }
+  }
+  if ($('s-ver-nuevo').checked) { var paso2 = Math.max(1, Math.ceil(nuevo.lineas.length / 3000)); for (var j = 0; j < nuevo.lineas.length; j += paso2) { var sg = nuevo.lineas[j]; partes.push('<line x1="' + sg[0].toFixed(1) + '" y1="' + (-sg[1]).toFixed(1) + '" x2="' + sg[2].toFixed(1) + '" y2="' + (-sg[3]).toFixed(1) + '" style="stroke:var(--brote);stroke-width:1.2;vector-effect:non-scaling-stroke"/>'); } }
+  svg.innerHTML = partes.join('');
+  var w = (b.maxx - b.minx) * 1.08 || 100, hh = (b.maxy - b.miny) * 1.08 || 100, rr = svg.getBoundingClientRect(), asp = (rr.width || 800) / (rr.height || 460);
+  if (w / hh < asp) w = hh * asp; else hh = w / asp;
+  svg.setAttribute('viewBox', [(b.minx + b.maxx) / 2 - w / 2, -(b.miny + b.maxy) / 2 - hh / 2, w, hh].join(' '));
+  $('s-mapa-titulo').textContent = o.lote + ' · ' + fmt(o.d0, 2) + ' m → ' + fmt(SIM.res.dN, 2) + ' m';
+  $('s-mapa-info').innerHTML = o.error ? esc(o.error) : '<p><b>' + esc(o.lote) + '</b> · ' + esc(o.finca) + ' · ' + fmt(o.x.r.area || 0, 1) + ' ha</p>' +
+    '<p>Trazado en el mapa: ' + fmt(o.trazo0.n, 0) + ' → <b>' + fmt(o.trazo1.n, 0) + '</b> tramos de surco; ' + fmt(o.trazo0.L / 1000, 1) + ' → <b>' + fmt(o.trazo1.L / 1000, 1) + '</b> km.</p>' +
+    '<p>Aplicado al diseño real: ' + fmt(o.giros0) + ' → <b>' + fmt(o.giros1) + '</b> surcos; ' + fmt(o.km0, 1) + ' → <b>' + fmt(o.km1, 1) + '</b> km.</p>' +
+    '<p>Horas de maniobra ' + fmt(o.hM0, 1) + ' → <b>' + fmt(o.hM1, 1) + '</b>; corte A ' + fmt(o.hC0, 1) + ' → <b>' + fmt(o.hCA, 1) + '</b>, B → <b>' + fmt(o.hCB, 1) + '</b>.</p>' +
+    (o.ct0 !== undefined ? '<p>Costo por tonelada ' + dinero2(o.ct0) + ' → A <b>' + dinero2(o.ctA) + '</b>' + txtPct(pctCambio(o.ct0, o.ctA)) + ', B <b>' + dinero2(o.ctB) + '</b>' + txtPct(pctCambio(o.ct0, o.ctB)) + '.</p><p><small>Frente ' + esc(o.tarifa.frente) + ': cosechadora ' + dinero(o.tarifa.chC) + '/h, autovolteo ' + dinero(o.tarifa.chAV) + '/h.</small></p>' : '<p><small>Sin tarifas o sin TCH: no se calcula el costo.</small></p>') +
+    '<p><small>Gris: surcos del diseño actual. Verde: surcos simulados.</small></p>';
+}
+$('b-sim').addEventListener('click', simular);
+['s-tenencia', 's-dueno', 's-finca', 's-dist'].forEach(function(id) { $(id).addEventListener('change', function() { if (id === 's-tenencia') prepararSimulacion(); }); });
+$('s-ver-actual').addEventListener('change', function() { if (SIM.foco) mostrarLoteSim(SIM.foco); });
+$('s-ver-nuevo').addEventListener('change', function() { if (SIM.foco) mostrarLoteSim(SIM.foco); });
+$('s-tabla').addEventListener('click', function(ev) {
+  var cb = ev.target.closest && ev.target.closest('input[data-c]');
+  if (cb) { if (cb.checked) delete SIM.excluidos[cb.getAttribute('data-c')]; else SIM.excluidos[cb.getAttribute('data-c')] = true; pintarSimulacion(); return; }
+  var tr = ev.target.closest && ev.target.closest('tr[data-i]'); if (!tr) return;
+  var o = SIM.res.lista[+tr.getAttribute('data-i')]; if (o && !o.error) { mostrarLoteSim(o); $('s-mapa-caja').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+});
+$('b-sim-csv').addEventListener('click', function() {
+  var R = SIM.res; if (!R) return;
+  var out = [['lote', 'finca', 'tenencia', 'propietario', 'incluido', 'dist_actual_m', 'dist_nuevo_m', 'tramos_trazados_actual', 'tramos_trazados_nuevo', 'km_trazados_actual', 'km_trazados_nuevo', 'surcos_actual', 'surcos_nuevo', 'km_surco_actual', 'km_surco_nuevo',
+    'horas_maniobra_actual', 'horas_maniobra_nuevo', 'horas_corte_actual', 'horas_corte_A', 'horas_corte_B', 'ton_actual', 'ton_nuevo', 'costo_actual', 'costo_A', 'costo_B', 'costo_t_actual', 'costo_t_A', 'costo_t_B', 'frente', 'tarifa_cosechadora_h', 'tarifa_autovolteo_h', 'zafra_tarifas', 'nota']];
+  R.lista.forEach(function(o) {
+    var v = function(x, d) { return x === undefined || x === null || isNaN(x) ? '' : n2(x, d); };
+    out.push([o.lote, o.finca, o.tenencia, o.dueno, SIM.excluidos[o.x.r.campoId] ? 'no' : 'si', v(o.d0, 3), v(o.d1, 3), o.trazo0 ? v(o.trazo0.n, 1) : '', o.trazo1 ? v(o.trazo1.n, 1) : '', o.trazo0 ? v(o.trazo0.L / 1000, 3) : '', o.trazo1 ? v(o.trazo1.L / 1000, 3) : '',
+      v(o.giros0, 0), v(o.giros1, 0), v(o.km0, 3), v(o.km1, 3), v(o.hM0, 2), v(o.hM1, 2), v(o.hC0, 2), v(o.hCA, 2), v(o.hCB, 2), v(o.ton0, 1), v(o.ton1, 1), v(o.cost0, 2), v(o.costA, 2), v(o.costB, 2), v(o.ct0, 3), v(o.ctA, 3), v(o.ctB, 3),
+      o.tarifa ? o.tarifa.frente : '', o.tarifa ? v(o.tarifa.chC, 2) : '', o.tarifa ? v(o.tarifa.chAV, 2) : '', R.zafra, o.error || '']);
+  });
+  descargar('simulacion-distanciamiento-' + String(R.dN).replace('.', ',') + 'm.csv', csv(out));
+});
+
+/* ============ DESCARGAR EL MAPA DE LAS UNIFICACIONES ============ */
+function cssVarU(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888888'; }
+async function guardarArchivo(nombre, blob) {
+  try {
+    var dl = (window.claude && window.claude.use) ? await window.claude.use('downloads') : null;
+    if (dl) { await dl.save({ filename: nombre, data: blob }); return; }
+  } catch (e) {}
+  var url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = nombre; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function() { URL.revokeObjectURL(url); }, 4000);
+}
+function svgDelMapaU(ancho, alto) {
+  var svg = $('u-mapa'), vb = mapaU.vb, c = svg.cloneNode(true), ns = 'http://www.w3.org/2000/svg';
+  c.setAttribute('xmlns', ns); c.setAttribute('viewBox', vb.join(' ')); c.setAttribute('width', ancho); c.setAttribute('height', alto);
+  c.querySelectorAll('path,line').forEach(function(e) { e.setAttribute('vector-effect', 'non-scaling-stroke'); });
+  c.querySelectorAll('text').forEach(function(t) { if (t.style.display === 'none') { t.remove(); return; } t.setAttribute('font-family', 'Arial, Helvetica, sans-serif'); t.style.paintOrder = 'stroke'; t.style.stroke = cssVarU('--papel'); t.style.strokeLinejoin = 'round'; });
+  var fondo = document.createElementNS(ns, 'rect'); fondo.setAttribute('x', vb[0]); fondo.setAttribute('y', vb[1]); fondo.setAttribute('width', vb[2]); fondo.setAttribute('height', vb[3]); fondo.setAttribute('fill', cssVarU('--papel'));
+  c.insertBefore(fondo, c.firstChild);
+  return new XMLSerializer().serializeToString(c).replace(/var\((--[\w-]+)\)/g, function(m, n) { return cssVarU(n); });
+}
+async function descargarMapaUnifPNG() {
+  if (!mapaU.vb || $('u-mapa-caja').hidden) return;
+  var W = 1600, Hm = Math.round(W * mapaU.vb[3] / mapaU.vb[2]), cab = 92, info = $('u-ver-todas').checked ? [] : $('u-mapa-info').innerText.split('\n').map(function(t) { return t.trim(); }).filter(Boolean).slice(0, 14);
+  var pie = 64 + info.length * 24, cv = document.createElement('canvas'); cv.width = W; cv.height = cab + Hm + pie;
+  var x = cv.getContext('2d'), papel = cssVarU('--papel'), tinta = cssVarU('--tinta'), tinta2 = cssVarU('--tinta-2');
+  x.fillStyle = papel; x.fillRect(0, 0, cv.width, cv.height);
+  var img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgDelMapaU(W, Hm));
+  await img.decode(); x.drawImage(img, 0, cab, W, Hm);
+  var fte = $('u-f-tenencia').value, ftp = $('u-f-tipo').value, filtro = [fte, ftp].filter(Boolean).join(' · ');
+  x.fillStyle = tinta; x.font = 'bold 30px Arial, sans-serif'; x.fillText('Posibles unificaciones — ' + $('u-mapa-titulo').textContent, 24, 44);
+  x.fillStyle = tinta2; x.font = '18px Arial, sans-serif'; x.fillText((filtro ? 'Filtro: ' + filtro + ' · ' : '') + 'Zafra de tarifas: ' + ((unifEstado.costos || {}).zafra || '—') + ' · ' + new Date().toLocaleString('es'), 24, 74);
+  var ley = [['Unión directa', cssVarU('--brote')], ['Parcialmente directa', cssVarU('--ocre')], ['Requiere rediseño', cssVarU('--barro')], ['Borde común', cssVarU('--foco')], ['Otros lotes', cssVarU('--surco')]], lx = 24, ly = cab + Hm + 32;
+  x.font = '17px Arial, sans-serif';
+  ley.forEach(function(l) { x.fillStyle = l[1]; x.fillRect(lx, ly - 14, 16, 16); x.fillStyle = tinta; x.fillText(l[0], lx + 22, ly); lx += x.measureText(l[0]).width + 52; });
+  x.fillStyle = tinta; x.font = '18px Arial, sans-serif'; info.forEach(function(t, i) { x.fillText(t.length > 150 ? t.slice(0, 147) + '…' : t, 24, ly + 34 + i * 24); });
+  var nombre = 'unificaciones-' + ($('u-ver-todas').checked ? 'todas' + (filtro ? '-' + filtro.toLowerCase().replace(/[^a-z0-9]+/g, '-') : '') : ($('u-mapa-titulo').textContent.split(':').pop() || 'propuesta').trim().replace(/\s*\+\s*/g, '-').replace(/[^\w-]+/g, '')) + '.png';
+  var blob = await new Promise(function(ok) { cv.toBlob(ok, 'image/png'); });
+  await guardarArchivo(nombre, blob); $('u-msg').textContent = 'Mapa descargado: ' + nombre;
+}
+function descargarKMLUnif() {
+  var V = unifEstado.vista || []; if (!V.length) return;
+  var geo = {}; (estado.plan.geoFeatures || []).forEach(function(f) { if (f && f.campoId !== undefined && f.geometry) (geo[f.campoId] = geo[f.campoId] || []).push(f.geometry); });
+  var nom = {}; (estado.plan.campos || []).forEach(function(c) { nom[c.id] = c; });
+  var xml = function(t) { return String(t === undefined || t === null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
+  var estilo = { 'Directa': ['ff4caf50', '804caf50'], 'Parcialmente directa': ['ff2e96c8', '802e96c8'], 'Requiere rediseño': ['ff2e48a5', '802e48a5'] };   // aabbggrr
+  var anillo = function(r) { return r.map(function(p) { return p[0] + ',' + p[1] + ',0'; }).join(' '); };
+  var poligono = function(coords) { return '<Polygon><outerBoundaryIs><LinearRing><coordinates>' + anillo(coords[0]) + '</coordinates></LinearRing></outerBoundaryIs>' + coords.slice(1).map(function(h) { return '<innerBoundaryIs><LinearRing><coordinates>' + anillo(h) + '</coordinates></LinearRing></innerBoundaryIs>'; }).join('') + '</Polygon>'; };
+  var geomKML = function(gs) { var ps = []; gs.forEach(function(g) { if (g.type === 'Polygon') ps.push(poligono(g.coordinates)); else if (g.type === 'MultiPolygon') g.coordinates.forEach(function(c) { ps.push(poligono(c)); }); }); return ps.length > 1 ? '<MultiGeometry>' + ps.join('') + '</MultiGeometry>' : (ps[0] || ''); };
+  var k = ['<?xml version="1.0" encoding="UTF-8"?>', '<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Posibles unificaciones</name>'];
+  Object.keys(estilo).forEach(function(t, i) { k.push('<Style id="t' + i + '"><LineStyle><color>' + estilo[t][0] + '</color><width>2</width></LineStyle><PolyStyle><color>' + estilo[t][1] + '</color></PolyStyle></Style>'); });
+  var sinGeo = 0;
+  V.forEach(function(g, n) {
+    var st = '#t' + Math.max(0, Object.keys(estilo).indexOf(g.tipo));
+    k.push('<Folder><name>' + xml((n + 1) + '. ' + g.lotes.join(' + ') + ' · ' + g.tipo + (g.ahorroTotal > 0 ? ' · ' + dinero(g.ahorroTotal) + '/zafra' : '')) + '</name>');
+    idsDeGrupoU(g).forEach(function(id) {
+      var gs = geo[id]; if (!gs) { sinGeo++; return; }
+      var c = nom[id] || {}, desc = 'Propuesta: ' + g.lotes.join(' + ') + '\nTipo: ' + g.tipo + '\nFinca: ' + g.finca + '\nTenencia: ' + (g.tenencia || '') + '\nPropietario: ' + g.dueno + '\nVariedad: ' + g.variedad +
+        '\nÁrea de la propuesta: ' + fmt(g.area, 1) + ' ha\nGiros menos: ' + (g.surcosUnidos || 0) + ' · horas menos: ' + fmt(g.horasAhorradas || 0, 1) + ' · traslados menos: ' + g.trasladosMenos + '\nAhorro por zafra: ' + dinero(g.ahorroTotal);
+      k.push('<Placemark><name>' + xml(c.nombre || id) + '</name><description>' + xml(desc) + '</description><styleUrl>' + st + '</styleUrl>' + geomKML(gs) + '</Placemark>');
+    });
+    k.push('</Folder>');
+  });
+  k.push('</Document></kml>');
+  var fte = $('u-f-tenencia').value, ftp = $('u-f-tipo').value, nombre = 'unificaciones' + (fte ? '-' + fte.toLowerCase() : '') + (ftp ? '-' + ftp.toLowerCase().replace(/\s+/g, '-') : '') + '.kml';
+  guardarArchivo(nombre, new Blob([k.join('\n')], { type: 'application/vnd.google-earth.kml+xml' }));
+  $('u-msg').textContent = 'Descargado para Google Earth: ' + nombre + ' (' + V.length + ' propuestas' + (sinGeo ? '; ' + sinGeo + ' lotes sin polígono' : '') + ').';
+}
+$('u-png').addEventListener('click', function() { descargarMapaUnifPNG().catch(function(e) { $('u-msg').textContent = 'No se pudo armar la imagen: ' + ((e && e.message) || e); }); });
+$('u-kml').addEventListener('click', descargarKMLUnif);
+
 function dinero(v) { return (v === null || v === undefined || isNaN(v)) ? '–' : '$ ' + fmt(v, 0); }
 function mostrarUnificaciones() {
   var U = unifEstado.res; $('u-resultado').hidden = false;
