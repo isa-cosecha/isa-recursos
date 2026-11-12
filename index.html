@@ -2123,8 +2123,8 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
           <option>Propio</option>
           <option>Proveedor</option>
         </select>
-        <label style="font-size:12px;color:var(--text2)">Ancho de surco</label>
-        <select id="cost-filtro-surco" style="margin:0;width:150px;font-size:12px" onchange="renderCostos()">
+        <label style="font-size:12px;color:var(--text2)" title="Se agrupa en bandas estándar de distanciamiento (1.50, 1.60, 1.65, 1.75, 1.80 DS, 2.20 DS, 2.40 DS). Lo demás va a «Otros».">Distanciamiento</label>
+        <select id="cost-filtro-surco" style="margin:0;width:200px;font-size:12px" onchange="renderCostos()">
           <option value="">Todos</option>
         </select>
       </div>
@@ -2138,6 +2138,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
       <!-- Tabs -->
       <div style="display:flex;gap:4px;margin-bottom:0;border-bottom:0.5px solid var(--border)">
         <button class="btn btn-sm cost-tab" id="cost-tab-ranking" onclick="showCostTab('ranking')" style="border-radius:var(--radius) var(--radius) 0 0">📊 Ranking por costo</button>
+        <button class="btn btn-sm cost-tab" id="cost-tab-dist" onclick="showCostTab('dist')" style="border-radius:var(--radius) var(--radius) 0 0">📐 Costos por distanciamiento</button>
         <button class="btn btn-sm cost-tab" id="cost-tab-velocidad" onclick="showCostTab('velocidad')" style="border-radius:var(--radius) var(--radius) 0 0">⚡ Análisis de velocidad</button>
         <button class="btn btn-sm cost-tab" id="cost-tab-sim" onclick="showCostTab('sim')" style="border-radius:var(--radius) var(--radius) 0 0">🔬 Simulador de mejora</button>
         <button class="btn btn-sm cost-tab" id="cost-tab-transporte" onclick="showCostTab('transporte')" style="border-radius:var(--radius) var(--radius) 0 0">🚛 Simulador de transporte</button>
@@ -2148,6 +2149,7 @@ tr.plan-drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--blue-text, #185FA5
       </div>
 
       <div id="cost-panel-ranking" style="padding-top:16px"></div>
+      <div id="cost-panel-dist" style="display:none;padding-top:16px"></div>
       <div id="cost-panel-velocidad" style="display:none;padding-top:16px"></div>
       <div id="cost-panel-sim" style="display:none;padding-top:16px"></div>
       <div id="cost-panel-transporte" style="display:none;padding-top:16px"></div>
@@ -5359,8 +5361,9 @@ function marcarCambiosVelocidadPendientes() {
 /* ══ VERSIÓN DEL PLANIFICADOR ═══════════════════════════════════════════════════════════════════════════════════
    Se muestra al final de Ajustes para confirmar que GitHub Pages ya sirve la última versión subida.
    ⚠ Subir PLANIFICADOR_VERSION y agregar una línea al principio de PLANIFICADOR_HISTORIAL en CADA cambio. */
-var PLANIFICADOR_VERSION = { v: '1.39', fecha: '2026-11-10' };
+var PLANIFICADOR_VERSION = { v: '1.40', fecha: '2026-11-11' };
 var PLANIFICADOR_HISTORIAL = [
+  ['1.40', '2026-11-11', 'Costos: filtro de distanciamiento por bandas estándar (1.50, 1.60, 1.65, 1.75, 1.80 DS, 2.20 DS, 2.40 DS, Otros) según el diseño de cada zafra; nueva pestaña «Costos por distanciamiento» con CAT directo (cosechadoras + autovolteos) a velocidad anterior y optimizada, desplegable por tenencia, finca y lote'],
   ['1.39', '2026-11-10', 'Comparativo: «Detalle por tenencia» pasa a cada gráfico de tenencia (selector Serie dentro de la tarjeta); se quita del encabezado'],
   ['1.38', '2026-11-10', 'Versiones del plan por plantío: subido (automático), optimizado (el administrador lo bloquea), operativo (se recalcula solo) y real; el gráfico Plan vs Fábrica muestra el optimizado fijo y el operativo'],
   ['1.37', '2026-11-10', 'Plan vs Fábrica: línea automática del plan subido (se fija al subir el CSV, no cambia al optimizar) y Plan optimizado (actual) como única línea que cambia'],
@@ -21880,7 +21883,7 @@ function procesarCSVReal(texto) {
 var costTabActual = 'ranking';
 
 function showCostTab(tab) {
-  ['ranking','velocidad','sim','transporte','cosechabilidad','ociosas','ralenti'].forEach(function(t) {
+  ['ranking','dist','velocidad','sim','transporte','cosechabilidad','ociosas','ralenti'].forEach(function(t) {
     var p = document.getElementById('cost-panel-' + t);
     var b = document.getElementById('cost-tab-' + t);
     if (p) p.style.display = t === tab ? '' : 'none';
@@ -22024,6 +22027,9 @@ function calcCostoLote(campo, overrideTch, overrideNCosech, overrideTipoCamion, 
     costoTotalTabla: costoTotalTabla, costoTonTabla: costoTonTabla,
     costoTotalAnt: costoTotalAnt, costoTonAnt: costoTonAnt,
     ahorroTablaVsAnt: ahorroTablaVsAnt,
+    // Costo por componente en cada escenario de velocidad (para «Costos por distanciamiento»)
+    costCAnt: costCAnt, costAVAnt: costAVAnt, costCTabla: costCTabla, costAVTabla: costAVTabla,
+    surcoAnchoUsado: campoA.surcoAncho, hayVelAnterior: (parseFloat(campoEfectivo.velAnterior) > 0),
     // Extra
     tonCampo: t.tonCampo, area: campoA.area, tch: tchUsado,
     productividad: t.productividad, tTrabajoH: t.tTrabajoH,
@@ -22069,10 +22075,7 @@ function getCostosOrdenados() {
     if (filtFr  && p.frenteNombre !== filtFr) return false;
     if (filtZaf && p.zafra !== filtZaf) return false;
     if (filtTen && p.tenencia !== filtTen) return false;
-    if (filtSurco) {
-      var campoRef = campos.find(function(c){ return c.id === p.campoId || c.nombre === p.campoNombre; });
-      if (!campoRef || String(campoRef.surcoAncho) !== filtSurco) return false;
-    }
+    if (filtSurco && distBanda(distanciamientoDePlanItem(p)).clave !== filtSurco) return false;
     return true;
   });
 
@@ -22117,14 +22120,16 @@ function renderCostos() {
       zafrasDisp.map(function(z){ return '<option value="' + z + '">' + z + '</option>'; }).join('');
     if (zafrasDisp.indexOf(curZ) >= 0) selZaf.value = curZ; else aplicarDefaultZafraSiVacio(selZaf, curZ, zafrasDisp);
   }
-  // Sync ancho de surco filter — valores únicos detectados en Campos
+  // Sync distanciamiento filter — bandas estándar presentes en el plan (de la zafra elegida), según el diseño de cada zafra
   var selSurco = document.getElementById('cost-filtro-surco');
   if (selSurco) {
     var curS = selSurco.value;
-    var surcosDisp = [...new Set(campos.map(function(c){ return c.surcoAncho; }).filter(function(v){ return v !== undefined && v !== null; }))].sort(function(a,b){ return a-b; });
-    selSurco.innerHTML = '<option value="">Todos</option>' +
-      surcosDisp.map(function(s){ return '<option value="' + s + '">' + s + ' m</option>'; }).join('');
-    if (surcosDisp.map(String).indexOf(curS) >= 0) selSurco.value = curS;
+    var zafSelS = (document.getElementById('cost-filtro-zafra') || {}).value || '';
+    var bandasDisp = {};
+    planItems.forEach(function(pi) { if (zafSelS && pi.zafra !== zafSelS) return; var bd = distBanda(distanciamientoDePlanItem(pi)); bandasDisp[bd.clave] = bd; });
+    var listaBandas = Object.keys(bandasDisp).map(function(k) { return bandasDisp[k]; }).sort(function(x, y) { return x.orden - y.orden; });
+    selSurco.innerHTML = '<option value="">Todos</option>' + listaBandas.map(function(bd) { return '<option value="' + bd.clave + '">' + bd.etiqueta + '</option>'; }).join('');
+    if (bandasDisp[curS]) selSurco.value = curS;
   }
 
   if (!planItems.length) {
@@ -22182,12 +22187,220 @@ function renderCostos() {
 
   // Render tabs
   renderCostRanking(datos, costoTonProm);
+  renderCostDist(datos);
   renderCostVelocidad(datos, costoTonProm);
   renderCostSim(datos);
   renderCostTransporte(datos);
   renderCostCosechabilidad(datos);
   renderCostRalenti(datos);
   showCostTab(costTabActual);
+}
+
+/* ══════════ DISTANCIAMIENTO (ancho de surco) EN BANDAS ESTÁNDAR ══════════
+   El ancho de surco se guarda como número libre (a veces medido: 1.52, 1.68, 1.73…). Para analizar costos eso
+   genera decenas de segmentos casi iguales. Aquí cada valor se asigna a la banda estándar más cercana (±0.025 m);
+   lo que no cae en ninguna va a «Otros distanciamientos» y lo que no tiene dato a «Sin dato».
+   DS = doble surco (1.80, 2.20 y 2.40 m). Para cambiar las bandas basta editar DIST_BANDAS. */
+var DIST_BANDAS = [
+  { v: 1.50, ds: false }, { v: 1.60, ds: false }, { v: 1.65, ds: false }, { v: 1.75, ds: false },
+  { v: 1.80, ds: true }, { v: 2.20, ds: true }, { v: 2.40, ds: true }
+];
+var DIST_TOL = 0.025;
+function distBanda(ancho) {
+  var a = parseFloat(ancho);
+  if (!(a > 0)) return { clave: 'sin-dato', etiqueta: 'Sin dato', orden: 999 };
+  for (var i = 0; i < DIST_BANDAS.length; i++) {
+    var b = DIST_BANDAS[i];
+    if (Math.abs(a - b.v) < DIST_TOL) return { clave: b.v.toFixed(2), etiqueta: b.v.toFixed(2) + ' Metros' + (b.ds ? ' (DS)' : ''), orden: i };
+  }
+  return { clave: 'otros', etiqueta: 'Otros distanciamientos', orden: 900 };
+}
+// Distanciamiento que realmente aplica a un lote del plan EN SU ZAFRA (el diseño puede cambiar entre zafras por renovación)
+function distanciamientoDePlanItem(p) {
+  var cp = campos.find(function(c) { return c.id === p.campoId || c.nombre === p.campoNombre; });
+  if (!cp) return null;
+  var cz = p.zafra ? datosCampoParaZafra(cp, p.zafra) : cp;
+  return (cz && cz.surcoAncho > 0) ? cz.surcoAncho : cp.surcoAncho;
+}
+
+/* ══════════ PESTAÑA «COSTOS POR DISTANCIAMIENTO» ══════════
+   Árbol desplegable: Distanciamiento → Tenencia → Finca → Lote  (o Tenencia → Distanciamiento → Finca → Lote).
+   CAT directo = (costo de cosechadoras + costo de autovolteos) ÷ toneladas. Sin transporte.
+   Se muestra con dos velocidades: la ANTERIOR (medida la zafra pasada) y la OPTIMIZADA sugerida (tabla de velocidad
+   por TCH / tenencia / tipo de caña / antigüedad de la cosechadora). */
+var costDistOrden = 'dist-ten';
+var costDistDesglose = false;
+var costDistAbiertos = {};    // ruta del nodo → true si está desplegado
+var costDistRutas = [];       // índice → ruta (para los clics, sin meter nombres en el HTML)
+var costDistDatosUlt = [];
+
+function costDistNuevoNodo(ruta, nombre, orden, nivel) {
+  return { ruta: ruta, nombre: nombre, orden: orden, nivel: nivel, hijos: {}, lotes: [],
+    n: 0, ha: 0, ton: 0, cCosAnt: 0, cAVAnt: 0, cCosOpt: 0, cAVOpt: 0, sinVelAnt: 0 };
+}
+function costDistAcumular(nodo, d) {
+  nodo.n++; nodo.ha += d.area || 0; nodo.ton += d.tonCampo || 0;
+  nodo.cCosAnt += d.costCAnt || 0; nodo.cAVAnt += d.costAVAnt || 0;
+  nodo.cCosOpt += d.costCTabla || 0; nodo.cAVOpt += d.costAVTabla || 0;
+  if (!d.hayVelAnterior) nodo.sinVelAnt++;
+}
+function costDistConstruir(datos, orden) {
+  var niveles = orden === 'ten-dist' ? ['ten', 'dist', 'finca'] : ['dist', 'ten', 'finca'];
+  var raiz = costDistNuevoNodo('', 'Total General', 0, -1);
+  datos.forEach(function(d) {
+    var p = d.planItem || {};
+    var ten = p.tenencia || d.campo.tenencia || 'Sin tenencia';
+    var b = distBanda(d.surcoAnchoUsado);
+    var finca = d.campo.finca || '(Sin finca)';
+    var info = {
+      ten:   { k: ten,     n: ten,         o: ten === 'Propio' ? '0' : (ten === 'Proveedor' ? '1' : '2') },
+      dist:  { k: b.clave, n: b.etiqueta,  o: String(1000 + b.orden) },
+      finca: { k: finca,   n: finca,       o: String(finca).toLowerCase() }
+    };
+    var nodo = raiz; costDistAcumular(raiz, d);
+    niveles.forEach(function(nv, i) {
+      var inf = info[nv], ruta = nodo.ruta + '|' + nv + ':' + inf.k;
+      if (!nodo.hijos[ruta]) nodo.hijos[ruta] = costDistNuevoNodo(ruta, inf.n, inf.o, i);
+      nodo = nodo.hijos[ruta]; costDistAcumular(nodo, d);
+    });
+    nodo.lotes.push(d);
+  });
+  return raiz;
+}
+function costDistM(v) { return '$' + (v || 0).toFixed(2); }
+function costDistN2(v) { return (v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+function costDistFilaHtml(o) {
+  // o: {idx, nivel, nombre, sub, esLote, n, ha, pctHa, ton, cCosAnt, cAVAnt, cCosOpt, cAVOpt, visible, abierto, tieneHijos}
+  var catAnt = o.ton > 0 ? (o.cCosAnt + o.cAVAnt) / o.ton : 0;
+  var catOpt = o.ton > 0 ? (o.cCosOpt + o.cAVOpt) / o.ton : 0;
+  var dif = catAnt - catOpt;                                   // positivo = la velocidad optimizada es más barata
+  var ahorro = (o.cCosAnt + o.cAVAnt) - (o.cCosOpt + o.cAVOpt);
+  var difColor = dif > 0.005 ? 'var(--green-text)' : (dif < -0.005 ? 'var(--red-text)' : 'var(--text2)');
+  var bg = o.nivel === 0 ? 'background:rgba(253,238,226,.6);font-weight:600;' : '';
+  var pad = 8 + Math.max(0, o.nivel) * 20;
+  var flecha = o.tieneHijos
+    ? '<span style="display:inline-block;width:14px;color:var(--text2)">' + (o.abierto ? '▾' : '▸') + '</span>'
+    : '<span style="display:inline-block;width:14px"></span>';
+  var click = o.tieneHijos ? ' onclick="costDistToggle(' + o.idx + ')" style="cursor:pointer;' : ' style="';
+  var h = '<tr' + click + bg + (o.visible ? '' : 'display:none;') + '">';
+  h += '<td style="padding-left:' + pad + 'px;white-space:nowrap">' + flecha + escHtmlCosech(o.nombre) +
+       (o.sub ? ' <span style="font-size:10px;color:var(--text2);font-weight:400">' + o.sub + '</span>' : '') + '</td>';
+  h += '<td style="text-align:right">' + (o.esLote ? '' : o.n) + '</td>';
+  h += '<td style="text-align:right">' + costDistN2(o.ha) + '</td>';
+  h += '<td style="text-align:right">' + (o.pctHa).toFixed(2) + '%</td>';
+  h += '<td style="text-align:right">' + Math.round(o.ton).toLocaleString('en-US') + '</td>';
+  if (costDistDesglose) {
+    h += '<td style="text-align:right;color:var(--text2)">' + costDistM(o.ton > 0 ? o.cCosAnt / o.ton : 0) + '</td>';
+    h += '<td style="text-align:right;color:var(--text2)">' + costDistM(o.ton > 0 ? o.cAVAnt / o.ton : 0) + '</td>';
+  }
+  h += '<td style="text-align:right">' + costDistM(catAnt) + '</td>';
+  if (costDistDesglose) {
+    h += '<td style="text-align:right;color:var(--text2)">' + costDistM(o.ton > 0 ? o.cCosOpt / o.ton : 0) + '</td>';
+    h += '<td style="text-align:right;color:var(--text2)">' + costDistM(o.ton > 0 ? o.cAVOpt / o.ton : 0) + '</td>';
+  }
+  h += '<td style="text-align:right">' + costDistM(catOpt) + '</td>';
+  h += '<td style="text-align:right;color:' + difColor + '">' + (dif >= 0 ? '' : '-') + '$' + Math.abs(dif).toFixed(2) + '</td>';
+  h += '<td style="text-align:right;color:' + difColor + '">' + (ahorro >= 0 ? '' : '-') + '$' + Math.round(Math.abs(ahorro)).toLocaleString('en-US') + '</td>';
+  h += '</tr>';
+  return h;
+}
+
+function costDistFilasNodo(nodo, visible, totalHa, out) {
+  var hijos = Object.keys(nodo.hijos).map(function(k) { return nodo.hijos[k]; })
+    .sort(function(a, b) { return a.orden < b.orden ? -1 : (a.orden > b.orden ? 1 : 0); });
+  var lotes = nodo.lotes.slice().sort(function(a, b) { return (a.campo.nombre || '').localeCompare(b.campo.nombre || '', 'es', { numeric: true }); });
+  hijos.forEach(function(h) {
+    var idx = costDistRutas.length; costDistRutas.push(h.ruta);
+    var abierto = !!costDistAbiertos[h.ruta];
+    out.push(costDistFilaHtml({ idx: idx, nivel: h.nivel, nombre: h.nombre, sub: '', esLote: false, n: h.n, ha: h.ha, pctHa: totalHa > 0 ? h.ha / totalHa * 100 : 0,
+      ton: h.ton, cCosAnt: h.cCosAnt, cAVAnt: h.cAVAnt, cCosOpt: h.cCosOpt, cAVOpt: h.cAVOpt, visible: visible, abierto: abierto, tieneHijos: true }));
+    costDistFilasNodo(h, visible && abierto, totalHa, out);
+  });
+  lotes.forEach(function(d) {
+    var sub = 'ant. ' + (d.hayVelAnterior ? d.velAnterior.toFixed(1) : 'sin dato') + ' → opt. ' + d.velTabla.toFixed(1) + ' km/h';
+    out.push(costDistFilaHtml({ idx: -1, nivel: nodo.nivel + 1, nombre: d.campo.nombre, sub: sub, esLote: true, n: 1, ha: d.area || 0,
+      pctHa: totalHa > 0 ? (d.area || 0) / totalHa * 100 : 0, ton: d.tonCampo || 0,
+      cCosAnt: d.costCAnt, cAVAnt: d.costAVAnt, cCosOpt: d.costCTabla, cAVOpt: d.costAVTabla, visible: visible, abierto: false, tieneHijos: false }));
+  });
+}
+
+function costDistToggle(idx) {
+  var ruta = costDistRutas[idx]; if (ruta === undefined) return;
+  costDistAbiertos[ruta] = !costDistAbiertos[ruta];
+  renderCostDist(costDistDatosUlt);
+}
+function costDistExpandir(abrir) {
+  costDistAbiertos = {};
+  if (abrir) {
+    var raiz = costDistConstruir(costDistDatosUlt, costDistOrden);
+    (function rec(n) { Object.keys(n.hijos).forEach(function(k) { costDistAbiertos[k] = true; rec(n.hijos[k]); }); })(raiz);
+  }
+  renderCostDist(costDistDatosUlt);
+}
+function costDistCambiarOrden(v) { costDistOrden = v; costDistAbiertos = {}; renderCostDist(costDistDatosUlt); }
+function costDistCambiarDesglose(v) { costDistDesglose = !!v; renderCostDist(costDistDatosUlt); }
+
+function renderCostDist(datos) {
+  var el = document.getElementById('cost-panel-dist'); if (!el) return;
+  costDistDatosUlt = datos || [];
+  costDistRutas = [];
+  if (!costDistDatosUlt.length) { el.innerHTML = '<div class="alert alert-info"><i class="ti ti-info-circle"></i><span>Sin lotes para los filtros seleccionados.</span></div>'; return; }
+  var raiz = costDistConstruir(costDistDatosUlt, costDistOrden);
+  var filas = [];
+  costDistFilasNodo(raiz, true, raiz.ha, filas);
+
+  var zafSel = (document.getElementById('cost-filtro-zafra') || {}).value || '';
+  var th = 'style="background:#83be5c;color:#fff;text-align:right;white-space:nowrap"';
+  var thL = 'style="background:#83be5c;color:#fff;text-align:left;white-space:nowrap"';
+  var cabecera = '<tr><th ' + thL + '>' + (costDistOrden === 'ten-dist' ? 'Tenencia / Distanciamiento' : 'Distanciamiento / Tenencia') + '</th>' +
+    '<th ' + th + '>Lotes</th><th ' + th + '>Área (ha)</th><th ' + th + '>% del área</th><th ' + th + '>Ton</th>' +
+    (costDistDesglose ? '<th ' + th + ' title="Costo de cosechadoras por tonelada con la velocidad anterior">Cosech. ant. ($/ton)</th><th ' + th + ' title="Costo de autovolteos por tonelada con la velocidad anterior">AV ant. ($/ton)</th>' : '') +
+    '<th ' + th + ' title="(Cosechadoras + autovolteos) ÷ toneladas, con la velocidad de la zafra anterior">CAT directo vel. anterior ($/ton)</th>' +
+    (costDistDesglose ? '<th ' + th + ' title="Costo de cosechadoras por tonelada con la velocidad optimizada sugerida">Cosech. opt. ($/ton)</th><th ' + th + ' title="Costo de autovolteos por tonelada con la velocidad optimizada sugerida">AV opt. ($/ton)</th>' : '') +
+    '<th ' + th + ' title="(Cosechadoras + autovolteos) ÷ toneladas, con la velocidad optimizada sugerida (tabla)">CAT directo vel. optimizada ($/ton)</th>' +
+    '<th ' + th + ' title="Anterior menos optimizada. Verde = la velocidad optimizada es más barata">Diferencia ($/ton)</th>' +
+    '<th ' + th + ' title="Costo total (cosechadoras + autovolteos) con velocidad anterior menos con velocidad optimizada">Ahorro potencial ($)</th></tr>';
+
+  var total = costDistFilaHtml({ idx: -1, nivel: -1, nombre: 'Total General', sub: '', esLote: false, n: raiz.n, ha: raiz.ha, pctHa: 100, ton: raiz.ton,
+    cCosAnt: raiz.cCosAnt, cAVAnt: raiz.cAVAnt, cCosOpt: raiz.cCosOpt, cAVOpt: raiz.cAVOpt, visible: true, abierto: false, tieneHijos: false });
+  total = total.replace('<tr style="', '<tr style="background:#83be5c;color:#fff;font-weight:700;').replace(/color:var\(--[a-z]+-text\)/g, 'color:#fff').replace(/color:var\(--text2\)/g, 'color:#fff');
+
+  var h = '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">' +
+    '<label style="font-size:12px;color:var(--text2)">Agrupar por</label>' +
+    '<select style="margin:0;width:260px;font-size:12px" onchange="costDistCambiarOrden(this.value)">' +
+      '<option value="dist-ten"' + (costDistOrden === 'dist-ten' ? ' selected' : '') + '>Distanciamiento → Tenencia → Finca → Lote</option>' +
+      '<option value="ten-dist"' + (costDistOrden === 'ten-dist' ? ' selected' : '') + '>Tenencia → Distanciamiento → Finca → Lote</option>' +
+    '</select>' +
+    '<button class="btn btn-sm" onclick="costDistExpandir(true)">Expandir todo</button>' +
+    '<button class="btn btn-sm" onclick="costDistExpandir(false)">Contraer todo</button>' +
+    '<label style="font-size:12px;color:var(--text2);display:flex;align-items:center;gap:5px;cursor:pointer"><input type="checkbox" style="margin:0"' + (costDistDesglose ? ' checked' : '') + ' onchange="costDistCambiarDesglose(this.checked)"> Ver desglose cosechadora / autovolteo</label>' +
+    '</div>';
+  h += '<div style="overflow-x:auto"><table style="min-width:760px"><thead>' + cabecera + '</thead><tbody>' + filas.join('') + total + '</tbody></table></div>';
+
+  var notas = [];
+  notas.push('<strong>CAT directo</strong> = (costo de cosechadoras + costo de autovolteos) ÷ toneladas. No incluye transporte. Los promedios son ponderados por tonelada.');
+  notas.push('<strong>Vel. anterior</strong> = velocidad medida la zafra pasada. <strong>Vel. optimizada</strong> = la velocidad sugerida por la tabla de velocidad (TCH, tenencia, tipo de caña y antigüedad de la cosechadora). El ralentí del autovolteo se mantiene igual en ambos escenarios.');
+  if (raiz.sinVelAnt > 0) notas.push('<span style="color:var(--amber-text)">' + raiz.sinVelAnt + ' de ' + raiz.n + ' lotes no tienen velocidad anterior registrada: en esos lotes el escenario «anterior» usa la velocidad de tabla (diferencia = 0).</span>');
+  if (!zafSel) notas.push('<span style="color:var(--amber-text)">Estás viendo «Todas las zafras»: un mismo lote aparece una vez por zafra y su área se suma cada vez. Elige una zafra para comparar con el área real.</span>');
+  h += '<div style="font-size:11px;color:var(--text2);margin-top:10px;line-height:1.6">' + notas.join('<br>') + '</div>';
+  el.innerHTML = h;
+}
+
+function costExpDist() {
+  var datos = getCostosOrdenados();
+  var filas = [['zafra', 'tenencia', 'distanciamiento_banda', 'distanciamiento_real_m', 'finca', 'lote', 'frente', 'area_ha', 'ton_campo',
+    'vel_anterior_kmh', 'hay_vel_anterior', 'vel_optimizada_kmh', 'cosechadoras_ant', 'autovolteos_ant', 'cat_directo_ant_ton', 'cosechadoras_opt', 'autovolteos_opt', 'cat_directo_opt_ton',
+    'diferencia_ton', 'ahorro_total']];
+  datos.forEach(function(d) {
+    var p = d.planItem || {}, ton = d.tonCampo || 0;
+    var catA = ton > 0 ? (d.costCAnt + d.costAVAnt) / ton : 0, catO = ton > 0 ? (d.costCTabla + d.costAVTabla) / ton : 0;
+    filas.push([d.zafra || '', p.tenencia || d.campo.tenencia || '', distBanda(d.surcoAnchoUsado).etiqueta, d.surcoAnchoUsado || '', d.campo.finca || '', d.campo.nombre,
+      d.campo.frente ? d.campo.frente.nombre : '', (d.area || 0).toFixed(2), Math.round(ton), d.velAnterior.toFixed(2), d.hayVelAnterior ? 'si' : 'no', d.velTabla.toFixed(2),
+      Math.round(d.costCAnt), Math.round(d.costAVAnt), catA.toFixed(2), Math.round(d.costCTabla), Math.round(d.costAVTabla), catO.toFixed(2),
+      (catA - catO).toFixed(2), Math.round((d.costCAnt + d.costAVAnt) - (d.costCTabla + d.costAVTabla))]);
+  });
+  return { etiqueta: COST_TAB_NOMBRES.dist, filas: filas };
 }
 
 /* ── Tab Ranking ── */
@@ -28046,7 +28259,7 @@ function renderPanelReal() {
    BOM UTF-8 (abre directo en Excel), igual que las exportaciones de
    Logística y del plan diario.
    ══════════════════════════════════════════════════════════════════ */
-var COST_TAB_NOMBRES = { ranking: 'Ranking por costo', velocidad: 'Análisis de velocidad', sim: 'Simulador de mejora', transporte: 'Simulador de transporte', cosechabilidad: 'Índice de cosechabilidad', ociosas: 'Horas ociosas', ralenti: 'Ralentí' };
+var COST_TAB_NOMBRES = { ranking: 'Ranking por costo', dist: 'Costos por distanciamiento', velocidad: 'Análisis de velocidad', sim: 'Simulador de mejora', transporte: 'Simulador de transporte', cosechabilidad: 'Índice de cosechabilidad', ociosas: 'Horas ociosas', ralenti: 'Ralentí' };
 
 // Convierte "$1,234.50", "12.5 ton/h", "45%", "+3.2%" en número; lo demás se deja como texto.
 function costLimpiarValor(txt) {
@@ -28148,6 +28361,7 @@ function exportarPestanaCostos(tab) {
   var r = null;
   try {
     if (tab === 'ranking') r = costExpRanking();
+    else if (tab === 'dist') r = costExpDist();
     else if (tab === 'velocidad') r = costExpVelocidad();
     else if (tab === 'cosechabilidad') r = costExpCosechabilidad();
     else if (tab === 'ralenti') r = costExpRalenti();
